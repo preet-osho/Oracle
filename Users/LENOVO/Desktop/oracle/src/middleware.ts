@@ -103,6 +103,7 @@ export async function proxy(request: NextRequest) {
   );
 
   // Content Security Policy
+  // NOTE: 'unsafe-eval' required by Next.js + some libraries (framer-motion). Remove when possible.
   const csp = [
     "default-src 'self'",
     "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdnjs.cloudflare.com",
@@ -117,6 +118,10 @@ export async function proxy(request: NextRequest) {
       'https://*.supabase.co', 'wss://*.supabase.co',
       'https://*.supabase.in', 'wss://*.supabase.in',
     ].join(' ')}`,
+    "base-uri 'self'",
+    "object-src 'none'",
+    "worker-src 'self'",
+    "manifest-src 'self'",
     "frame-src 'none'",
     "upgrade-insecure-requests",
   ].join('; ');
