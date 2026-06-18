@@ -168,20 +168,42 @@ async function handleStreaming(
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
 ) {
+  const startTime = Date.now();
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        let streamSuccess = false;
         if (providerId === 'anthropic') {
-          await streamAnthropic(controller, encoder, apiKey, modelId, messages, systemPrompt, maxTokens);
+          streamSuccess = await streamAnthropic(controller, encoder, apiKey, modelId, messages, systemPrompt, maxTokens);
         } else {
-          await streamOpenAICompatible(controller, encoder, provider.baseUrl, apiKey, modelId, providerId, messages, systemPrompt, maxTokens);
+          streamSuccess = await streamOpenAICompatible(controller, encoder, provider.baseUrl, apiKey, modelId, providerId, messages, systemPrompt, maxTokens);
         }
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+
+        // Record health (success only if stream succeeded)
+        recordProviderHealth({
+          providerId,
+          timestamp: Date.now(),
+          latencyMs: Date.now() - startTime,
+          success: streamSuccess,
+          model: modelId,
+          tokensUsed: 0,
+        });
+
         controller.close();
       } catch (error) {
+        recordProviderHealth({
+          providerId,
+          timestamp: Date.now(),
+          latencyMs: Date.now() - startTime,
+          success: false,
+          model: modelId,
+          tokensUsed: 0,
+          errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        });
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
         controller.close();
       }
@@ -209,6 +231,7 @@ async function handleSync(
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
 ) {
+  const startTime = Date.now();
   try {
     let text = '';
     let inputTokens = 0;
@@ -228,6 +251,16 @@ async function handleSync(
 
     const cost = calculateCost(providerId, modelId, inputTokens, outputTokens);
 
+    // Record successful health
+    recordProviderHealth({
+      providerId,
+      timestamp: Date.now(),
+      latencyMs: Date.now() - startTime,
+      success: true,
+      model: modelId,
+      tokensUsed: inputTokens + outputTokens,
+    });
+
     return Response.json({
       text,
       provider: providerId,
@@ -242,7 +275,7 @@ async function handleSync(
     recordProviderHealth({
       providerId,
       timestamp: Date.now(),
-      latencyMs: Date.now() - Date.now(),
+      latencyMs: Date.now() - startTime,
       success: false,
       model: modelId,
       tokensUsed: 0,
@@ -265,7 +298,7 @@ async function streamAnthropic(
   messages: Array<{ role: string; content: string }>,
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
-) {
+): Promise<boolean> {
   const body: Record<string, unknown> = {
     model,
     max_tokens: maxTokens || 4096,
@@ -293,11 +326,11 @@ async function streamAnthropic(
   if (!response.ok) {
     const error = await response.text();
     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `Anthropic API error (${response.status}): ${error}` })}\n\n`));
-    return;
+    return false;
   }
 
   const reader = response.body?.getReader();
-  if (!reader) return;
+  if (!reader) return false;
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -329,6 +362,7 @@ async function streamAnthropic(
   } finally {
     reader.releaseLock();
   }
+  return true;
 }
 
 // ─── OpenAI-Compatible Streaming ───────
@@ -343,7 +377,7 @@ async function streamOpenAICompatible(
   messages: Array<{ role: string; content: string }>,
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
-) {
+): Promise<boolean> {
   const allMessages = [...messages];
   // Ensure system message is first for OpenAI-compatible
   if (systemPrompt && !allMessages.some((m) => m.role === 'system')) {
@@ -367,11 +401,11 @@ async function streamOpenAICompatible(
   if (!response.ok) {
     const error = await response.text();
     controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `API error (${response.status}): ${error}` })}\n\n`));
-    return;
+    return false;
   }
 
   const reader = response.body?.getReader();
-  if (!reader) return;
+  if (!reader) return false;
 
   const decoder = new TextDecoder();
   let buffer = '';
@@ -404,6 +438,7 @@ async function streamOpenAICompatible(
   } finally {
     reader.releaseLock();
   }
+  return true;
 }
 
 // ─── Anthropic Sync ────────────────────
