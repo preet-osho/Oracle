@@ -5,6 +5,16 @@ const nextConfig = {
   // Enable React Strict Mode for better error detection
   reactStrictMode: true,
 
+  // Optimize imports for heavy packages (tree-shaking)
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      '@tanstack/react-query',
+      'recharts',
+      'framer-motion',
+    ],
+  },
+
   // Image optimization
   images: {
     remotePatterns: [

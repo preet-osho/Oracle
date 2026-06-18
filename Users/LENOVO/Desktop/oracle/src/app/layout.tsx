@@ -8,12 +8,11 @@ const inter = Inter({
   variable: "--font-sans",
   display: "swap",
   preload: true,
-});
-
-const jetbrainsMono = JetBrains_Mono({
+});const jetbrainsMono = JetBrains_Mono({ 
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",
+  preload: false,
 });
 
 export const metadata: Metadata = {
