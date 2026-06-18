@@ -65,6 +65,7 @@ export async function middleware(request: NextRequest) {
         "frame-ancestors 'none'",
         "base-uri 'self'",
         "form-action 'self'",
+        "upgrade-insecure-requests",
       ].join('; ')
     );
   }

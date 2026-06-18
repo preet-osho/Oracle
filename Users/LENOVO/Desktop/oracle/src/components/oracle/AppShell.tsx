@@ -18,6 +18,7 @@ import { isKeyMigrationComplete, countLegacyKeys, migrateKeysToServer } from '@/
 import toast from 'react-hot-toast';
 import { ORACLE_TABS, isValidTab, type OracleTab } from '@/styles/design-tokens';
 import { OnboardingWizard } from './OnboardingWizard';
+import { SkipNav } from './SkipNav';
 import { OfflineBanner } from './OfflineBanner';
 
 // ─── Lazy Load Tabs ───────────────────
@@ -342,6 +343,9 @@ export function AppShell() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="relative flex h-screen flex-col overflow-hidden bg-[var(--oracle-bg)]">
+            {/* ── Skip Navigation ── */}
+            <SkipNav />
+
             {/* ── Background Radial Gradient ── */}
             <div className="pointer-events-none fixed inset-0 oracle-bg-radial" aria-hidden="true" />
 
@@ -377,7 +381,7 @@ export function AppShell() {
             />
 
             {/* ── Main Content with animated tab switch ── */}
-            <main className="relative flex-1 overflow-hidden" role="main">
+            <main id="main-content" className="relative flex-1 overflow-hidden" role="main">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeTab}
