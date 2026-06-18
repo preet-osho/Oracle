@@ -1,6 +1,6 @@
 # ORACLE — Product Truth Document
 
-> **Version:** 2.1 · **Last updated:** June 18, 2026
+> **Version:** 3.0 · **Last updated:** June 19, 2026
 > **Canonical source of truth.** All product decisions, repairs, and feature work should reference this document.
 
 ---
@@ -302,8 +302,8 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **RLS** | Supabase Row Level Security policies on all tables |
 | **Key isolation** | API keys never exposed to client (no `NEXT_PUBLIC_` prefix for service keys) |
 | **Input validation** | Zod schemas on all POST/PUT routes (invoices/[id] PUT fixed for mass-assignment) |
-| **CSP** | Content-Security-Policy on HTML page loads (Sentry + Supabase allowlisted, `upgrade-insecure-requests` for mixed content) |
-| **Permissions-Policy** | Camera, microphone, geolocation denied on all responses |
+| **CSP** | Content-Security-Policy: `default-src 'self'`, `script-src 'self' 'unsafe-eval' 'unsafe-inline'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self' data: blob: https:`, `font-src 'self'`, `connect-src 'self'` + Supabase, `base-uri 'self'`, `object-src 'none'`, `worker-src 'self'`, `manifest-src 'self'`, `frame-src 'none'`, `upgrade-insecure-requests` |
+| **Permissions-Policy** | Camera and geolocation denied; microphone allowed for own origin (voice input) |
 
 ---
 
@@ -364,8 +364,8 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **Phase 6** | AI system repair | ✅ Done | Quality scoring: aligned grade/label thresholds (C≥40="Needs Work", D≥20="Poor"), trend noise reduction. Memory extraction: deduplication, importance validation, per-client limit (100), improved prompt. Hallucination guard: weight normalization, self-verification fallback 70→50, replaced noisy `missing_caveat` with `unsupported_claim`, updated year range to 2024. |
 | **Phase 7** | Self-training loop | ✅ Done | Created `feedback-bridge.ts` connecting hallucination-guard → self-training → model-selector. Verdict buttons update model performance learning. Quality scores fed via `.then()` callbacks (non-blocking). `getFeedbackSummary()` aggregates insights from all 3 systems. |
 | **Phase 8** | UI polish | ✅ Done | Enhanced Sidebar QualityBar with SVG circular gauge + grade letter. Created reusable `LoadingSkeleton` components (ChatMessage, Card, Table, Stats). |
-| **Phase 9** | Failure modes | ✅ Done | Fixed critical provider health bug: `recordProviderHealth()` used `localStorage` but was called server-side (silently no-op). Migrated to client-side recording — server returns `_health` metadata in response body (sync) and SSE chunks (streaming). Fixed `latencyMs` bug (was `Date.now() - Date.now()` = always 0). Added health recording to streaming handler. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. Added 26 unit tests in `provider-health.test.ts` (1,428 total tests across 83 files). |
-| **Phase 10** | Release readiness | 🟡 In Progress | CSP hardened: `upgrade-insecure-requests` directive. Accessibility: `SkipNav` component (WCAG 2.1 AA), `#main-content` target. Remaining: performance audit (bundle size, lazy loading), SEO audit (Lighthouse ≥90), production CSP live testing |
+| **Phase 9** | Failure modes | ✅ Done | Fixed critical provider health bug: `recordProviderHealth()` used `localStorage` but was called server-side (silently no-op). Migrated to client-side recording — server returns `_health` metadata in response body (sync) and SSE chunks (streaming). Fixed `latencyMs` bug (was `Date.now() - Date.now()` = always 0). Added health recording to streaming handler. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. Added 26 unit tests in `provider-health.test.ts` + 5 integration tests in `ChatPanel.test.tsx` (1,433 total tests across 83 files). |
+| **Phase 10** | Release readiness | ✅ Done | CSP production hardening: `base-uri 'self'`, `object-src 'none'`, `worker-src 'self'`, `manifest-src 'self'`, `upgrade-insecure-requests`. Accessibility: `SkipNav` component (WCAG 2.1 AA), `#main-content` target, `.skip-nav:focus` CSS. Performance: `optimizePackageImports` for lucide-react, recharts, framer-motion, @tanstack/react-query; JetBrains_Mono `preload: false`. All 1,433 tests passing, build verified, TypeScript clean. |
 
 ---
 
