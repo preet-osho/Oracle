@@ -1,0 +1,436 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+  }
+
+  .dark {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 240 5.9% 10%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 240 4.9% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+/* ═══════════════════════════════════════
+   ORACLE — Design System CSS Variables
+   ═══════════════════════════════════════ */
+
+:root {
+  --oracle-bg: #f8faff;
+  --oracle-surface-1: #f0f4ff;
+  --oracle-surface-2: #e8eeff;
+  --oracle-surface-3: #dde5ff;
+  --oracle-card: rgba(0, 0, 0, 0.02);
+  --oracle-card-hover: rgba(0, 0, 0, 0.05);
+  --oracle-border: rgba(0, 0, 0, 0.07);
+  --oracle-border-strong: rgba(0, 0, 0, 0.13);
+  --oracle-primary: #4f46e5;
+  --oracle-primary-l: #6366f1;
+  --oracle-primary-xl: #818cf8;
+  --oracle-success: #059669;
+  --oracle-warning: #d97706;
+  --oracle-error: #dc2626;
+  --oracle-info: #0284c7;
+  --oracle-text-1: #0f1020;
+  --oracle-text-2: #1a2040;
+  --oracle-text-3: #4a5580;
+  --oracle-text-muted: #9ca3af;
+}
+
+.dark {
+  --oracle-bg: #020711;
+  --oracle-surface-1: #060d1e;
+  --oracle-surface-2: #0a1228;
+  --oracle-surface-3: #0f1a35;
+  --oracle-card: rgba(255, 255, 255, 0.04);
+  --oracle-card-hover: rgba(255, 255, 255, 0.07);
+  --oracle-border: rgba(255, 255, 255, 0.07);
+  --oracle-border-strong: rgba(255, 255, 255, 0.13);
+  --oracle-primary: #6366f1;
+  --oracle-primary-l: #818cf8;
+  --oracle-primary-xl: #a5b4fc;
+  --oracle-success: #10b981;
+  --oracle-warning: #f59e0b;
+  --oracle-error: #ef4444;
+  --oracle-info: #0ea5e9;
+  --oracle-text-1: #f8faff;
+  --oracle-text-2: #c4d1f0;
+  --oracle-text-3: #7080b0;
+  --oracle-text-muted: #3a4876;
+}
+
+/* ── Scrollbar Styling ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--oracle-border-strong);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--oracle-text-muted);
+}
+
+/* ── Selection ── */
+::selection {
+  background: rgba(99, 102, 241, 0.3);
+  color: inherit;
+}
+
+/* ── Focus Ring — WCAG AA compliant ── */
+:focus-visible {
+  outline: 2px solid var(--oracle-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Reduced Motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Screen reader only ── */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ── Oracle Custom Utilities ── */
+.oracle-gradient-text {
+  background: linear-gradient(135deg, #6366f1, #818cf8, #a5b4fc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.oracle-gradient-bg {
+  background: linear-gradient(135deg, #4f46e5, #6366f1, #818cf8);
+}
+
+.oracle-glass {
+  background: var(--oracle-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--oracle-border);
+}
+
+.oracle-glass-hover:hover {
+  background: var(--oracle-card-hover);
+  border-color: var(--oracle-border-strong);
+}
+
+.oracle-glow {
+  box-shadow: 0 0 28px rgba(99, 102, 241, 0.25);
+}
+
+.oracle-card-shadow {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
+}
+
+.oracle-bg-radial {
+  background-image: radial-gradient(
+    ellipse at top right,
+    rgba(99, 102, 241, 0.08) 0%,
+    transparent 60%
+  );
+}
+
+/* ── Chat Bubble Styles ── */
+.oracle-msg-user {
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(14, 165, 233, 0.05));
+  border: 1px solid rgba(14, 165, 233, 0.15);
+}
+
+.oracle-msg-agent {
+  background: var(--oracle-card);
+  border: 1px solid var(--oracle-border);
+  backdrop-filter: blur(8px);
+}
+
+/* ── Streaming Cursor with glow ── */
+.oracle-cursor::after {
+  content: '▊';
+  animation: cursorBlink 0.8s step-end infinite;
+  color: var(--oracle-primary);
+  margin-left: 2px;
+  text-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+}
+
+@keyframes cursorBlink {
+  50% { opacity: 0; }
+}
+
+/* ── Status Dot ── */
+.oracle-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.oracle-status-ok {
+  background: #10b981;
+  animation: statusBounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.oracle-status-fail { background: #ef4444; }
+.oracle-status-rate { background: #f59e0b; }
+.oracle-status-idle { background: #3a4876; }
+
+@keyframes statusBounce {
+  0% { transform: scale(0.5); }
+  60% { transform: scale(1.4); }
+  100% { transform: scale(1); }
+}
+
+/* ── Branded Loading Spinner ── */
+.oracle-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.oracle-spinner-ring {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--oracle-border);
+  border-top-color: var(--oracle-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.oracle-spinner-text {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--oracle-text-muted);
+  animation: fadeInOut 1.5s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeInOut {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ── Shimmer Loading ── */
+.oracle-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: var(--oracle-surface-2);
+  border-radius: 8px;
+}
+
+.oracle-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.05) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── Focus ring utility ── */
+.oracle-focus-ring:focus-visible {
+  outline: 2px solid var(--oracle-primary);
+  outline-offset: 2px;
+}
+
+/* ── Touch target minimum ── */
+.oracle-touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Markdown Rendering in Chat ── */
+.oracle-markdown h1 { color: var(--oracle-text-1); font-weight: 700; font-size: 18px; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+.oracle-markdown h2 { color: var(--oracle-text-1); font-weight: 700; font-size: 16px; margin-top: 1rem; margin-bottom: 0.5rem; }
+.oracle-markdown h3 { color: var(--oracle-text-1); font-weight: 700; font-size: 15px; margin-top: 0.75rem; margin-bottom: 0.375rem; }
+.oracle-markdown h4 { color: var(--oracle-text-1); font-weight: 600; font-size: 14px; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+.oracle-markdown p { margin: 0.375rem 0; line-height: 1.65; }
+.oracle-markdown strong { color: var(--oracle-text-1); font-weight: 600; }
+.oracle-markdown em { font-style: italic; }
+.oracle-markdown ul { margin: 0.5rem 0; padding-left: 1.25rem; list-style: disc; }
+.oracle-markdown ol { margin: 0.5rem 0; padding-left: 1.25rem; list-style: decimal; }
+.oracle-markdown li { margin: 0.25rem 0; line-height: 1.5; }
+.oracle-markdown blockquote { border-left: 3px solid var(--oracle-primary); padding-left: 0.75rem; margin: 0.5rem 0; color: var(--oracle-text-3); font-style: italic; }
+.oracle-markdown a { color: var(--oracle-primary-l); text-decoration: underline; }
+.oracle-markdown a:hover { color: var(--oracle-primary-xl); }
+.oracle-markdown hr { border: none; border-top: 1px solid var(--oracle-border); margin: 0.75rem 0; }
+.oracle-markdown table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 12px; }
+.oracle-markdown th { background: var(--oracle-surface-2); padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; color: var(--oracle-text-1); }
+.oracle-markdown td { border-top: 1px solid var(--oracle-border); padding: 0.5rem 0.75rem; color: var(--oracle-text-2); }
+.oracle-markdown pre { margin: 0.5rem 0; overflow-x: auto; }
+.oracle-markdown code { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+.oracle-markdown :not(pre) > code { background: var(--oracle-surface-2); padding: 0.125rem 0.375rem; border-radius: 4px; color: var(--oracle-primary-l); }
+
+/* ── Scrollbar hide ── */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Prose styling for roadmap output ── */
+.prose-sm h3 {
+  color: var(--oracle-text-1);
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.prose-sm p {
+  color: var(--oracle-text-2);
+  line-height: 1.7;
+}
+
+.prose-sm strong {
+  color: var(--oracle-text-1);
+}
+
+.prose-sm code {
+  background: var(--oracle-surface-2);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--oracle-primary-l);
+}

@@ -1,0 +1,28 @@
+{
+  "name": "ORACLE — Universal Agency Intelligence",
+  "short_name": "ORACLE",
+  "description": "The ultimate agency AI agent. Manage clients, projects, leads, invoicing, and AI-powered workflows.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020711",
+  "theme_color": "#6366f1",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "en-IN",
+  "dir": "ltr",
+  "scope": "/"
+}

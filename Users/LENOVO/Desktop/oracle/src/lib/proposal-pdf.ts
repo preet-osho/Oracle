@@ -1,0 +1,214 @@
+// ═══════════════════════════════════════
+// ORACLE — Proposal PDF Exporter
+// Parses markdown proposals into branded PDF/Word documents
+// ═══════════════════════════════════════
+
+import { exportToPDF, exportToWord, type PDFSection, type DocxSection } from './export-utils';
+
+// ─── Types ─────────────────────────────
+
+export interface ProposalExportOptions {
+  title?: string;
+  domain?: string;
+  clientName?: string;
+  agencyName?: string;
+}
+
+// ─── Markdown Parser ───────────────────
+
+function parseProposalMarkdown(markdown: string): PDFSection[] {
+  const sections: PDFSection[] = [];
+  const lines = markdown.split('\n');
+  let currentHeading = '';
+  let currentContent: string[] = [];
+  let currentListItems: string[] = [];
+  let currentTableHeaders: string[] = [];
+  let currentTableRows: string[][] = [];
+  let inTable = false;
+  let inList = false;
+
+  const flushContent = () => {
+    if (currentHeading && (currentContent.length > 0 || currentListItems.length > 0 || currentTableHeaders.length > 0)) {
+      if (currentTableHeaders.length > 0) {
+        sections.push({
+          heading: currentHeading,
+          content: '',
+          type: 'table',
+          tableHeaders: currentTableHeaders,
+          tableRows: currentTableRows,
+        });
+      } else if (currentListItems.length > 0) {
+        sections.push({
+          heading: currentHeading,
+          content: '',
+          type: 'list',
+          listItems: currentListItems,
+        });
+      } else {
+        sections.push({
+          heading: currentHeading,
+          content: currentContent.join('\n'),
+          type: 'text',
+        });
+      }
+    }
+    currentContent = [];
+    currentListItems = [];
+    currentTableHeaders = [];
+    currentTableRows = [];
+    inTable = false;
+    inList = false;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Heading detection (## or ###)
+    if (trimmed.startsWith('## ') || trimmed.startsWith('### ')) {
+      flushContent();
+      currentHeading = stripMarkdownFormatting(trimmed.replace(/^#{2,3}\s*/, ''));
+      inList = false;
+      continue;
+    }
+
+    // Skip top-level title (# heading) — we use our own title
+    if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+      continue;
+    }
+
+    // Table detection
+    if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+      if (!inTable) {
+        inTable = true;
+        inList = false;
+      }
+      const cells = trimmed.split('|').filter((c) => c.trim() !== '');
+      // Skip separator rows (|---|---|)
+      if (cells.every((c) => /^[\s\-:]+$/.test(c))) continue;
+
+      if (currentTableHeaders.length === 0) {
+        currentTableHeaders = cells.map((c) => c.trim());
+      } else {
+        currentTableRows.push(cells.map((c) => c.trim()));
+      }
+      continue;
+    } else if (inTable) {
+      // End of table — flush as table section
+      if (currentHeading && currentTableHeaders.length > 0) {
+        sections.push({
+          heading: currentHeading,
+          content: '',
+          type: 'table',
+          tableHeaders: currentTableHeaders,
+          tableRows: currentTableRows,
+        });
+        currentHeading = '';
+        currentTableHeaders = [];
+        currentTableRows = [];
+      }
+      inTable = false;
+    }
+
+    // List item detection
+    if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+      if (!inList) {
+        inList = true;
+      }
+      const text = trimmed.replace(/^[\-\*]\s*/, '');
+      currentListItems.push(stripMarkdownFormatting(text));
+      continue;
+    }
+
+    // Numbered list
+    if (/^\d+\.\s/.test(trimmed)) {
+      const text = trimmed.replace(/^\d+\.\s*/, '');
+      currentListItems.push(stripMarkdownFormatting(text));
+      continue;
+    }
+
+    // Horizontal rule — section separator
+    if (trimmed === '---' || trimmed === '***') {
+      flushContent();
+      continue;
+    }
+
+    // Empty line — paragraph break
+    if (trimmed === '') {
+      if (inList) {
+        inList = false;
+      }
+      if (currentContent.length > 0) {
+        currentContent.push('');
+      }
+      continue;
+    }
+
+    // Regular content line
+    currentContent.push(stripMarkdownFormatting(trimmed));
+  }
+
+  flushContent();
+  return sections;
+}
+
+function stripMarkdownFormatting(text: string): string {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1');
+}
+
+// ─── Export Functions ──────────────────
+
+export function exportProposalToPDF(
+  markdown: string,
+  options: ProposalExportOptions = {}
+): void {
+  const {
+    title = 'Client Proposal',
+    domain = 'Digital Agency Services',
+    clientName = '',
+    agencyName = 'ORACLE Digital',
+  } = options;
+
+  const sections = parseProposalMarkdown(markdown);
+
+  exportToPDF({
+    title,
+    subtitle: `${domain}${clientName ? ` — ${clientName}` : ''} · Generated by ${agencyName}`,
+    sections,
+    fileName: `proposal-${(clientName || domain).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+    showBranding: true,
+  });
+}
+
+export function exportProposalToWord(
+  markdown: string,
+  options: ProposalExportOptions = {}
+): void {
+  const {
+    title = 'Client Proposal',
+    domain = 'Digital Agency Services',
+    clientName = '',
+    agencyName = 'ORACLE Digital',
+  } = options;
+
+  const sections = parseProposalMarkdown(markdown);
+
+  const docxSections: DocxSection[] = sections.map((s) => ({
+    heading: s.heading,
+    content: s.content,
+    type: s.type === 'table' ? 'table' : s.type === 'list' ? 'list' : 'text',
+    listItems: s.listItems,
+    tableHeaders: s.tableHeaders,
+    tableRows: s.tableRows,
+  }));
+
+  exportToWord({
+    title,
+    subtitle: `${domain}${clientName ? ` — ${clientName}` : ''} · Generated by ${agencyName}`,
+    sections: docxSections,
+    fileName: `proposal-${(clientName || domain).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`,
+  });
+}

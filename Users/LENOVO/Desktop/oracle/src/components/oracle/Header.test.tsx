@@ -1,0 +1,158 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import React from 'react';
+
+// ─── Mocks ───
+
+vi.mock('next-themes', () => ({
+  useTheme: () => ({
+    theme: 'dark',
+    setTheme: vi.fn(),
+  }),
+}));
+
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: (p: Record<string, unknown>) => <div {...p}>{p.children as React.ReactNode}</div>,
+    span: (p: Record<string, unknown>) => <span {...p}>{p.children as React.ReactNode}</span>,
+  },
+  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+vi.mock('@/stores/router.store', () => ({
+  useRouterStore: () => ({
+    totalCostINR: 0.05,
+    mcpEnabled: { gmail: true, calendar: false, drive: false },
+    providerStatuses: {},
+  }),
+}));
+
+vi.mock('@/styles/design-tokens', () => ({
+  ORACLE_TABS: [
+    { id: 'agent', label: 'Agent', emoji: '🤖' },
+    { id: 'prompts', label: 'Prompts', emoji: '📝' },
+  ],
+}));
+
+vi.mock('@/lib/router', () => ({
+  NeverStopRouter: {
+    getAllKeys: vi.fn().mockReturnValue({ openai: 'sk-123' }),
+  },
+}));
+
+vi.mock('@/components/oracle/NotificationPanel', () => ({
+  useNotificationCount: () => 3,
+}));
+
+vi.mock('@/lib/supabase/hooks', () => ({
+  useUser: () => ({ user: { id: 'u1', email: 'test@oracle.com' } }),
+  useLogout: () => vi.fn(),
+}));
+
+// ─── Import after mocks ───
+
+import { Header } from './Header';
+
+// ─── Tests ─────────────────────────────
+
+describe('Header', () => {
+  const defaultProps = {
+    activeTab: 'agent' as const,
+    onTabChange: vi.fn(),
+    onCommandOpen: vi.fn(),
+    onNotificationsOpen: vi.fn(),
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders the ORACLE logo', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByText('ORACLE')).toBeDefined();
+    expect(screen.getByText('Universal Agency Intelligence')).toBeDefined();
+  });
+
+  it('renders tab navigation', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByText('Agent')).toBeDefined();
+    expect(screen.getByText('Prompts')).toBeDefined();
+  });
+
+  it('calls onTabChange when tab is clicked', () => {
+    render(<Header {...defaultProps} />);
+    fireEvent.click(screen.getByText('Prompts'));
+    expect(defaultProps.onTabChange).toHaveBeenCalledWith('prompts');
+  });
+
+  it('renders MCP service toggles', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByText('Gmail')).toBeDefined();
+    expect(screen.getByText('Calendar')).toBeDefined();
+    expect(screen.getByText('Drive')).toBeDefined();
+  });
+
+  it('shows MCP gmail as connected', () => {
+    render(<Header {...defaultProps} />);
+    // The status dot class is on a span inside the button
+    const gmailBtn = screen.getByLabelText('MCP gmail: connected');
+    expect(gmailBtn).toBeDefined();
+  });
+
+  it('renders command palette button', () => {
+    render(<Header {...defaultProps} />);
+    const cmdBtn = screen.getByText('⌘K');
+    expect(cmdBtn).toBeDefined();
+  });
+
+  it('calls onCommandOpen when ⌘K is clicked', () => {
+    render(<Header {...defaultProps} />);
+    fireEvent.click(screen.getByText('⌘K'));
+    expect(defaultProps.onCommandOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders theme toggle', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByLabelText('Switch to light mode')).toBeDefined();
+  });
+
+  it('renders notifications bell with count', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByLabelText(/Notifications.*3 unread/)).toBeDefined();
+  });
+
+  it('calls onNotificationsOpen when bell is clicked', () => {
+    render(<Header {...defaultProps} />);
+    fireEvent.click(screen.getByLabelText(/Notifications/));
+    expect(defaultProps.onNotificationsOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('displays cost in INR', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByText('₹0.05')).toBeDefined();
+  });
+
+  it('renders user menu when user is present', () => {
+    render(<Header {...defaultProps} />);
+    expect(screen.getByLabelText('User menu')).toBeDefined();
+  });
+
+  it('shows user email when menu is opened', () => {
+    render(<Header {...defaultProps} />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    expect(screen.getByText('test@oracle.com')).toBeDefined();
+    expect(screen.getByText('Signed in')).toBeDefined();
+  });
+
+  it('shows sign out option in user menu', () => {
+    render(<Header {...defaultProps} />);
+    fireEvent.click(screen.getByLabelText('User menu'));
+    expect(screen.getByText('Sign out')).toBeDefined();
+  });
+
+  it('sets aria-current on active tab', () => {
+    render(<Header {...defaultProps} />);
+    const agentTab = screen.getByText('Agent').closest('button');
+    expect(agentTab?.getAttribute('aria-current')).toBe('page');
+  });
+});
