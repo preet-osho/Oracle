@@ -1,6 +1,6 @@
 # ORACLE — Product Truth Document
 
-> **Version:** 1.0 · **Last updated:** June 18, 2026
+> **Version:** 2.0 · **Last updated:** June 18, 2026
 > **Canonical source of truth.** All product decisions, repairs, and feature work should reference this document.
 
 ---
@@ -297,10 +297,13 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **Route protection** | Unauthenticated users redirected to `/login` |
 | **API key encryption** | AES-256-CBC with random IV, stored as `iv_hex:ciphertext_hex` |
 | **CSRF protection** | Centralised in root middleware for all POST/PUT/PATCH/DELETE routes |
+| **CSRF cookie Secure** | `Secure` flag conditional on HTTPS (production only, excluded on localhost) |
 | **Rate limiting** | All 35+ API routes rate-limited (write: 30 req/min, read: 60 req/min) |
 | **RLS** | Supabase Row Level Security policies on all tables |
 | **Key isolation** | API keys never exposed to client (no `NEXT_PUBLIC_` prefix for service keys) |
-| **Input validation** | Zod schemas on critical routes (projects, conversations) |
+| **Input validation** | Zod schemas on all POST/PUT routes (invoices/[id] PUT fixed for mass-assignment) |
+| **CSP** | Content-Security-Policy on HTML page loads (Sentry + Supabase allowlisted) |
+| **Permissions-Policy** | Camera, microphone, geolocation denied on all responses |
 
 ---
 
@@ -359,9 +362,9 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **Phase 4** | Backend hardening | ✅ Done | Audited all 18 POST + 6 PUT routes — all already had `validateBody` + Zod schemas. Fixed `invoices/[id]` PUT (was raw body → Supabase, now validates + whitelists fields). Added `UpdateInvoiceSchema`. |
 | **Phase 5** | Security hardening | ✅ Done | CSRF cookie `Secure` flag (conditional on HTTPS). CSP header on HTML page loads (Sentry + Supabase allowlisted). Permissions-Policy (camera/mic/geo denied). npm audit: 7 transitive vulns (2 high: undici, hono) — requires eslint v9 upgrade to fix. |
 | **Phase 6** | AI system repair | ✅ Done | Quality scoring: aligned grade/label thresholds (C≥40="Needs Work", D≥20="Poor"), trend noise reduction. Memory extraction: deduplication, importance validation, per-client limit (100), improved prompt. Hallucination guard: weight normalization, self-verification fallback 70→50, replaced noisy `missing_caveat` with `unsupported_claim`, updated year range to 2024. |
-| **Phase 7** | Self-training loop | 🔲 Pending | Wire `recordLearning` feedback → `self-training.ts` analytics → prompt version A/B selection. Close the loop: accepted/corrected/rejected verdicts actually influence future model selection and prompt quality. |
-| **Phase 8** | UI polish & responsive | 🔲 Pending | Sidebar quality bar improvements, loading skeletons, animation polish, empty state illustrations, mobile touch targets |
-| **Phase 9** | Failure modes | 🔲 Pending | Graceful degradation (offline/cache), API key validation UX (test key before saving), provider health dashboard, retry with exponential backoff display |
+| **Phase 7** | Self-training loop | ✅ Done | Created `feedback-bridge.ts` connecting hallucination-guard → self-training → model-selector. Verdict buttons update model performance learning. Quality scores fed via `.then()` callbacks (non-blocking). `getFeedbackSummary()` aggregates insights from all 3 systems. |
+| **Phase 8** | UI polish | ✅ Done | Enhanced Sidebar QualityBar with SVG circular gauge + grade letter. Created reusable `LoadingSkeleton` components (ChatMessage, Card, Table, Stats). |
+| **Phase 9** | Failure modes | ✅ Done | Wired `recordProviderHealth` into AI proxy for real dashboard data. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. |
 | **Phase 10** | Release readiness | 🔲 Pending | Performance audit (bundle size, lazy loading), SEO audit (Lighthouse ≥90), accessibility audit (WCAG 2.1 AA), production CSP testing, documentation |
 
 ---
@@ -387,7 +390,18 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | `src/data/domains.ts` | 40 agency service domains |
 | `src/data/prompts.ts` | 55+ pre-built prompts |
 | `src/types/index.ts` | All TypeScript type definitions |
-| `src/components/oracle/` | 67 UI components |
+| `src/lib/feedback-bridge.ts` | Connects hallucination-guard ↔ self-training ↔ model-selector |
+| `src/lib/api-key-validation.ts` | Live API key validation via server proxy |
+| `src/lib/provider-health.ts` | Provider health monitoring (latency, uptime, error rates) |
+| `src/components/oracle/agent-config.ts` | Agent constants, labels, types, system prompts |
+| `src/components/oracle/ChatHeader.tsx` | Conversation/project/agent selectors |
+| `src/components/oracle/MessageBubble.tsx` | Message rendering with ConfidenceBadge |
+| `src/components/oracle/ChatInputArea.tsx` | Input area with agent badge, attachments, cost estimate |
+| `src/components/oracle/EmptyState.tsx` | Empty state with quick start cards |
+| `src/components/oracle/MarkdownComponents.tsx` | ReactMarkdown custom renderers |
+| `src/components/oracle/LoadingSkeleton.tsx` | Reusable skeleton components (Chat, Card, Table, Stats) |
+| `src/components/oracle/OfflineBanner.tsx` | Offline detection banner (navigator.onLine) |
+| `src/components/oracle/` | 70+ UI components |
 | `src/app/api/` | 20+ API route handlers |
 
 ---
