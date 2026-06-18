@@ -1,6 +1,6 @@
 # ORACLE — Product Truth Document
 
-> **Version:** 2.0 · **Last updated:** June 18, 2026
+> **Version:** 2.1 · **Last updated:** June 18, 2026
 > **Canonical source of truth.** All product decisions, repairs, and feature work should reference this document.
 
 ---
@@ -302,7 +302,7 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **RLS** | Supabase Row Level Security policies on all tables |
 | **Key isolation** | API keys never exposed to client (no `NEXT_PUBLIC_` prefix for service keys) |
 | **Input validation** | Zod schemas on all POST/PUT routes (invoices/[id] PUT fixed for mass-assignment) |
-| **CSP** | Content-Security-Policy on HTML page loads (Sentry + Supabase allowlisted) |
+| **CSP** | Content-Security-Policy on HTML page loads (Sentry + Supabase allowlisted, `upgrade-insecure-requests` for mixed content) |
 | **Permissions-Policy** | Camera, microphone, geolocation denied on all responses |
 
 ---
@@ -364,8 +364,8 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **Phase 6** | AI system repair | ✅ Done | Quality scoring: aligned grade/label thresholds (C≥40="Needs Work", D≥20="Poor"), trend noise reduction. Memory extraction: deduplication, importance validation, per-client limit (100), improved prompt. Hallucination guard: weight normalization, self-verification fallback 70→50, replaced noisy `missing_caveat` with `unsupported_claim`, updated year range to 2024. |
 | **Phase 7** | Self-training loop | ✅ Done | Created `feedback-bridge.ts` connecting hallucination-guard → self-training → model-selector. Verdict buttons update model performance learning. Quality scores fed via `.then()` callbacks (non-blocking). `getFeedbackSummary()` aggregates insights from all 3 systems. |
 | **Phase 8** | UI polish | ✅ Done | Enhanced Sidebar QualityBar with SVG circular gauge + grade letter. Created reusable `LoadingSkeleton` components (ChatMessage, Card, Table, Stats). |
-| **Phase 9** | Failure modes | ✅ Done | Wired `recordProviderHealth` into AI proxy for real dashboard data. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. |
-| **Phase 10** | Release readiness | 🔲 Pending | Performance audit (bundle size, lazy loading), SEO audit (Lighthouse ≥90), accessibility audit (WCAG 2.1 AA), production CSP testing, documentation |
+| **Phase 9** | Failure modes | ✅ Done | Fixed critical provider health bug: `recordProviderHealth()` used `localStorage` but was called server-side (silently no-op). Migrated to client-side recording — server returns `_health` metadata in response body (sync) and SSE chunks (streaming). Fixed `latencyMs` bug (was `Date.now() - Date.now()` = always 0). Added health recording to streaming handler. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. Added 26 unit tests in `provider-health.test.ts` (1,428 total tests across 83 files). |
+| **Phase 10** | Release readiness | 🟡 In Progress | CSP hardened: `upgrade-insecure-requests` directive. Accessibility: `SkipNav` component (WCAG 2.1 AA), `#main-content` target. Remaining: performance audit (bundle size, lazy loading), SEO audit (Lighthouse ≥90), production CSP live testing |
 
 ---
 
@@ -377,7 +377,8 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | `src/lib/ai-constants.ts` | Model pricing, failover order, cost calculation |
 | `src/lib/model-selector.ts` | Provider/model selection logic |
 | `src/lib/router.ts` | NeverStopRouter — smart routing + failover |
-| `src/lib/proxy.ts` | Server-side AI proxy (keys never leave server) |
+| `src/app/api/ai/chat/route.ts` | Server-side AI proxy (keys never leave server, health metadata returned to client) |
+| `src/lib/provider-health.test.ts` | 26 unit tests: storage, server-side regression guard, stats, status thresholds |
 | `src/lib/encryption.ts` | Shared AES-256-CBC encryption for API keys |
 | `src/lib/rate-limit.ts` | Rate limiting (in-memory + Upstash) |
 | `src/lib/csrf.ts` | CSRF token generation + validation |
@@ -393,6 +394,7 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | `src/lib/feedback-bridge.ts` | Connects hallucination-guard ↔ self-training ↔ model-selector |
 | `src/lib/api-key-validation.ts` | Live API key validation via server proxy |
 | `src/lib/provider-health.ts` | Provider health monitoring (latency, uptime, error rates) |
+| `src/components/oracle/ProviderHealthPanel.tsx` | Provider health dashboard (per-provider stats, uptime, latency) |
 | `src/components/oracle/agent-config.ts` | Agent constants, labels, types, system prompts |
 | `src/components/oracle/ChatHeader.tsx` | Conversation/project/agent selectors |
 | `src/components/oracle/MessageBubble.tsx` | Message rendering with ConfidenceBadge |
@@ -401,6 +403,7 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | `src/components/oracle/MarkdownComponents.tsx` | ReactMarkdown custom renderers |
 | `src/components/oracle/LoadingSkeleton.tsx` | Reusable skeleton components (Chat, Card, Table, Stats) |
 | `src/components/oracle/OfflineBanner.tsx` | Offline detection banner (navigator.onLine) |
+| `src/components/oracle/SkipNav.tsx` | WCAG 2.1 AA skip navigation component |
 | `src/components/oracle/` | 70+ UI components |
 | `src/app/api/` | 20+ API route handlers |
 
