@@ -50,6 +50,7 @@ export function createSSEFetchMock(chunks: SSEChunk[]) {
             inputTokens: 10,
             outputTokens: 20,
             costUSD: 0.001,
+            _health: { latencyMs: 150, success: true },
           }),
         };
       }
@@ -60,6 +61,7 @@ export function createSSEFetchMock(chunks: SSEChunk[]) {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(c)}\n\n`));
           }
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { latencyMs: 200, success: true, model: chunks[0]?.model || 'gpt-4o' } })}\n\n`));
           controller.close();
         },
       });

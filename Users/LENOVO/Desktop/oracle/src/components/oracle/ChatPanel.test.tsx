@@ -185,6 +185,11 @@ vi.mock('@/lib/toast-config', () => ({
   TOAST_DEFAULTS: { duration: 3000 },
 }));
 
+const mockRecordProviderHealth = vi.fn();
+vi.mock('@/lib/provider-health', () => ({
+  recordProviderHealth: (...args: unknown[]) => mockRecordProviderHealth(...args),
+}));
+
 vi.mock('@/components/oracle/GuardStatsPanel', () => ({
   GuardStatsPanel: () => null,
 }));
@@ -204,6 +209,8 @@ describe('ChatPanel', () => {
 
     // Set up default global.fetch mock
     global.fetch = defaultFetchMock();
+
+    mockRecordProviderHealth.mockClear();
 
     // Restore default calculateCost mock
     (NeverStopRouter.calculateCost as ReturnType<typeof vi.fn>).mockReturnValue({ usd: 0.001, inr: 0.084 });
@@ -899,6 +906,118 @@ describe('ChatPanel', () => {
       await waitFor(() => {
         expect(screen.getByText('Hello')).toBeDefined();
       });
+    });
+  });
+
+  // ── Provider Health Recording ──
+
+  describe('provider health recording', () => {
+    it('records health on successful streaming response', async () => {
+      const user = userEvent.setup();
+      render(<ChatPanel />);
+      await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello from AI')).toBeDefined();
+      });
+
+      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(call.providerId).toBe('groq');
+      expect(call.success).toBe(true);
+      expect(call.latencyMs).toBe(200); // from _health in SSE chunks
+      expect(call.model).toBe('gpt-4o');
+      expect(call.tokensUsed).toBeGreaterThan(0);
+    });
+
+    it('records health on successful sync response', async () => {
+      mockStreamingEnabled = false;
+      const user = userEvent.setup();
+      render(<ChatPanel />);
+      await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByText('Hello from AI')).toBeDefined();
+      });
+
+      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(call.providerId).toBe('openai');
+      expect(call.success).toBe(true);
+      expect(call.latencyMs).toBe(150); // from _health in sync JSON
+      expect(call.model).toBe('gpt-4o');
+    });
+
+    it('records health with success: false on fetch failure', async () => {
+      global.fetch = vi.fn(async () => {
+        throw new Error('Network timeout');
+      });
+
+      const user = userEvent.setup();
+      render(<ChatPanel />);
+      await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByText('Error: Network timeout')).toBeDefined();
+      });
+
+      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(call.success).toBe(false);
+      expect(call.errorMessage).toBe('Network timeout');
+      expect(call.tokensUsed).toBe(0);
+    });
+
+    it('records health with latency from server-provided _health metadata (streaming)', async () => {
+      global.fetch = createSSEFetchMock([
+        { chunk: 'Reply', done: false, model: 'claude-sonnet-4-6' },
+      ]);
+
+      const user = userEvent.setup();
+      render(<ChatPanel />);
+      await user.type(screen.getByLabelText('Chat input'), 'Hello{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByText('Reply')).toBeDefined();
+      });
+
+      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(call.latencyMs).toBe(200); // from _health in SSE
+      expect(call.model).toBe('claude-sonnet-4-6');
+    });
+
+    it('records health with latency from server-provided _health metadata (sync)', async () => {
+      mockStreamingEnabled = false;
+      global.fetch = vi.fn(async (url: URL | Request | string, init?: RequestInit) => {
+        if (typeof url === 'string' && url.includes('/api/ai/chat')) {
+          return {
+            ok: true,
+            json: async () => ({
+              text: 'Sync reply',
+              provider: 'anthropic',
+              model: 'claude-opus-4',
+              inputTokens: 15,
+              outputTokens: 25,
+              costUSD: 0.01,
+              _health: { latencyMs: 350, success: true },
+            }),
+          };
+        }
+        return { ok: true, json: async () => ({}) };
+      }) as unknown as typeof fetch;
+
+      const user = userEvent.setup();
+      render(<ChatPanel />);
+      await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
+
+      await waitFor(() => {
+        expect(screen.getByText('Sync reply')).toBeDefined();
+      });
+
+      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(call.latencyMs).toBe(350); // from _health in JSON
+      expect(call.providerId).toBe('anthropic');
+      expect(call.model).toBe('claude-opus-4');
     });
   });
 
