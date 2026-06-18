@@ -11,7 +11,6 @@ import { calculateCost } from '@/lib/ai-constants';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { checkRateLimit, AI_CHAT_RATE_LIMIT } from '@/lib/rate-limit';
 import { decrypt as decryptKey } from '@/lib/encryption';
-import { recordProviderHealth } from '@/lib/provider-health';
 
 // ─── Request Body ──────────────────────
 
@@ -183,27 +182,13 @@ async function handleStreaming(
 
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
 
-        // Record health (success only if stream succeeded)
-        recordProviderHealth({
-          providerId,
-          timestamp: Date.now(),
-          latencyMs: Date.now() - startTime,
-          success: streamSuccess,
-          model: modelId,
-          tokensUsed: 0,
-        });
+        // Send health metadata to client for recording
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs: Date.now() - startTime, success: streamSuccess } })}\n\n`));
 
         controller.close();
       } catch (error) {
-        recordProviderHealth({
-          providerId,
-          timestamp: Date.now(),
-          latencyMs: Date.now() - startTime,
-          success: false,
-          model: modelId,
-          tokensUsed: 0,
-          errorMessage: error instanceof Error ? error.message : 'Unknown error',
-        });
+        // Send health metadata to client for recording
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs: Date.now() - startTime, success: false, errorMessage: error instanceof Error ? error.message : 'Unknown error' } })}\n\n`));
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
         controller.close();
       }
@@ -251,16 +236,6 @@ async function handleSync(
 
     const cost = calculateCost(providerId, modelId, inputTokens, outputTokens);
 
-    // Record successful health
-    recordProviderHealth({
-      providerId,
-      timestamp: Date.now(),
-      latencyMs: Date.now() - startTime,
-      success: true,
-      model: modelId,
-      tokensUsed: inputTokens + outputTokens,
-    });
-
     return Response.json({
       text,
       provider: providerId,
@@ -269,20 +244,11 @@ async function handleSync(
       outputTokens,
       costUSD: cost.usd,
       costINR: cost.inr,
+      _health: { latencyMs: Date.now() - startTime, success: true },
     });
   } catch (error) {
-    // Record health failure
-    recordProviderHealth({
-      providerId,
-      timestamp: Date.now(),
-      latencyMs: Date.now() - startTime,
-      success: false,
-      model: modelId,
-      tokensUsed: 0,
-      errorMessage: error instanceof Error ? error.message : 'Unknown error',
-    });
     return Response.json(
-      { error: error instanceof Error ? error.message : 'AI request failed' },
+      { error: error instanceof Error ? error.message : 'AI request failed', _health: { latencyMs: Date.now() - startTime, success: false, errorMessage: error instanceof Error ? error.message : 'AI request failed' } },
       { status: 502 }
     );
   }

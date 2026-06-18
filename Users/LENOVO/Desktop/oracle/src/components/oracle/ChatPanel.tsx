@@ -18,6 +18,7 @@ import { exportChatToPDF, exportChatToWord } from '@/lib/export-utils';
 import { formatSearchResults } from '@/lib/search';
 import { csrfHeaders } from '@/lib/csrf';
 import { recordTask } from '@/lib/self-training';
+import { recordProviderHealth } from '@/lib/provider-health';
 import { attachQualityToTraining, recordMessageFeedback } from '@/lib/feedback-bridge';
 import { getAdjacentServices } from '@/lib/cross-domain-thinking';
 import { recogniseTaskPatterns } from '@/lib/pattern-recognition';
@@ -641,6 +642,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         let fullText = '';
         let capturedProviderId = '';
         let capturedModelId = '';
+        let capturedHealth: { latencyMs: number; success: boolean } | null = null;
 
         const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
 
@@ -681,6 +683,9 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
               try {
                 const parsed = JSON.parse(data);
                 if (parsed.error) throw new Error(parsed.error);
+                if (parsed._health) {
+                  capturedHealth = { latencyMs: parsed._health.latencyMs, success: parsed._health.success };
+                }
                 if (parsed.chunk) {
                   fullText += parsed.chunk;
                   capturedProviderId = providerId;
@@ -718,6 +723,16 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         );
 
         recordUsage(finalProvider, finalModel, inputTokens, outputTokens, 0);
+
+        // Record provider health (client-side, localStorage)
+        recordProviderHealth({
+          providerId: finalProvider,
+          timestamp: Date.now(),
+          latencyMs: capturedHealth?.latencyMs ?? 0,
+          success: capturedHealth?.success ?? (fullText.length > 0),
+          model: finalModel,
+          tokensUsed: inputTokens + outputTokens,
+        });
 
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
@@ -788,6 +803,16 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
         recordUsage(result.provider, result.model, result.inputTokens, result.outputTokens, result.costUSD);
 
+        // Record provider health (client-side, localStorage)
+        recordProviderHealth({
+          providerId: result.provider,
+          timestamp: Date.now(),
+          latencyMs: proxyResult._health?.latencyMs ?? 0,
+          success: proxyResult._health?.success ?? (result.text.length > 0),
+          model: result.model,
+          tokensUsed: result.inputTokens + result.outputTokens,
+        });
+
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
 
@@ -809,6 +834,16 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         });
       }
     } catch (err) {
+      // Record health on error (client-side, localStorage)
+      recordProviderHealth({
+        providerId: configuredProviders[0] || 'unknown',
+        timestamp: Date.now(),
+        latencyMs: 0,
+        success: false,
+        model: 'unknown',
+        tokensUsed: 0,
+        errorMessage: err instanceof Error ? err.message : 'Unknown error',
+      });
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantMessage.id
