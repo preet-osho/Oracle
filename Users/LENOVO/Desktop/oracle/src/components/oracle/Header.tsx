@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouterStore } from '@/stores/router.store';
@@ -27,6 +27,42 @@ export function Header({ activeTab, onTabChange, onCommandOpen, onNotificationsO
   const { user } = useUser();
   const logout = useLogout();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Emergency stop state
+  const [emergencyStop, setEmergencyStop] = useState({ active: false, reason: null as string | null });
+  const [emergencyLoading, setEmergencyLoading] = useState(false);
+
+  // Fetch emergency stop status on mount
+  useEffect(() => {
+    fetch('/api/emergency-stop').then(r => r.ok ? r.json() : null).then(data => {
+      if (data) setEmergencyStop({ active: data.active, reason: data.reason });
+    }).catch(() => {});
+  }, []);
+
+  const toggleEmergencyStop = useCallback(async () => {
+    // Confirm before activating (deactivating is safe — no confirmation needed)
+    if (!emergencyStop.active) {
+      const confirmed = window.confirm(
+        'Activate Emergency Stop?\n\nThis will immediately pause ALL AI agent executions across the system.'
+      );
+      if (!confirmed) return;
+    }
+
+    setEmergencyLoading(true);
+    try {
+      const action = emergencyStop.active ? 'deactivate' : 'activate';
+      const res = await fetch('/api/emergency-stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason: action === 'activate' ? 'Manual activation from UI' : undefined }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setEmergencyStop({ active: data.status.active, reason: data.status.reason });
+      }
+    } catch {}
+    setEmergencyLoading(false);
+  }, [emergencyStop.active]);
 
   const configuredProviders = Object.keys(NeverStopRouter.getAllKeys());
   const allProviderIds = ['openai', 'anthropic', 'groq', 'google', 'openrouter', 'cerebras', 'together', 'mistral', 'cohere', 'perplexity'];
@@ -180,6 +216,22 @@ export function Header({ activeTab, onTabChange, onCommandOpen, onNotificationsO
               {unreadCount}
             </span>
           )}
+        </button>
+
+        {/* Emergency Stop Button */}
+        <button
+          onClick={toggleEmergencyStop}
+          disabled={emergencyLoading}
+          className={`flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-semibold transition-all min-h-[36px] ${
+            emergencyStop.active
+              ? 'bg-[var(--oracle-error)]/20 border border-[var(--oracle-error)]/40 text-[var(--oracle-error)] animate-pulse'
+              : 'border border-[var(--oracle-border)] text-[var(--oracle-text-muted)] hover:border-[var(--oracle-error)]/40 hover:text-[var(--oracle-error)]'
+          }`}
+          aria-label={emergencyStop.active ? 'Emergency stop active — click to deactivate' : 'Activate emergency stop'}
+          title={emergencyStop.active ? `Emergency stop active: ${emergencyStop.reason || 'No reason'}` : 'Emergency stop — pauses all AI agent executions'}
+        >
+          <span className="text-sm">{emergencyStop.active ? '🛑' : '⏹'}</span>
+          <span className="hidden sm:inline">{emergencyStop.active ? 'STOPPED' : 'Stop'}</span>
         </button>
 
         {/* Cost Display */}

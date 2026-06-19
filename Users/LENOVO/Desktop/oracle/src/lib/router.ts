@@ -7,6 +7,7 @@ import type { Message, Attachment } from '@/types';
 import { PROVIDERS, SMART_ROUTING_RULES } from '@/data/providers';
 import { estimateTokens } from '@/lib/utils';
 import { PromptRegistry } from '@/lib/prompt-versioning';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 
 // ─── Interfaces ────────────────────────
 
@@ -64,11 +65,30 @@ const KEY_PATTERNS: Record<string, RegExp> = {
 
 // ─── NeverStopRouter Class ─────────────
 
+/**
+ * SECURITY NOTICE: Client-side BYOK (Bring Your Own Key) localStorage methods
+ * are DEPRECATED. All AI calls MUST go through the server-side proxy at
+ * /api/ai/chat which handles key decryption and provider routing securely.
+ *
+ * The localStorage methods below are retained for backward compatibility
+ * with the settings UI and migration tooling only. Direct provider calls
+ * from the browser are UNSAFE because:
+ *   1. API keys in localStorage are accessible to any XSS attack
+ *   2. Browser→provider connections bypass rate limiting, audit logging,
+ *      cost tracking, and prompt sanitization
+ *
+ * Use the server proxy instead:
+ *   await fetch('/api/ai/chat', { method: 'POST', body: JSON.stringify({...}) })
+ */
 export class NeverStopRouter {
   private static readonly STORAGE_KEY = 'oracle_byok_keys';
 
-  // ── BYOK Key Management ──
+  // ── DEPRECATED: BYOK Key Management ──
+  // These methods read/write raw API keys to localStorage.
+  // They are ONLY safe for the settings UI (display/validation).
+  // NEVER use getKey() to make direct provider API calls.
 
+  /** @deprecated Use server-side /api/ai/chat proxy instead. Keys in localStorage are vulnerable to XSS. */
   static getKey(providerId: string): string | null {
     if (typeof window === 'undefined') return null;
     try {
@@ -82,7 +102,11 @@ export class NeverStopRouter {
     }
   }
 
+  /** @deprecated Keys should only be stored server-side via /api/user-api-keys. */
   static setKey(providerId: string, key: string): void {
+    console.warn(
+      '[Router] SECURITY: setKey() is deprecated. Store keys via /api/user-api-keys (server-side encrypted).',
+    );
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(this.STORAGE_KEY);
@@ -94,7 +118,11 @@ export class NeverStopRouter {
     }
   }
 
+  /** @deprecated Keys should only be deleted server-side via /api/user-api-keys. */
   static removeKey(providerId: string): void {
+    console.warn(
+      '[Router] SECURITY: removeKey() is deprecated. Delete keys via /api/user-api-keys (server-side).',
+    );
     if (typeof window === 'undefined') return;
     try {
       const raw = localStorage.getItem(this.STORAGE_KEY);
@@ -107,6 +135,7 @@ export class NeverStopRouter {
     }
   }
 
+  /** @deprecated Use the server-side /api/user-api-keys endpoint to check configured providers. */
   static getAllKeys(): Record<string, string> {
     if (typeof window === 'undefined') return {};
     try {
@@ -118,6 +147,7 @@ export class NeverStopRouter {
     }
   }
 
+  /** @deprecated Use the server-side /api/user-api-keys endpoint to check configured providers. */
   static hasKey(providerId: string): boolean {
     return this.getKey(providerId) !== null;
   }
@@ -226,12 +256,18 @@ export class NeverStopRouter {
     return calculateCostShared(provider, model, inputTokens, outputTokens);
   }
 
-  // ── Streaming Call with Failover ──
+  // ── DEPRECATED: Client-Side Streaming ──
+  // SECURITY: This method reads API keys from localStorage and calls providers
+  // directly from the browser. Use the server proxy /api/ai/chat instead.
 
+  /** @deprecated SECURITY: Use fetch('/api/ai/chat', ...) server proxy instead. Direct provider calls bypass security controls. */
   static async *callStreaming(
     messages: Message[],
     options: RouteOptions
   ): AsyncGenerator<StreamChunk> {
+    console.warn(
+      '[Router] SECURITY: callStreaming() is deprecated. Use /api/ai/chat server proxy to prevent XSS key theft.',
+    );
     const route = this.selectProvider(options);
     if (!route) {
       yield { chunk: 'No API keys configured. Please add a provider key in Settings.', done: true, provider: 'none' };
@@ -297,12 +333,18 @@ export class NeverStopRouter {
     }
   }
 
-  // ── Non-Streaming Call with Failover ──
+  // ── DEPRECATED: Client-Side Sync Call ──
+  // SECURITY: This method reads API keys from localStorage and calls providers
+  // directly from the browser. Use the server proxy /api/ai/chat instead.
 
+  /** @deprecated SECURITY: Use fetch('/api/ai/chat', ...) server proxy instead. Direct provider calls bypass security controls. */
   static async callSync(
     messages: Message[],
     options: RouteOptions
   ): Promise<RouteResult> {
+    console.warn(
+      '[Router] SECURITY: callSync() is deprecated. Use /api/ai/chat server proxy to prevent XSS key theft.',
+    );
     const startTime = Date.now();
     const route = this.selectProvider(options);
 
@@ -541,7 +583,7 @@ export class NeverStopRouter {
       ];
     }
 
-    const response = await fetch(`${provider.baseUrl}/messages`, {
+    const response = await fetchWithTimeout(`${provider.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -549,6 +591,7 @@ export class NeverStopRouter {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
+      streaming: true,
     });
 
     if (!response.ok) {
@@ -619,7 +662,7 @@ export class NeverStopRouter {
     }
     allMessages.push(...messages);
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -631,6 +674,7 @@ export class NeverStopRouter {
         max_tokens: options.maxTokens || 4096,
         stream: true,
       }),
+      streaming: true,
     });
 
     if (!response.ok) {
@@ -708,7 +752,7 @@ export class NeverStopRouter {
       body.system = systemPrompt;
     }
 
-    const response = await fetch(`${provider.baseUrl}/messages`, {
+    const response = await fetchWithTimeout(`${provider.baseUrl}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -760,7 +804,7 @@ export class NeverStopRouter {
     }
     allMessages.push(...messages);
 
-    const response = await fetch(`${baseUrl}/chat/completions`, {
+    const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

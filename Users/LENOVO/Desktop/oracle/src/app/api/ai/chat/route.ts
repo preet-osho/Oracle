@@ -11,6 +11,11 @@ import { calculateCost } from '@/lib/ai-constants';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { checkRateLimit, AI_CHAT_RATE_LIMIT } from '@/lib/rate-limit';
 import { decrypt as decryptKey } from '@/lib/encryption';
+import { sanitizeSystemPrompt, sanitizeMessages } from '@/lib/prompt-sanitizer';
+import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
+import { recordCost } from '@/lib/cost-tracker';
+import { recordProviderHealth } from '@/lib/provider-health-server';
+import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';
 
 // ─── Request Body ──────────────────────
 
@@ -26,6 +31,9 @@ interface ChatRequest {
 // ─── POST Handler ──────────────────────
 
 export async function POST(request: NextRequest) {
+  // 0. Initialize circuit breaker (loads state from Supabase on first cold start)
+  await initCircuitBreaker();
+
   // 1. Authenticate
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
@@ -72,10 +80,48 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { messages, systemPrompt, providerId, modelId, maxTokens, stream } = body;
+  const { messages, providerId, modelId, maxTokens, stream } = body;
+
+  // Sanitize user-supplied systemPrompt to prevent prompt injection
+  const { sanitized: systemPrompt, threatsDetected, riskLevel } = sanitizeSystemPrompt(body.systemPrompt, {
+    userId: auth.user?.id,
+    route: '/api/ai/chat',
+  });
+
+  if (riskLevel === 'critical') {
+    writeAuditLog({
+      userId: auth.user.id,
+      action: 'PROMPT_INJECTION_BLOCKED',
+      entityType: 'security',
+      metadata: { threats: threatsDetected, riskLevel },
+    });
+    return Response.json(
+      { error: 'Request blocked: potential prompt injection detected.' },
+      { status: 400 }
+    );
+  }
 
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return Response.json({ error: 'messages array is required' }, { status: 400 });
+  }
+
+  // Sanitize all user messages to prevent prompt injection via message content
+  const { sanitizedMessages, threatsDetected: msgThreats, riskLevel: msgRisk, blocked } = sanitizeMessages(messages, {
+    userId: auth.user?.id,
+    route: '/api/ai/chat',
+  });
+
+  if (blocked) {
+    writeAuditLog({
+      userId: auth.user.id,
+      action: 'PROMPT_INJECTION_BLOCKED',
+      entityType: 'security',
+      metadata: { threats: msgThreats, riskLevel: msgRisk, source: 'messages' },
+    });
+    return Response.json(
+      { error: 'Request blocked: potential prompt injection detected in messages.' },
+      { status: 400 }
+    );
   }
 
   // 3. Look up API key from server-side storage (user_api_keys table)
@@ -120,7 +166,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'No model specified' }, { status: 400 });
   }
 
-  // 4. Build messages payload
+  // 4. Build messages payload (using sanitized messages)
   const apiMessages: Array<{ role: string; content: string }> = [];
   if (systemPrompt) {
     if (resolvedProviderId === 'anthropic') {
@@ -129,7 +175,7 @@ export async function POST(request: NextRequest) {
       apiMessages.push({ role: 'system', content: systemPrompt });
     }
   }
-  apiMessages.push(...messages);
+  apiMessages.push(...sanitizedMessages);
 
   // 5. Determine streaming mode
   const isStream = stream !== false; // default to streaming
@@ -147,12 +193,21 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // 7. Route to provider (streaming or sync)
+  // 7. Check circuit breaker — skip known-failing providers
+  if (!isAvailable(resolvedProviderId)) {
+    const unavailable = getUnavailableProviders();
+    return Response.json(
+      { error: `Provider ${resolvedProviderId} is temporarily unavailable (circuit breaker open). Unavailable: ${unavailable.join(', ')}. Please try another provider or wait a few minutes.` },
+      { status: 503 }
+    );
+  }
+
+  // 8. Route to provider (streaming or sync)
 
   if (isStream) {
-    return handleStreaming(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens);
+    return handleStreaming(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, auth.user.id);
   } else {
-    return handleSync(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens);
+    return handleSync(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, auth.user.id);
   }
 }
 
@@ -166,6 +221,7 @@ async function handleStreaming(
   messages: Array<{ role: string; content: string }>,
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
+  userId: string,
 ) {
   const startTime = Date.now();
   const encoder = new TextEncoder();
@@ -180,16 +236,37 @@ async function handleStreaming(
           streamSuccess = await streamOpenAICompatible(controller, encoder, provider.baseUrl, apiKey, modelId, providerId, messages, systemPrompt, maxTokens);
         }
 
+        const latencyMs = Date.now() - startTime;
+
+        // Record circuit breaker state
+        if (streamSuccess) {
+          recordSuccess(providerId);
+        } else {
+          recordFailure(providerId);
+        }
+
+        // Record streaming health + cost to Supabase (fire-and-forget)
+        recordProviderHealth({ userId, providerId, modelId, latencyMs, success: streamSuccess, tokensUsed: 0 });
+
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
 
         // Send health metadata to client for recording
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs: Date.now() - startTime, success: streamSuccess } })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs, success: streamSuccess } })}\n\n`));
 
         controller.close();
       } catch (error) {
+        const latencyMs = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+        // Record circuit breaker failure
+        recordFailure(providerId);
+
+        // Record streaming failure to Supabase (fire-and-forget)
+        recordProviderHealth({ userId, providerId, modelId, latencyMs, success: false, tokensUsed: 0, errorMessage });
+
         // Send health metadata to client for recording
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs: Date.now() - startTime, success: false, errorMessage: error instanceof Error ? error.message : 'Unknown error' } })}\n\n`));
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ _health: { providerId, model: modelId, latencyMs, success: false, errorMessage } })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: errorMessage })}\n\n`));
         controller.close();
       }
     },
@@ -215,6 +292,7 @@ async function handleSync(
   messages: Array<{ role: string; content: string }>,
   systemPrompt: string | undefined,
   maxTokens: number | undefined,
+  userId: string,
 ) {
   const startTime = Date.now();
   try {
@@ -235,6 +313,14 @@ async function handleSync(
     }
 
     const cost = calculateCost(providerId, modelId, inputTokens, outputTokens);
+    const latencyMs = Date.now() - startTime;
+
+    // Record circuit breaker success
+    recordSuccess(providerId);
+
+    // Record cost and health to Supabase (fire-and-forget)
+    recordCost({ userId, providerId, modelId, inputTokens, outputTokens, costUsd: cost.usd, costInr: cost.inr, latencyMs, success: true });
+    recordProviderHealth({ userId, providerId, modelId, latencyMs, success: true, tokensUsed: inputTokens + outputTokens });
 
     return Response.json({
       text,
@@ -244,11 +330,21 @@ async function handleSync(
       outputTokens,
       costUSD: cost.usd,
       costINR: cost.inr,
-      _health: { latencyMs: Date.now() - startTime, success: true },
+      _health: { latencyMs, success: true },
     });
   } catch (error) {
+    const latencyMs = Date.now() - startTime;
+    const errorMessage = error instanceof Error ? error.message : 'AI request failed';
+
+    // Record circuit breaker failure
+    recordFailure(providerId);
+
+    // Record failed cost + health to Supabase (fire-and-forget)
+    recordCost({ userId, providerId, modelId, inputTokens: 0, outputTokens: 0, costUsd: 0, costInr: 0, latencyMs, success: false, errorMessage });
+    recordProviderHealth({ userId, providerId, modelId, latencyMs, success: false, tokensUsed: 0, errorMessage });
+
     return Response.json(
-      { error: error instanceof Error ? error.message : 'AI request failed', _health: { latencyMs: Date.now() - startTime, success: false, errorMessage: error instanceof Error ? error.message : 'AI request failed' } },
+      { error: errorMessage, _health: { latencyMs, success: false, errorMessage } },
       { status: 502 }
     );
   }
@@ -279,15 +375,23 @@ async function streamAnthropic(
     body.system = systemPrompt;
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+      streaming: true,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `Anthropic request failed: ${msg}` })}\n\n`));
+    return false;
+  }
 
   if (!response.ok) {
     const error = await response.text();
@@ -350,19 +454,27 @@ async function streamOpenAICompatible(
     allMessages.unshift({ role: 'system', content: systemPrompt });
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: allMessages,
-      max_tokens: maxTokens || 4096,
-      stream: true,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages: allMessages,
+        max_tokens: maxTokens || 4096,
+        stream: true,
+      }),
+      streaming: true,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: `Provider request failed: ${msg}` })}\n\n`));
+    return false;
+  }
 
   if (!response.ok) {
     const error = await response.text();
@@ -429,7 +541,7 @@ async function callAnthropicSync(
     body.system = systemPrompt;
   }
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -477,7 +589,7 @@ async function callOpenAISync(
     allMessages.unshift({ role: 'system', content: systemPrompt });
   }
 
-  const response = await fetch(`${baseUrl}/chat/completions`, {
+  const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

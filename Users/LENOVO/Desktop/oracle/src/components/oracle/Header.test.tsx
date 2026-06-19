@@ -49,6 +49,13 @@ vi.mock('@/lib/supabase/hooks', () => ({
   useLogout: () => vi.fn(),
 }));
 
+// Mock global fetch for the emergency stop useEffect
+const mockFetch = vi.fn().mockResolvedValue({
+  ok: true,
+  json: () => Promise.resolve({ active: false, reason: null }),
+});
+vi.stubGlobal('fetch', mockFetch);
+
 // ─── Import after mocks ───
 
 import { Header } from './Header';
@@ -65,6 +72,10 @@ describe('Header', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ active: false, reason: null }),
+    });
   });
 
   it('renders the ORACLE logo', () => {
