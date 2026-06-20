@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ChatPanel } from './ChatPanel';
@@ -231,15 +231,19 @@ describe('ChatPanel', () => {
   // ── Empty State ──
 
   describe('empty state', () => {
-    it('renders the empty state with quick start cards', () => {
-      render(<ChatPanel />);
+    it('renders the empty state with quick start cards', async () => {
+      await act(async () => {
+        render(<ChatPanel />);
+      });
       expect(screen.getByText('Describe any agency task')).toBeDefined();
       expect(screen.getByText('SEO Audit')).toBeDefined();
       expect(screen.getByText('Blog Post')).toBeDefined();
     });
 
-    it('has correct ARIA attributes', () => {
-      render(<ChatPanel />);
+    it('has correct ARIA attributes', async () => {
+      await act(async () => {
+        render(<ChatPanel />);
+      });
       expect(screen.getByRole('log', { name: 'Chat messages' })).toBeDefined();
       expect(screen.getByRole('list', { name: 'Quick start options' })).toBeDefined();
       expect(screen.getByLabelText('Chat input')).toBeDefined();
@@ -504,9 +508,11 @@ describe('ChatPanel', () => {
   // ── Sidebar Toggle ──
 
   describe('sidebar toggle', () => {
-    it('renders sidebar toggle button when onSidebarToggle is provided', () => {
+    it('renders sidebar toggle button when onSidebarToggle is provided', async () => {
       const onSidebarToggle = vi.fn();
-      render(<ChatPanel onSidebarToggle={onSidebarToggle} sidebarOpen={true} />);
+      await act(async () => {
+        render(<ChatPanel onSidebarToggle={onSidebarToggle} sidebarOpen={true} />);
+      });
       expect(screen.getByLabelText('Hide sidebar')).toBeDefined();
     });
 
@@ -518,8 +524,10 @@ describe('ChatPanel', () => {
       expect(onSidebarToggle).toHaveBeenCalledTimes(1);
     });
 
-    it('does not render sidebar toggle when onSidebarToggle is not provided', () => {
-      render(<ChatPanel />);
+    it('does not render sidebar toggle when onSidebarToggle is not provided', async () => {
+      await act(async () => {
+        render(<ChatPanel />);
+      });
       expect(screen.queryByLabelText('Show sidebar')).toBeNull();
       expect(screen.queryByLabelText('Hide sidebar')).toBeNull();
     });
@@ -604,8 +612,10 @@ describe('ChatPanel', () => {
   // ── Regression: ChatHeader Props ──
 
   describe('ChatHeader without sidebar props', () => {
-    it('renders correctly without onSidebarToggle and sidebarOpen', () => {
-      render(<ChatPanel />);
+    it('renders correctly without onSidebarToggle and sidebarOpen', async () => {
+      await act(async () => {
+        render(<ChatPanel />);
+      });
       expect(screen.getByText('New Chat')).toBeDefined();
       expect(screen.getByLabelText('Toggle conversation list')).toBeDefined();
       expect(screen.getByLabelText('Select project for memory context')).toBeDefined();

@@ -5,14 +5,38 @@
  */
 
 // ── framer-motion mock (plain HTML passthrough) ──
+// Strips framer-motion-specific props so React doesn't warn about unknown DOM attributes.
+const FRAMER_PROPS = new Set([
+  'whileHover', 'whileTap', 'whileInView', 'whileDrag', 'whileFocus',
+  'layout', 'variants', 'initial', 'animate', 'exit', 'transition',
+  'drag', 'dragConstraints', 'dragElastic', 'dragMomentum',
+  'onDragStart', 'onDragEnd', 'onAnimationStart', 'onAnimationComplete',
+  'layoutId', 'layoutDependency', 'onLayoutAnimationStart',
+]);
+
+function stripFramerProps(props: Record<string, unknown>): Record<string, unknown> {
+  const clean: Record<string, unknown> = {};
+  for (const key in props) {
+    if (!FRAMER_PROPS.has(key)) clean[key] = props[key];
+  }
+  return clean;
+}
+
 vi.mock('framer-motion', () => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const R = require('react');
+  const wrap = (tag: string) => (p: Record<string, unknown>) =>
+    R.createElement(tag, stripFramerProps(p), p.children);
   return {
     motion: {
-      div: (p: Record<string, unknown>) => R.createElement('div', p, p.children),
-      button: (p: Record<string, unknown>) => R.createElement('button', p, p.children),
-      span: (p: Record<string, unknown>) => R.createElement('span', p, p.children),
+      div: wrap('div'),
+      button: wrap('button'),
+      span: wrap('span'),
+      a: wrap('a'),
+      p: wrap('p'),
+      li: wrap('li'),
+      ul: wrap('ul'),
+      img: wrap('img'),
     },
     AnimatePresence: (p: { children: React.ReactNode }) => R.createElement(R.Fragment, null, p.children),
   };
