@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import React from 'react';
 
 // ─── Mocks ───
@@ -78,91 +78,121 @@ describe('Header', () => {
     });
   });
 
-  it('renders the ORACLE logo', () => {
-    render(<Header {...defaultProps} />);
+  it('renders the ORACLE logo', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByText('ORACLE')).toBeDefined();
     expect(screen.getByText('Universal Agency Intelligence')).toBeDefined();
   });
 
-  it('renders tab navigation', () => {
-    render(<Header {...defaultProps} />);
+  it('renders tab navigation', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByText('Agent')).toBeDefined();
     expect(screen.getByText('Prompts')).toBeDefined();
   });
 
-  it('calls onTabChange when tab is clicked', () => {
-    render(<Header {...defaultProps} />);
+  it('calls onTabChange when tab is clicked', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     fireEvent.click(screen.getByText('Prompts'));
     expect(defaultProps.onTabChange).toHaveBeenCalledWith('prompts');
   });
 
-  it('renders MCP service toggles', () => {
-    render(<Header {...defaultProps} />);
+  it('renders MCP service toggles', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByText('Gmail')).toBeDefined();
     expect(screen.getByText('Calendar')).toBeDefined();
     expect(screen.getByText('Drive')).toBeDefined();
   });
 
-  it('shows MCP gmail as connected', () => {
-    render(<Header {...defaultProps} />);
+  it('shows MCP gmail as connected', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     // The status dot class is on a span inside the button
     const gmailBtn = screen.getByLabelText('MCP gmail: connected');
     expect(gmailBtn).toBeDefined();
   });
 
-  it('renders command palette button', () => {
-    render(<Header {...defaultProps} />);
+  it('renders command palette button', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     const cmdBtn = screen.getByText('⌘K');
     expect(cmdBtn).toBeDefined();
   });
 
-  it('calls onCommandOpen when ⌘K is clicked', () => {
-    render(<Header {...defaultProps} />);
+  it('calls onCommandOpen when ⌘K is clicked', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     fireEvent.click(screen.getByText('⌘K'));
     expect(defaultProps.onCommandOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('renders theme toggle', () => {
-    render(<Header {...defaultProps} />);
+  it('renders theme toggle', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByLabelText('Switch to light mode')).toBeDefined();
   });
 
-  it('renders notifications bell with count', () => {
-    render(<Header {...defaultProps} />);
+  it('renders notifications bell with count', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByLabelText(/Notifications.*3 unread/)).toBeDefined();
   });
 
-  it('calls onNotificationsOpen when bell is clicked', () => {
-    render(<Header {...defaultProps} />);
+  it('calls onNotificationsOpen when bell is clicked', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     fireEvent.click(screen.getByLabelText(/Notifications/));
     expect(defaultProps.onNotificationsOpen).toHaveBeenCalledTimes(1);
   });
 
-  it('displays cost in INR', () => {
-    render(<Header {...defaultProps} />);
+  it('displays cost in INR', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByText('₹0.05')).toBeDefined();
   });
 
-  it('renders user menu when user is present', () => {
-    render(<Header {...defaultProps} />);
+  it('renders user menu when user is present', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     expect(screen.getByLabelText('User menu')).toBeDefined();
   });
 
-  it('shows user email when menu is opened', () => {
-    render(<Header {...defaultProps} />);
+  it('shows user email when menu is opened', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     fireEvent.click(screen.getByLabelText('User menu'));
     expect(screen.getByText('test@oracle.com')).toBeDefined();
     expect(screen.getByText('Signed in')).toBeDefined();
   });
 
-  it('shows sign out option in user menu', () => {
-    render(<Header {...defaultProps} />);
+  it('shows sign out option in user menu', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     fireEvent.click(screen.getByLabelText('User menu'));
     expect(screen.getByText('Sign out')).toBeDefined();
   });
 
-  it('sets aria-current on active tab', () => {
-    render(<Header {...defaultProps} />);
+  it('sets aria-current on active tab', async () => {
+    await act(async () => {
+      render(<Header {...defaultProps} />);
+    });
     const agentTab = screen.getByText('Agent').closest('button');
     expect(agentTab?.getAttribute('aria-current')).toBe('page');
   });

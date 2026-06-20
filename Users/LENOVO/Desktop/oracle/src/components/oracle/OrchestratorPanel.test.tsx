@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { OrchestratorPanel } from './OrchestratorPanel';
@@ -79,25 +79,33 @@ describe('OrchestratorPanel', () => {
   // ── Rendering ──
 
   describe('rendering', () => {
-    it('renders the orchestrator header', () => {
-      render(<OrchestratorPanel />);
+    it('renders the orchestrator header', async () => {
+      await act(async () => {
+        render(<OrchestratorPanel />);
+      });
       expect(screen.getByText('⚡ Agent Orchestrator')).toBeDefined();
       expect(screen.getByText(/Decompose complex tasks across specialist agents/)).toBeDefined();
     });
 
-    it('renders the analyze button', () => {
-      render(<OrchestratorPanel />);
+    it('renders the analyze button', async () => {
+      await act(async () => {
+        render(<OrchestratorPanel />);
+      });
       expect(screen.getByText('⚡ Analyze & Decompose')).toBeDefined();
     });
 
-    it('renders empty state when no task is analyzed', () => {
-      render(<OrchestratorPanel />);
+    it('renders empty state when no task is analyzed', async () => {
+      await act(async () => {
+        render(<OrchestratorPanel />);
+      });
       expect(screen.getByText('No Task Analyzed Yet')).toBeDefined();
       expect(screen.getByText(/Describe a complex task above/)).toBeDefined();
     });
 
-    it('has a textarea for task input', () => {
-      render(<OrchestratorPanel />);
+    it('has a textarea for task input', async () => {
+      await act(async () => {
+        render(<OrchestratorPanel />);
+      });
       const textarea = screen.getByPlaceholderText(/Describe a complex task/);
       expect(textarea).toBeDefined();
     });
@@ -122,8 +130,10 @@ describe('OrchestratorPanel', () => {
       expect(screen.getByText('5 characters')).toBeDefined();
     });
 
-    it('disables analyze button when textarea is empty', () => {
-      render(<OrchestratorPanel />);
+    it('disables analyze button when textarea is empty', async () => {
+      await act(async () => {
+        render(<OrchestratorPanel />);
+      });
       const button = screen.getByText('⚡ Analyze & Decompose');
       expect(button).toBeDisabled();
     });

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ProjectsTab } from './ProjectsTab';
@@ -149,7 +149,9 @@ describe('ProjectsTab', () => {
 
   describe('loading and rendering', () => {
     it('renders the projects header', async () => {
-      render(<ProjectsTab />);
+      await act(async () => {
+        render(<ProjectsTab />);
+      });
       expect(screen.getByText('📁 Projects')).toBeDefined();
       expect(screen.getByText(/Manage client projects/)).toBeDefined();
     });
