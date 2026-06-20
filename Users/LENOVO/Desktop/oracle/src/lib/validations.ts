@@ -113,6 +113,16 @@ const MessageSchema = z.object({
   model: z.string().optional(),
   tokensUsed: z.number().optional(),
   agentType: z.string().optional(),
+  qualityScore: z.object({
+    completeness: z.number(),
+    specificity: z.number(),
+    actionability: z.number(),
+    indiaContext: z.number(),
+    clientReady: z.number(),
+    total: z.number(),
+    notes: z.string(),
+    scoredAt: z.number(),
+  }).optional(),
 });
 
 export const CreateConversationSchema = z.object({
@@ -127,6 +137,10 @@ export const UpdateConversationSchema = z.object({
   messages: z.array(MessageSchema).optional(),
   agent_type: z.string().max(50).optional(),
   project_id: z.string().nullable().optional(),
+});
+
+export const AppendMessagesSchema = z.object({
+  messages: z.array(MessageSchema).min(1, 'At least one message required'),
 });
 
 // ─── Memories ───────────────────────────

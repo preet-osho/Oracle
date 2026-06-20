@@ -317,4 +317,10 @@ export const conversationsApi = {
     apiFetch<{ success: boolean }>(`/api/conversations/${id}`, {
       method: 'DELETE',
     }),
+
+  appendMessages: (id: string, messages: ApiConversation['messages']) =>
+    apiFetch<{ id: string; messages: ApiConversation['messages'] }>(`/api/conversations/${id}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ messages }),
+    }),
 };

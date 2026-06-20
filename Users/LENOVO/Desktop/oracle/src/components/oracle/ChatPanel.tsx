@@ -6,7 +6,7 @@ import { NeverStopRouter } from '@/lib/router';
 import { transitions } from '@/styles/design-tokens';
 import { useRouterStore } from '@/stores/router.store';
 import { conversationsApi, knowledgeDocsApi, projectsApi, memoriesApi } from '@/lib/api';
-import { processDocument, retrieveRelevant, chunkText } from '@/lib/rag';
+import { processDocument, retrieveRelevant, chunkText, indexDocument } from '@/lib/rag';
 import { getMemories, formatMemoryForContext } from '@/lib/memory';
 import { QUALITY_SCORING_PROMPT } from '@/lib/system-prompt';
 import { saveQualityScore } from '@/lib/quality';
@@ -293,6 +293,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       setConversationTitle(convo.title);
       setAgentType((convo.agent_type as AgentType) || 'orchestrator');
       setShowConversationList(false);
+      // Reset persist tracking — all loaded messages are already in the DB
+      persistedCountRef.current = convo.messages.length;
     } catch {
       toast.error('❌ Failed to load conversation', TOAST_DEFAULTS);
     }
@@ -307,6 +309,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     setQualityScores({});
     setGuardResults({});
     setShowConversationList(false);
+    persistedCountRef.current = 0;
   }, []);
 
   // ── Refresh conversation list ──
@@ -327,6 +330,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   }, []);
 
   // ── Save conversation ──
+  // Track which messages have already been persisted to avoid re-sending them.
+  const persistedCountRef = useRef(0);
+  // When branching/regenerating, the DB state diverges from our incremental count;
+  // this flag forces a full array replacement on the next save.
+  const needsFullSyncRef = useRef(false);
+
   const saveConversation = useCallback(async (msgs: ChatMessage[], title: string, agent: string) => {
     const serializable = msgs.map((m) => ({
       id: m.id,
@@ -342,11 +351,23 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
     try {
       if (activeConversationId) {
-        await conversationsApi.update(activeConversationId, {
-          title,
-          messages: serializable,
-          agent_type: agent,
-        });
+        if (needsFullSyncRef.current) {
+          // Branch/regenerate: DB state diverged, replace entire array
+          await conversationsApi.update(activeConversationId, {
+            title,
+            messages: serializable,
+            agent_type: agent,
+          });
+          needsFullSyncRef.current = false;
+          persistedCountRef.current = serializable.length;
+        } else {
+          // Normal flow: incremental append of new messages only
+          const newMsgs = serializable.slice(persistedCountRef.current);
+          if (newMsgs.length > 0) {
+            await conversationsApi.appendMessages(activeConversationId, newMsgs);
+            persistedCountRef.current = serializable.length;
+          }
+        }
       } else {
         const created = await conversationsApi.create({
           title,
@@ -354,6 +375,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           agent_type: agent,
         });
         setActiveConversationId(created.id);
+        persistedCountRef.current = serializable.length;
         refreshConversations();
       }
     } catch {
@@ -368,7 +390,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     let searchUsed = false;
 
     if (knowledgeDocs.length > 0) {
-      const relevantChunks = retrieveRelevant(userMessage, knowledgeDocs, 3);
+      const relevantChunks = await retrieveRelevant(userMessage, knowledgeDocs, 3);
       if (relevantChunks.length > 0) {
         parts.push('## Knowledge Base Context\n' + relevantChunks.join('\n\n'));
         documents.push(...relevantChunks);
@@ -469,6 +491,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     for (const file of files) {
       try {
         const doc = await processDocument(file);
+        indexDocument(doc).catch(() => {}); // fire-and-forget embedding indexing
         setAttachments((prev) => [...prev, { name: file.name, content: doc.content }]);
       } catch {
         toast.error(`❌ Failed to read ${file.name}`, TOAST_DEFAULTS);
@@ -485,6 +508,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         if (file) {
           try {
             const doc = await processDocument(file);
+            indexDocument(doc).catch(() => {}); // fire-and-forget embedding indexing
             setAttachments((prev) => [...prev, { name: file.name || 'clipboard-image.png', content: doc.content }]);
             toast.success('📋 Image pasted from clipboard', TOAST_DEFAULTS);
           } catch {
@@ -870,6 +894,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     const trimmedMessages = messages.slice(0, msgIndex);
     messagesRef.current = trimmedMessages;
     setMessages(trimmedMessages);
+    // Mark for full sync so the trimmed DB state replaces the old array
+    needsFullSyncRef.current = true;
     handleSend(userMessage.content);
   }, [messages, isStreaming, handleSend]);
 
@@ -881,6 +907,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     const branchMessages = messages.slice(0, msgIndex);
     messagesRef.current = branchMessages;
     setMessages(branchMessages);
+    // Mark for full sync so the branched DB state replaces the old array
+    needsFullSyncRef.current = true;
     toast.success('🔀 Branched conversation — type a new message to continue from this point', TOAST_DEFAULTS);
   }, [messages, isStreaming]);
 
@@ -939,6 +967,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     for (const file of files) {
       try {
         const doc = await processDocument(file);
+        indexDocument(doc).catch(() => {}); // fire-and-forget embedding indexing
         setAttachments((prev) => [...prev, { name: file.name, content: doc.content }]);
       } catch {
         toast.error('❌ Failed to read file', TOAST_DEFAULTS);
