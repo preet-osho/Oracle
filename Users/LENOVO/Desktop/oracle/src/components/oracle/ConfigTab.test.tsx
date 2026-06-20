@@ -191,14 +191,18 @@ describe('ConfigTab', () => {
   // ── Rendering ──
 
   describe('rendering', () => {
-    it('renders the settings header', () => {
-      render(<ConfigTab />);
+    it('renders the settings header', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('⚙ Settings')).toBeDefined();
       expect(screen.getByText(/Configure ORACLE to match your agency workflow/)).toBeDefined();
     });
 
-    it('renders all section headers', () => {
-      render(<ConfigTab />);
+    it('renders all section headers', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText(/API Keys/)).toBeDefined();
       expect(screen.getByText('🤖 Model Selection')).toBeDefined();
       expect(screen.getByText('🔌 MCP Tools')).toBeDefined();
@@ -210,15 +214,19 @@ describe('ConfigTab', () => {
       expect(screen.getByText('💰 Cost Dashboard')).toBeDefined();
     });
 
-    it('renders all providers in the BYOK section', () => {
-      render(<ConfigTab />);
+    it('renders all providers in the BYOK section', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('OpenAI')).toBeDefined();
       expect(screen.getByText('Groq')).toBeDefined();
       expect(screen.getByText('Anthropic')).toBeDefined();
     });
 
-    it('renders MCP tool cards', () => {
-      render(<ConfigTab />);
+    it('renders MCP tool cards', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Gmail')).toBeDefined();
       expect(screen.getByText('Calendar')).toBeDefined();
       expect(screen.getByText('Drive')).toBeDefined();
@@ -228,15 +236,19 @@ describe('ConfigTab', () => {
   // ── BYOK Key Management ──
 
   describe('BYOK key management', () => {
-    it('shows "Set Key" button when no key is configured', () => {
-      render(<ConfigTab />);
+    it('shows "Set Key" button when no key is configured', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const setKeyButtons = screen.getAllByText('Set Key');
       expect(setKeyButtons.length).toBe(3); // One per provider
     });
 
-    it('shows "✓ Set" button when key is configured', () => {
+    it('shows "✓ Set" button when key is configured', async () => {
       mockByokKeys = { openai: 'sk-test-key' };
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('✓ Set')).toBeDefined();
     });
 
@@ -404,8 +416,10 @@ describe('ConfigTab', () => {
   // ── Model Selection ──
 
   describe('model selection', () => {
-    it('shows auto-route toggle', () => {
-      render(<ConfigTab />);
+    it('shows auto-route toggle', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Auto-route (Recommended)')).toBeDefined();
     });
 
@@ -421,9 +435,11 @@ describe('ConfigTab', () => {
       }
     });
 
-    it('shows provider and model selects when auto-route is off', () => {
+    it('shows provider and model selects when auto-route is off', async () => {
       mockAutoRoute = false;
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const selects = screen.getAllByDisplayValue(/OpenAI|Groq|Anthropic/);
       expect(selects.length).toBeGreaterThanOrEqual(1);
     });
@@ -437,8 +453,10 @@ describe('ConfigTab', () => {
       expect(mockSetSelectedModel).toHaveBeenCalled();
     });
 
-    it('displays current model info', () => {
-      render(<ConfigTab />);
+    it('displays current model info', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText(/Currently using:/)).toBeDefined();
       expect(screen.getByText(/llama-3.3-70b-versatile/)).toBeDefined();
     });
@@ -447,15 +465,19 @@ describe('ConfigTab', () => {
   // ── MCP Tools ──
 
   describe('MCP tools', () => {
-    it('shows Not connected for disabled services', () => {
-      render(<ConfigTab />);
+    it('shows Not connected for disabled services', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const notConnected = screen.getAllByText('Not connected');
       expect(notConnected.length).toBe(3);
     });
 
-    it('shows Connected for enabled services', () => {
+    it('shows Connected for enabled services', async () => {
       mockMcpEnabled = { gmail: true, calendar: false, drive: false };
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Connected')).toBeDefined();
       const notConnected = screen.getAllByText('Not connected');
       expect(notConnected.length).toBe(2);
@@ -471,8 +493,10 @@ describe('ConfigTab', () => {
       expect(mockToggleMcp).toHaveBeenCalledWith('gmail');
     });
 
-    it('shows Set up button when service is not connected', () => {
-      render(<ConfigTab />);
+    it('shows Set up button when service is not connected', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const setUpButtons = screen.getAllByText('Set up');
       expect(setUpButtons.length).toBe(3);
     });
@@ -481,8 +505,10 @@ describe('ConfigTab', () => {
   // ── Advanced Settings ──
 
   describe('advanced settings', () => {
-    it('renders streaming toggle', () => {
-      render(<ConfigTab />);
+    it('renders streaming toggle', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Streaming responses')).toBeDefined();
     });
 
@@ -520,8 +546,10 @@ describe('ConfigTab', () => {
       }
     });
 
-    it('renders response language selector', () => {
-      render(<ConfigTab />);
+    it('renders response language selector', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Response language')).toBeDefined();
       expect(screen.getByDisplayValue('English')).toBeDefined();
     });
@@ -538,8 +566,10 @@ describe('ConfigTab', () => {
   // ── Agency Profile ──
 
   describe('agency profile', () => {
-    it('renders profile input fields', () => {
-      render(<ConfigTab />);
+    it('renders profile input fields', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByPlaceholderText('Agency name')).toBeDefined();
       expect(screen.getByPlaceholderText('Owner name')).toBeDefined();
       expect(screen.getByPlaceholderText('City')).toBeDefined();
@@ -554,12 +584,14 @@ describe('ConfigTab', () => {
       expect(screen.getByText('Acme Digital')).toBeDefined();
     });
 
-    it('does not show preview when agency name is empty', () => {
-      render(<ConfigTab />);
+    it('does not show preview when agency name is empty', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.queryByText('Preview')).toBeNull();
     });
 
-    it('handles invalid JSON in localStorage gracefully', () => {
+    it('handles invalid JSON in localStorage gracefully', async () => {
       // Mock localStorage.getItem to return invalid JSON
       const originalGetItem = Storage.prototype.getItem;
       Storage.prototype.getItem = vi.fn((key: string) => {
@@ -569,7 +601,9 @@ describe('ConfigTab', () => {
 
       try {
         // Should not crash — getAgencyProfile catches the error and returns defaults
-        render(<ConfigTab />);
+        await act(async () => {
+          render(<ConfigTab />);
+        });
         expect(screen.getByText('⚙ Settings')).toBeDefined();
         // Profile fields should have empty defaults
         const agencyInput = screen.getByPlaceholderText('Agency name') as HTMLInputElement;
@@ -636,8 +670,10 @@ describe('ConfigTab', () => {
       expect(mockKnowledgeDocsDelete).toHaveBeenCalledWith('doc1');
     });
 
-    it('shows upload button', () => {
-      render(<ConfigTab />);
+    it('shows upload button', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('+ Upload document')).toBeDefined();
     });
 
@@ -694,47 +730,57 @@ describe('ConfigTab', () => {
   // ── Cost Dashboard ──
 
   describe('cost dashboard', () => {
-    it('displays zero costs by default', () => {
-      render(<ConfigTab />);
+    it('displays zero costs by default', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const costElements = screen.getAllByText('₹0.00');
       expect(costElements.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('$0.0000')).toBeDefined();
     });
 
-    it('displays non-zero costs', () => {
+    it('displays non-zero costs', async () => {
       mockTotalCostUSD = 0.05;
       mockTotalCostINR = 4.20;
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const costElements = screen.getAllByText('₹4.20');
       expect(costElements.length).toBeGreaterThanOrEqual(1);
       expect(screen.getByText('$0.0500')).toBeDefined();
     });
 
-    it('shows zero avg when no usage', () => {
-      render(<ConfigTab />);
+    it('shows zero avg when no usage', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const costElements = screen.getAllByText('₹0.00');
       expect(costElements.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('calculates avg per request correctly', () => {
+    it('calculates avg per request correctly', async () => {
       mockTotalCostINR = 10;
       mockUsageHistory = [
         { timestamp: Date.now(), provider: 'openai', costINR: 5 },
         { timestamp: Date.now(), provider: 'openai', costINR: 5 },
       ];
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       // avg = 10 / 2 = 5.00
       const avgElements = screen.getAllByText('₹5.00');
       expect(avgElements.length).toBeGreaterThanOrEqual(1);
     });
 
-    it('shows cost breakdown by provider', () => {
+    it('shows cost breakdown by provider', async () => {
       mockUsageHistory = [
         { timestamp: Date.now(), provider: 'openai', costINR: 3 },
         { timestamp: Date.now(), provider: 'groq', costINR: 1 },
         { timestamp: Date.now(), provider: 'openai', costINR: 2 },
       ];
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Cost by Provider')).toBeDefined();
       const openaiElements = screen.getAllByText('OpenAI');
       expect(openaiElements.length).toBeGreaterThanOrEqual(1);
@@ -749,12 +795,14 @@ describe('ConfigTab', () => {
       expect(mockResetCosts).toHaveBeenCalled();
     });
 
-    it('shows Providers Used count', () => {
+    it('shows Providers Used count', async () => {
       mockUsageHistory = [
         { timestamp: Date.now(), provider: 'openai', costINR: 3 },
         { timestamp: Date.now(), provider: 'groq', costINR: 1 },
       ];
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Providers Used')).toBeDefined();
     });
   });
@@ -762,15 +810,19 @@ describe('ConfigTab', () => {
   // ── Hallucination Guard Config ──
 
   describe('hallucination guard config', () => {
-    it('renders the guard config section', () => {
-      render(<ConfigTab />);
+    it('renders the guard config section', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('🛡 Hallucination Guard')).toBeDefined();
       expect(screen.getByText('Enable hallucination guard')).toBeDefined();
       expect(screen.getByText('Automatically verify AI responses for accuracy and grounding')).toBeDefined();
     });
 
-    it('renders threshold sliders with default values', () => {
-      render(<ConfigTab />);
+    it('renders threshold sliders with default values', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Pass threshold')).toBeDefined();
       expect(screen.getByText('Warn threshold')).toBeDefined();
       expect(screen.getByText('Block threshold')).toBeDefined();
@@ -780,15 +832,19 @@ describe('ConfigTab', () => {
       expect(screen.getByText('30%')).toBeDefined();
     });
 
-    it('renders detection sub-toggles', () => {
-      render(<ConfigTab />);
+    it('renders detection sub-toggles', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Self-verification')).toBeDefined();
       expect(screen.getByText('Fact grounding')).toBeDefined();
       expect(screen.getByText('Pattern detection')).toBeDefined();
     });
 
-    it('shows config preview with enabled state by default', () => {
-      render(<ConfigTab />);
+    it('shows config preview with enabled state by default', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Config Preview')).toBeDefined();
       expect(screen.getByText(/Guard ✅ enabled/)).toBeDefined();
       expect(screen.getByText(/Pass >=70%/)).toBeDefined();
@@ -796,7 +852,7 @@ describe('ConfigTab', () => {
       expect(screen.getByText(/Block <30%/)).toBeDefined();
     });
 
-    it('shows disabled in config preview when guard is off', () => {
+    it('shows disabled in config preview when guard is off', async () => {
       mockLoadGuardConfig.mockReturnValue({
         enabled: false,
         thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 },
@@ -806,7 +862,9 @@ describe('ConfigTab', () => {
         patternDetection: true,
         strictDomains: [],
       });
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText(/Guard ⛔ disabled/)).toBeDefined();
     });
 
@@ -873,7 +931,9 @@ describe('ConfigTab', () => {
     });
 
     it('clamps warn threshold when pass threshold is lowered below it', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Find the pass threshold slider and set it to 40 (below warn's 50)
       const sliders = screen.getAllByRole('slider');
@@ -895,7 +955,9 @@ describe('ConfigTab', () => {
     });
 
     it('clamps block threshold when warn threshold is lowered below it', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Find the warn threshold slider and set it to 25 (below block's 30)
       const sliders = screen.getAllByRole('slider');
@@ -933,7 +995,9 @@ describe('ConfigTab', () => {
     });
 
     it('shows warning when pass threshold is lowered below warn threshold', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Set pass threshold to 40 (below warn's 50) — should trigger toast
       const sliders = screen.getAllByRole('slider');
@@ -946,7 +1010,9 @@ describe('ConfigTab', () => {
     });
 
     it('shows warning when warn threshold is lowered below block threshold', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Set warn threshold to 25 (below block's 30) — should trigger toast
       const sliders = screen.getAllByRole('slider');
@@ -958,15 +1024,19 @@ describe('ConfigTab', () => {
       );
     });
 
-    it('does not show warning when thresholds are valid', () => {
-      render(<ConfigTab />);
+    it('does not show warning when thresholds are valid', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Default thresholds are valid (70 > 50 > 30)
       expect(screen.queryByText(/threshold clamped/)).toBeNull();
     });
 
     it('auto-dismisses warning after timeout', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Trigger a warning
       const sliders = screen.getAllByRole('slider');
@@ -980,7 +1050,9 @@ describe('ConfigTab', () => {
     });
 
     it('shows combined warning when both thresholds need clamping', async () => {
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Set pass to 20 — both warn (50) and block (30) exceed it
       const sliders = screen.getAllByRole('slider');
@@ -995,7 +1067,9 @@ describe('ConfigTab', () => {
 
     it('updates config preview when guard is toggled off', async () => {
       const user = userEvent.setup();
-      render(<ConfigTab />);
+      await act(async () => {
+        render(<ConfigTab />);
+      });
 
       // Initial: enabled
       expect(screen.getByText(/Guard ✅ enabled/)).toBeDefined();
@@ -1011,13 +1085,17 @@ describe('ConfigTab', () => {
       });
     });
 
-    it('loads guard config from localStorage on mount', () => {
-      render(<ConfigTab />);
+    it('loads guard config from localStorage on mount', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(mockLoadGuardConfig).toHaveBeenCalled();
     });
 
-    it('renders export, import, and reset buttons', () => {
-      render(<ConfigTab />);
+    it('renders export, import, and reset buttons', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText(/Export JSON/)).toBeDefined();
       expect(screen.getByText(/Import JSON/)).toBeDefined();
       expect(screen.getByText(/Reset to Defaults/)).toBeDefined();
@@ -1186,8 +1264,10 @@ describe('ConfigTab', () => {
       });
     });
 
-    it('renders guard config section in the correct order (after Advanced, before Agency Profile)', () => {
-      render(<ConfigTab />);
+    it('renders guard config section in the correct order (after Advanced, before Agency Profile)', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       const sections = ['API Keys', 'Model Selection', 'MCP Tools', 'Advanced Settings', 'Hallucination Guard', 'Agency Profile', 'Knowledge Base', 'Claude Code Integration', 'Cost Dashboard'];
       const headings = screen.getAllByRole('heading', { level: 2 });
       const headingTexts = headings.map((h) => h.textContent || '');
@@ -1205,19 +1285,25 @@ describe('ConfigTab', () => {
   // ── Claude Code Integration ──
 
   describe('Claude Code integration', () => {
-    it('renders installation instructions', () => {
-      render(<ConfigTab />);
+    it('renders installation instructions', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('Install Claude Code')).toBeDefined();
       expect(screen.getByText(/npm install -g @anthropic-ai\/claude-code/)).toBeDefined();
     });
 
-    it('renders MCP configuration example', () => {
-      render(<ConfigTab />);
+    it('renders MCP configuration example', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('MCP Configuration')).toBeDefined();
     });
 
-    it('renders power user commands', () => {
-      render(<ConfigTab />);
+    it('renders power user commands', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
       expect(screen.getByText('/audit')).toBeDefined();
       expect(screen.getByText('/proposal [client]')).toBeDefined();
       expect(screen.getByText('/content [topic]')).toBeDefined();

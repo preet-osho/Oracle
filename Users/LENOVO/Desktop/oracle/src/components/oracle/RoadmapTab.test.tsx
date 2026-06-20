@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { RoadmapTab } from './RoadmapTab';
@@ -60,7 +60,9 @@ describe('RoadmapTab', () => {
 
   describe('loading and rendering', () => {
     it('renders the roadmap header', async () => {
-      render(<RoadmapTab />);
+      await act(async () => {
+        render(<RoadmapTab />);
+      });
       expect(screen.getByText('🎯 Roadmap & Proposals')).toBeDefined();
       expect(screen.getByText(/Generate comprehensive client proposals/)).toBeDefined();
     });
@@ -75,13 +77,17 @@ describe('RoadmapTab', () => {
       });
     });
 
-    it('renders the generate button', () => {
-      render(<RoadmapTab />);
+    it('renders the generate button', async () => {
+      await act(async () => {
+        render(<RoadmapTab />);
+      });
       expect(screen.getByText('🎯 Generate Proposal')).toBeDefined();
     });
 
-    it('renders domain selector', () => {
-      render(<RoadmapTab />);
+    it('renders domain selector', async () => {
+      await act(async () => {
+        render(<RoadmapTab />);
+      });
       expect(screen.getByDisplayValue('Auto-detect domain')).toBeDefined();
     });
   });
@@ -89,8 +95,10 @@ describe('RoadmapTab', () => {
   // ── Input ──
 
   describe('input', () => {
-    it('has a textarea for client brief', () => {
-      render(<RoadmapTab />);
+    it('has a textarea for client brief', async () => {
+      await act(async () => {
+        render(<RoadmapTab />);
+      });
       const textarea = screen.getByPlaceholderText(/Paste a client brief here/);
       expect(textarea).toBeDefined();
     });
@@ -103,8 +111,10 @@ describe('RoadmapTab', () => {
       expect((textarea as HTMLTextAreaElement).value).toBe('Test brief');
     });
 
-    it('disables generate button when brief is empty', () => {
-      render(<RoadmapTab />);
+    it('disables generate button when brief is empty', async () => {
+      await act(async () => {
+        render(<RoadmapTab />);
+      });
       const button = screen.getByText('🎯 Generate Proposal');
       expect(button).toBeDisabled();
     });
@@ -167,7 +177,9 @@ describe('RoadmapTab', () => {
 
       // Resolve the stream — capture before TypeScript narrows after await
       const resolver = resolveStream;
-      resolver?.();
+      await act(async () => {
+        resolver?.();
+      });
     });
 
     it('saves proposal to API after generation', async () => {
