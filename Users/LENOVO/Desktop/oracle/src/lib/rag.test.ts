@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { chunkText, retrieveRelevant, buildRagContext, buildContext, processDocument } from './rag';
+import { chunkText, retrieveRelevant, buildRagContext, buildContext, processDocument, retrieveRelevantTfIdf } from './rag';
 import type { KnowledgeDocument, SearchResult, MemoryItem } from '@/types';
+import * as embeddingsModule from '@/lib/embeddings';
+
+// Mock embeddings module (no OpenAI key in tests)
+vi.mock('@/lib/embeddings', () => ({
+  semanticSearch: vi.fn().mockResolvedValue([]),
+  storeEmbeddings: vi.fn().mockResolvedValue(0),
+  deleteEmbeddings: vi.fn().mockResolvedValue(undefined),
+  isSemanticSearchAvailable: vi.fn().mockReturnValue(false),
+  generateEmbeddings: vi.fn().mockResolvedValue([]),
+  generateEmbedding: vi.fn().mockResolvedValue([]),
+}));
 
 // ─── Shared mock state ─────────────────
 // processXLSX uses `await import('exceljs')` which resolves to this mock.
@@ -133,27 +144,116 @@ describe('RAG', () => {
       },
     ];
 
+    it('returns empty for empty query', async () => {
+      expect(await retrieveRelevant('', mockDocs)).toEqual([]);
+    });
+
+    it('returns empty for no documents', async () => {
+      expect(await retrieveRelevant('SEO', [])).toEqual([]);
+    });
+
+    it('returns relevant chunks for matching query', async () => {
+      const results = await retrieveRelevant('search engine optimization', mockDocs, 2);
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0]).toContain('SEO');
+    });
+
+    it('returns top K results', async () => {
+      const results = await retrieveRelevant('marketing', mockDocs, 1);
+      expect(results.length).toBeLessThanOrEqual(1);
+    });
+
+    it('ranks more relevant chunks higher', async () => {
+      const results = await retrieveRelevant('keyword research SEO', mockDocs, 3);
+      expect(results.some(r => r.includes('Keyword research'))).toBe(true);
+    });
+  });
+
+  describe('retrieveRelevant (semantic search path)', () => {
+    const mockDocs: KnowledgeDocument[] = [
+      {
+        id: '1', name: 'SEO Guide', content: 'SEO best practices',
+        chunks: ['SEO is about search engine optimization', 'Keyword research is important'],
+        source: 'upload', createdAt: Date.now(), tags: ['seo'],
+      },
+    ];
+
+    it('uses semantic search when available and returns results', async () => {
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(true);
+      vi.mocked(embeddingsModule.semanticSearch).mockResolvedValue([
+        { chunkId: '1', documentId: '1', content: 'SEO is about search engine optimization', similarity: 0.85, chunkIndex: 0 },
+      ]);
+
+      const results = await retrieveRelevant('search engine', mockDocs, 3);
+      expect(results).toEqual(['SEO is about search engine optimization']);
+      expect(embeddingsModule.semanticSearch).toHaveBeenCalled();
+
+      // Reset to default
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(false);
+      vi.mocked(embeddingsModule.semanticSearch).mockResolvedValue([]);
+    });
+
+    it('falls back to TF-IDF when semantic search returns empty', async () => {
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(true);
+      vi.mocked(embeddingsModule.semanticSearch).mockResolvedValue([]);
+
+      const results = await retrieveRelevant('search engine optimization', mockDocs, 3);
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0]).toContain('SEO');
+
+      // Reset to default
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(false);
+      vi.mocked(embeddingsModule.semanticSearch).mockResolvedValue([]);
+    });
+
+    it('falls back to TF-IDF when semantic search throws', async () => {
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(true);
+      vi.mocked(embeddingsModule.semanticSearch).mockRejectedValue(new Error('API error'));
+
+      const results = await retrieveRelevant('search engine optimization', mockDocs, 3);
+      expect(results.length).toBeGreaterThanOrEqual(1);
+
+      // Reset to default
+      vi.mocked(embeddingsModule.isSemanticSearchAvailable).mockReturnValue(false);
+      vi.mocked(embeddingsModule.semanticSearch).mockResolvedValue([]);
+    });
+  });
+
+  describe('retrieveRelevantTfIdf', () => {
+    const mockDocs: KnowledgeDocument[] = [
+      {
+        id: '1', name: 'SEO Guide', content: 'SEO best practices',
+        chunks: ['SEO is about search engine optimization', 'Keyword research is important'],
+        source: 'upload', createdAt: Date.now(), tags: ['seo'],
+      },
+      {
+        id: '2', name: 'PPC Guide', content: 'Pay per click strategies',
+        chunks: ['Google Ads campaigns', 'Meta Ads retargeting'],
+        source: 'upload', createdAt: Date.now(), tags: ['ads'],
+      },
+    ];
+
     it('returns empty for empty query', () => {
-      expect(retrieveRelevant('', mockDocs)).toEqual([]);
+      expect(retrieveRelevantTfIdf('', mockDocs)).toEqual([]);
     });
 
     it('returns empty for no documents', () => {
-      expect(retrieveRelevant('SEO', [])).toEqual([]);
+      expect(retrieveRelevantTfIdf('SEO', [])).toEqual([]);
     });
 
     it('returns relevant chunks for matching query', () => {
-      const results = retrieveRelevant('search engine optimization', mockDocs, 2);
+      const results = retrieveRelevantTfIdf('search engine optimization', mockDocs, 2);
       expect(results.length).toBeGreaterThanOrEqual(1);
       expect(results[0]).toContain('SEO');
     });
 
     it('returns top K results', () => {
-      const results = retrieveRelevant('marketing', mockDocs, 1);
+      const results = retrieveRelevantTfIdf('marketing', mockDocs, 1);
       expect(results.length).toBeLessThanOrEqual(1);
     });
 
     it('ranks more relevant chunks higher', () => {
-      const results = retrieveRelevant('keyword research SEO', mockDocs, 3);
+      const results = retrieveRelevantTfIdf('keyword research SEO', mockDocs, 3);
       expect(results.some(r => r.includes('Keyword research'))).toBe(true);
     });
   });

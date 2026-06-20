@@ -10,12 +10,13 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 export async function GET(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { searchParams } = new URL(request.url);
     const clientId = searchParams.get('client_id');
 
-    let query = supabase.from('time_entries').select('*').eq('user_id', auth.user.id).order('date', { ascending: false });
+    let query = supabase.from('time_entries').select('*').eq('org_id', auth.org.orgId).order('date', { ascending: false });
 
     if (clientId) {
       query = query.eq('client_id', clientId);
@@ -35,6 +36,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('time-entries', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -48,7 +50,7 @@ export async function POST(request: NextRequest) {
       .from('time_entries')
       .insert({
         id: body.id || crypto.randomUUID(),
-        user_id: auth.user.id,
+        org_id: auth.org.orgId,
         client_id: body.clientId || body.client_id,
         description: body.description || '',
         hours: body.hours || 0,

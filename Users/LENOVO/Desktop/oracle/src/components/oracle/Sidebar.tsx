@@ -6,7 +6,7 @@ import { useRouterStore } from '@/stores/router.store';
 import { PROVIDERS } from '@/data/providers';
 import { QUICK_ACTIONS } from '@/styles/design-tokens';
 import { transitions } from '@/styles/design-tokens';
-import { processDocument } from '@/lib/rag';
+import { processDocument, indexDocument } from '@/lib/rag';
 
 // ─── Sidebar ───────────────────────────
 
@@ -180,7 +180,8 @@ function RAGDocumentManager() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     for (const file of files) {
-      await processDocument(file);
+      const doc = await processDocument(file);
+      indexDocument(doc).catch(() => {}); // fire-and-forget embedding indexing
       setDocs((prev) => [...prev, { name: file.name, enabled: true }]);
     }
     e.target.value = '';

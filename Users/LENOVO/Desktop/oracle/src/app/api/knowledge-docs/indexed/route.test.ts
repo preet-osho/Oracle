@@ -46,6 +46,7 @@ function setupChains(knowledgeDocsResult: { data?: unknown; error?: unknown }, c
   authMock.mockResolvedValue({
     user: { id: 'u1' },
     supabase: { from, auth: { getUser: vi.fn() } },
+    org: { orgId: 'org-test-001', role: 'owner' },
   });
 
   return { docsChain, chunksChain };
@@ -72,7 +73,7 @@ describe('Knowledge Docs Indexed /api/knowledge-docs/indexed', () => {
 
       expect(res.body).toEqual({ indexedIds: ['doc-1', 'doc-2'] });
       expect(docsChain.select).toHaveBeenCalledWith('id');
-      expect(docsChain.eq).toHaveBeenCalledWith('user_id', 'u1');
+      expect(docsChain.eq).toHaveBeenCalledWith('org_id', 'org-test-001');
       expect(chunksChain.select).toHaveBeenCalledWith('document_id');
     });
 
@@ -139,7 +140,7 @@ describe('Knowledge Docs Indexed /api/knowledge-docs/indexed', () => {
       const res = castMockResponse(await DELETE());
 
       expect(docsChain.select).toHaveBeenCalledWith('id');
-      expect(docsChain.eq).toHaveBeenCalledWith('user_id', 'u1');
+      expect(docsChain.eq).toHaveBeenCalledWith('org_id', 'org-test-001');
       expect(chunksChain.delete).toHaveBeenCalled();
       expect(chunksChain.in).toHaveBeenCalledWith('document_id', ['doc-1', 'doc-2']);
       expect(res.body).toEqual({

@@ -31,6 +31,10 @@ export function ConfigTab() {
   const [testResult, setTestResult] = useState<Record<string, 'success' | 'error' | null>>({});
   const [agencyProfile, setAgencyProfile] = useState(getAgencyProfile());
   const [knowledgeDocs, setKnowledgeDocs] = useState<Array<{ id?: string; name: string; content: string }>>([]);
+  const [reindexing, setReindexing] = useState(false);
+  const [reindexProgress, setReindexProgress] = useState<{ done: number; total: number } | null>(null);
+  const [reindexingDocId, setReindexingDocId] = useState<string | null>(null);
+  const [indexedDocIds, setIndexedDocIds] = useState<Set<string>>(new Set());
   const [keyInputs, setKeyInputs] = useState<Record<string, string>>({});
   const [showKeyFor, setShowKeyFor] = useState<string | null>(null);
   const [darkMode, setDarkMode] = useState(true);
@@ -46,12 +50,23 @@ export function ConfigTab() {
   const { usageHistory } = useRouterStore();
   const costHistory = usageHistory.map((u) => ({ date: new Date(u.timestamp).toISOString().slice(0, 10), provider: u.provider, cost: u.costINR }));
 
+  const fetchIndexedIds = useCallback(async () => {
+    try {
+      const res = await fetch('/api/knowledge-docs/indexed');
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.indexedIds)) {
+        setIndexedDocIds(new Set(data.indexedIds));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     knowledgeDocsApi.list().then((docs) => {
       setKnowledgeDocs(docs.map((d) => ({ id: d.id, name: d.name, content: d.content })));
     }).catch(() => {});
+    fetchIndexedIds();
     setAgencyProfile(getAgencyProfile());
-  }, []);
+  }, [fetchIndexedIds]);
 
   const handleTestKey = useCallback(async (providerId: string) => {
     const key = keyInputs[providerId] || byokKeys[providerId];
@@ -190,6 +205,47 @@ export function ConfigTab() {
     if (doc?.id) {       try { await knowledgeDocsApi.delete(doc.id); } catch (err) { toast.error(`Failed to delete ${doc.name}: ${err instanceof Error ? err.message : 'Unknown error'}`, TOAST_DEFAULTS); }
     }
   }, [knowledgeDocs]);
+
+  const handleReindexDoc = useCallback(async (docId: string, docName: string) => {
+    if (reindexingDocId) return;
+    setReindexingDocId(docId);
+    try {
+      const res = await fetch(`/api/knowledge-docs/${docId}/reindex`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Re-indexing failed');
+      toast.success(`✅ ${data.message}`, TOAST_DEFAULTS);
+      if (data.indexed) setIndexedDocIds((prev) => new Set(prev).add(docId));
+    } catch (err) {
+      toast.error(`❌ ${err instanceof Error ? err.message : 'Re-indexing failed'}`, TOAST_DEFAULTS);
+    } finally {
+      setReindexingDocId(null);
+    }
+  }, [reindexingDocId]);
+
+  const handleReindexAll = useCallback(async () => {
+    if (reindexing || knowledgeDocs.length === 0) return;
+    setReindexing(true);
+    setReindexProgress({ done: 0, total: knowledgeDocs.length });
+    try {
+      const res = await fetch('/api/knowledge-docs/reindex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Re-indexing failed');
+      setReindexProgress({ done: data.indexed, total: data.total });
+      toast.success(`✅ ${data.message}`, TOAST_DEFAULTS);
+      fetchIndexedIds(); // Refresh indexed status
+    } catch (err) {
+      toast.error(`❌ ${err instanceof Error ? err.message : 'Re-indexing failed'}`, TOAST_DEFAULTS);
+    } finally {
+      setReindexing(false);
+      setReindexProgress(null);
+    }
+  }, [knowledgeDocs, reindexing, fetchIndexedIds]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -514,6 +570,17 @@ export function ConfigTab() {
                 + Upload document
               </motion.button>
               <input id="kb-upload" type="file" className="hidden" accept=".pdf,.docx,.xlsx,.txt,.md,.csv" multiple onChange={handleDocUpload} />
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-[var(--oracle-text-muted)]">{knowledgeDocs.length} document{knowledgeDocs.length !== 1 ? 's' : ''} uploaded</p>
+                <motion.button
+                  {...buttonTapProps}
+                  onClick={handleReindexAll}
+                  disabled={reindexing || knowledgeDocs.length === 0}
+                  className="rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[11px] font-medium text-[var(--oracle-text-3)] transition-colors hover:border-[var(--oracle-primary)] hover:text-[var(--oracle-primary-l)] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reindexing ? `⟳ Indexing ${reindexProgress?.done ?? 0}/${reindexProgress?.total ?? 0}` : '🔄 Re-index All for Semantic Search'}
+                </motion.button>
+              </div>
               {knowledgeDocs.length > 0 && (
                 <div className="space-y-1.5">
                   {knowledgeDocs.map((doc, i) => (
@@ -521,8 +588,28 @@ export function ConfigTab() {
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="text-sm">📄</span>
                         <span className="truncate text-[12px] text-[var(--oracle-text-2)]">{doc.name}</span>
+                        {doc.id && (
+                          <span className={`ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
+                            indexedDocIds.has(doc.id)
+                              ? 'bg-[var(--oracle-success)]/15 text-[var(--oracle-success)]'
+                              : 'bg-[var(--oracle-surface-3)] text-[var(--oracle-text-muted)]'
+                          }`}>
+                            {indexedDocIds.has(doc.id) ? '✓ Indexed' : '○ Not indexed'}
+                          </span>
+                        )}
                       </div>
-                      <button onClick={() => removeDoc(i)} className="ml-2 text-[var(--oracle-text-muted)] hover:text-[var(--oracle-error)] text-[12px]">×</button>
+                      {doc.id && (
+                        <motion.button
+                          {...buttonTapProps}
+                          onClick={() => handleReindexDoc(doc.id!, doc.name)}
+                          disabled={reindexingDocId !== null}
+                          className="ml-2 rounded px-1.5 py-0.5 text-[10px] text-[var(--oracle-text-muted)] transition-colors hover:bg-[var(--oracle-primary)]/10 hover:text-[var(--oracle-primary-l)] disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Re-index this document"
+                        >
+                          {reindexingDocId === doc.id ? '⟳' : '⚡'}
+                        </motion.button>
+                      )}
+                      <button onClick={() => removeDoc(i)} className="ml-1 text-[var(--oracle-text-muted)] hover:text-[var(--oracle-error)] text-[12px]">×</button>
                     </div>
                   ))}
                 </div>

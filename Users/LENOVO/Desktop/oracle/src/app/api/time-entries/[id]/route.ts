@@ -13,6 +13,7 @@ export async function DELETE(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('time-entries', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -21,7 +22,7 @@ export async function DELETE(
       .from('time_entries')
       .delete()
       .eq('id', id)
-      .eq('user_id', auth.user.id);
+      .eq('org_id', auth.org.orgId);
 
     if (error) throw error;
     return NextResponse.json({ success: true });

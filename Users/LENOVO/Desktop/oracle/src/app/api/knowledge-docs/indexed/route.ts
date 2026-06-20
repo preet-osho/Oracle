@@ -14,13 +14,14 @@ export async function GET() {
   // 1. Authenticate
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   // 2. Get user's doc IDs first (RLS-scoped), then check which have chunks
   const { supabase } = auth;
   const { data: docs } = await supabase
     .from('knowledge_docs')
     .select('id')
-    .eq('user_id', auth.user.id);
+    .eq('org_id', auth.org.orgId);
 
   if (!docs || docs.length === 0) {
     return NextResponse.json({ indexedIds: [] });
@@ -53,6 +54,7 @@ export async function DELETE() {
   // 1. Authenticate
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   // 2. Rate limit
   const rl = await enforceRateLimit('knowledge-docs', auth.user.id);
@@ -63,7 +65,7 @@ export async function DELETE() {
   const { data: docs } = await supabase
     .from('knowledge_docs')
     .select('id')
-    .eq('user_id', auth.user.id);
+    .eq('org_id', auth.org.orgId);
 
   if (!docs || docs.length === 0) {
     return NextResponse.json({ deleted: 0, message: 'No documents to clear' });

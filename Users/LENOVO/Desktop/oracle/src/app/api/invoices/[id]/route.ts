@@ -18,6 +18,7 @@ interface RouteContext {
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   const { id } = await params;
   const { supabase } = auth;
@@ -26,7 +27,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
     .from('invoices')
     .select('*')
     .eq('id', id)
-    .eq('user_id', auth.user.id)
+    .eq('org_id', auth.org.orgId)
     .single();
 
   if (error) {
@@ -41,6 +42,7 @@ export async function GET(_request: NextRequest, { params }: RouteContext) {
 export async function PUT(request: NextRequest, { params }: RouteContext) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('invoices', auth.user.id);
   if (rl) return rl;
 
@@ -67,7 +69,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
     .from('invoices')
     .update(updateData)
     .eq('id', id)
-    .eq('user_id', auth.user.id)
+    .eq('org_id', auth.org.orgId)
     .select()
     .single();
 
@@ -91,6 +93,7 @@ export async function PUT(request: NextRequest, { params }: RouteContext) {
 export async function DELETE(_request: NextRequest, { params }: RouteContext) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('invoices', auth.user.id);
   if (rl) return rl;
 
@@ -101,7 +104,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
     .from('invoices')
     .delete()
     .eq('id', id)
-    .eq('user_id', auth.user.id);
+    .eq('org_id', auth.org.orgId);
 
   if (error) {
     return Response.json({ error: error.message }, { status: 500 });

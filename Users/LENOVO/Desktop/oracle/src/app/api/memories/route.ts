@@ -10,6 +10,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 export async function GET(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { searchParams } = new URL(request.url);
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
       const { data, error } = await supabase
         .from('memories')
         .select('client_id')
-        .eq('user_id', auth.user.id)
+        .eq('org_id', auth.org.orgId)
         .order('client_id');
 
       if (error) throw error;
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await supabase
       .from('memories')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('org_id', auth.org.orgId)
       .eq('client_id', clientId)
       .order('importance', { ascending: false })
       .order('created_at', { ascending: false });
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('memories', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
       .from('memories')
       .insert({
         id: body.id || crypto.randomUUID(),
-        user_id: auth.user.id,
+        org_id: auth.org.orgId,
         client_id: body.clientId || body.client_id,
         content: body.content,
         category: body.category,

@@ -1,11 +1,13 @@
 // ═══════════════════════════════════════
 // ORACLE — API Route Auth Validation
 // Reusable helper for protecting API endpoints
+// Returns user + org context for RBAC
 // ═══════════════════════════════════════
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
+import { type OrgRole } from '@/lib/permissions';
 
 export interface AuthResult {
   user: User;
@@ -13,6 +15,11 @@ export interface AuthResult {
    *  With the new RLS policies, this client can query tables directly
    *  — no need for the service-role key. */
   supabase: SupabaseClient;
+  /** Organization context — null if user has no org membership. */
+  org: {
+    orgId: string;
+    role: OrgRole;
+  } | null;
 }
 
 /**
@@ -22,8 +29,9 @@ export interface AuthResult {
  * ```ts
  * const auth = await validateAuth();
  * if ('error' in auth) return auth.error;
- * const { user, supabase } = auth;
+ * const { user, supabase, org } = auth;
  * // Use `supabase` for all database queries — it respects RLS.
+ * // Use `org` for org-scoped queries.
  * ```
  */
 export async function validateAuth(): Promise<
@@ -44,5 +52,22 @@ export async function validateAuth(): Promise<
     };
   }
 
-  return { user, supabase };
+  // Get org context via database function
+  let org: AuthResult['org'] = null;
+  try {
+    const { data: orgData } = await supabase.rpc('get_user_org_context', {
+      target_user_id: user.id,
+    });
+
+    if (orgData && orgData.length > 0) {
+      org = {
+        orgId: orgData[0].org_id,
+        role: orgData[0].role as OrgRole,
+      };
+    }
+  } catch {
+    // Org context not available yet (migration not applied) — proceed without it
+  }
+
+  return { user, supabase, org };
 }

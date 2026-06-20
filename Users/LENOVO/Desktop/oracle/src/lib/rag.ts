@@ -1,10 +1,20 @@
 // ═══════════════════════════════════════
 // ORACLE — RAG (Retrieval-Augmented Generation)
-// Document Processing · Chunking · Retrieval · Web Search · Context Builder
+// Semantic Search (OpenAI embeddings + pgvector) · TF-IDF Fallback · Document Processing · Web Search
 // ═══════════════════════════════════════
 
 import type { KnowledgeDocument, SearchResult, MemoryItem } from '@/types';
 import { nanoid } from 'nanoid';
+import {
+  semanticSearch,
+  storeEmbeddings,
+  deleteEmbeddings,
+  isSemanticSearchAvailable,
+  type EmbeddingResult,
+} from '@/lib/embeddings';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('RAG');
 
 // ─── Document Processing ───────────────
 
@@ -168,9 +178,99 @@ export function chunkText(
   return chunks.filter((c) => c.length > 0);
 }
 
-// ─── Retrieval (Simple TF-IDF) ─────────
+// ═══════════════════════════════════════
+// SEMANTIC SEARCH (primary) + TF-IDF (fallback)
+// ═══════════════════════════════════════
 
-export function retrieveRelevant(
+/**
+ * Store document embeddings in pgvector after processing.
+ * Call this after processDocument to enable semantic search for the document.
+ */
+export async function indexDocument(document: KnowledgeDocument): Promise<void> {
+  if (!isSemanticSearchAvailable()) return;
+  if (document.chunks.length === 0) return;
+
+  try {
+    const stored = await storeEmbeddings({
+      documentId: document.id,
+      chunks: document.chunks,
+    });
+    log.info('Document indexed for semantic search', {
+      documentId: document.id,
+      name: document.name,
+      chunks: stored,
+    });
+  } catch (err) {
+    log.error('Failed to index document for semantic search', {
+      error: err instanceof Error ? err.message : 'Unknown',
+      documentId: document.id,
+    });
+  }
+}
+
+/**
+ * Remove document embeddings from pgvector.
+ * Call this when a document is deleted.
+ */
+export async function unindexDocument(documentId: string): Promise<void> {
+  if (!isSemanticSearchAvailable()) return;
+
+  try {
+    await deleteEmbeddings(documentId);
+  } catch (err) {
+    log.error('Failed to unindex document', {
+      error: err instanceof Error ? err.message : 'Unknown',
+      documentId,
+    });
+  }
+}
+
+/**
+ * Retrieve relevant chunks using semantic search (primary) with TF-IDF fallback.
+ *
+ * Strategy:
+ * 1. If semantic search is available → use pgvector cosine similarity
+ * 2. If no results from semantic search or not available → fall back to TF-IDF
+ */
+export async function retrieveRelevant(
+  query: string,
+  documents: KnowledgeDocument[],
+  topK: number = 3
+): Promise<string[]> {
+  if (!query || documents.length === 0) return [];
+
+  // ── Strategy 1: Semantic Search (if available) ──
+  if (isSemanticSearchAvailable()) {
+    try {
+      const documentIds = documents.map((d) => d.id);
+      const results: EmbeddingResult[] = await semanticSearch(query, {
+        matchCount: topK,
+        documentIds,
+      });
+
+      if (results.length > 0) {
+        log.debug('Semantic search returned results', {
+          count: results.length,
+          topSimilarity: results[0]?.similarity?.toFixed(3),
+        });
+        return results.map((r) => r.content);
+      }
+    } catch (err) {
+      log.warn('Semantic search failed, falling back to TF-IDF', {
+        error: err instanceof Error ? err.message : 'Unknown',
+      });
+    }
+  }
+
+  // ── Strategy 2: TF-IDF Fallback ──
+  return retrieveRelevantTfIdf(query, documents, topK);
+}
+
+/**
+ * Synchronous TF-IDF retrieval (original implementation).
+ * Used as fallback when semantic search is unavailable or returns no results.
+ */
+export function retrieveRelevantTfIdf(
   query: string,
   documents: KnowledgeDocument[],
   topK: number = 3

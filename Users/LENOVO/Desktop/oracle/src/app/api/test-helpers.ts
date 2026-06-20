@@ -82,7 +82,7 @@ export function makeSetupChain(from: any, authMock: any) {
       then: (ok: any, fail?: any) => { if (result.error) fail?.(result.error); else ok(result); },
     };
     from.mockReturnValue(c);
-    authMock.mockResolvedValue({ user: { id: 'u1' }, supabase: { from, auth: { getUser: vi.fn() }, _chain: c } });
+    authMock.mockResolvedValue({ user: { id: 'u1' }, supabase: { from, auth: { getUser: vi.fn() }, _chain: c }, org: { orgId: 'org-test-001', role: 'owner' } });
     return c;
   };
 }

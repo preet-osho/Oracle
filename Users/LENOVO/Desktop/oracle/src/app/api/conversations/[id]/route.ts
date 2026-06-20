@@ -14,13 +14,14 @@ export async function GET(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { data, error } = await supabase
       .from('conversations')
       .select('*')
       .eq('id', id)
-      .eq('user_id', auth.user.id)
+      .eq('org_id', auth.org.orgId)
       .single();
 
     if (error) throw error;
@@ -40,6 +41,7 @@ export async function PUT(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('conversations', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -59,7 +61,7 @@ export async function PUT(
       .from('conversations')
       .update(updateData)
       .eq('id', id)
-      .eq('user_id', auth.user.id)
+      .eq('org_id', auth.org.orgId)
       .select()
       .single();
 
@@ -80,13 +82,14 @@ export async function DELETE(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { error } = await supabase
       .from('conversations')
       .delete()
       .eq('id', id)
-      .eq('user_id', auth.user.id);
+      .eq('org_id', auth.org.orgId);
 
     if (error) throw error;
     return NextResponse.json({ success: true });

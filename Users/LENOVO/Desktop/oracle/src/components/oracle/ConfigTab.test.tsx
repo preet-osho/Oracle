@@ -169,6 +169,13 @@ describe('ConfigTab', () => {
     mockUsageHistory = [];
     mockTemperature = 0.7;
     mockFetch.mockReset();
+    // Default: handle /api/knowledge-docs/indexed call on mount
+    mockFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+      }
+      return Promise.resolve({ ok: true });
+    });
     // Default guard config returns enabled with default thresholds
     mockLoadGuardConfig.mockReturnValue({
       enabled: true,
@@ -293,9 +300,12 @@ describe('ConfigTab', () => {
       // Click Test
       await user.click(screen.getByText('Test'));
 
-      // Should call setByokKey and fetch
+      // Should call setByokKey and fetch (proxy call only)
       expect(mockSetByokKey).toHaveBeenCalledWith('openai', 'sk-test-key-12345');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/ai/chat',
+        expect.objectContaining({ method: 'POST' })
+      );
 
       // Should show success
       await waitFor(() => {
@@ -348,8 +358,11 @@ describe('ConfigTab', () => {
       // Click Test
       await user.click(screen.getByText('Test'));
 
-      // Should NOT call fetch
-      expect(mockFetch).not.toHaveBeenCalled();
+      // Should NOT call fetch for proxy (only the indexed endpoint was called on mount)
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        '/api/ai/chat',
+        expect.anything()
+      );
     });
 
     it('uses existing byokKey when input is empty', async () => {
@@ -366,7 +379,10 @@ describe('ConfigTab', () => {
 
       // Should use the existing key
       expect(mockSetByokKey).toHaveBeenCalledWith('openai', 'sk-existing-key');
-      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/ai/chat',
+        expect.objectContaining({ method: 'POST' })
+      );
     });
 
     it('shows spinner while testing', async () => {

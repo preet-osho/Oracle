@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
   // 1. Authenticate
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   // 2. Rate limit (per-user, 15 req/min)
   const rateLimitKey = `web-search:${auth.user.id}`;
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
   const { data: keyRow, error: keyError } = await auth.supabase
     .from('user_api_keys')
     .select('encrypted_key')
-    .eq('user_id', auth.user.id)
+    .eq('org_id', auth.org.orgId)
     .eq('provider_id', provider)
     .eq('is_active', true)
     .single();

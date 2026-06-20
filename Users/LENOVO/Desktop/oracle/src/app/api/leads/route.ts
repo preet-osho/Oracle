@@ -11,6 +11,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 export async function GET(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { searchParams } = new URL(request.url);
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('leads', auth.user.id);
   if (rl) return rl;
   const { supabase, user } = auth;

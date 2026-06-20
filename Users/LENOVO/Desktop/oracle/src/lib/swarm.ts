@@ -27,7 +27,11 @@ import {
   type ModelTier,
 } from '@/lib/model-selector';
 import { NeverStopRouter } from '@/lib/router';
+import { registerSwarmExecution, shouldContinueSwarm, completeSwarmExecution, isWithinCostLimit, canStartSwarm } from '@/lib/emergency-stop';
+import { createLogger } from '@/lib/logger';
 import type { ClientProject } from '@/types';
+
+const log = createLogger('Swarm');
 
 // ─── Agent System Prompts ──────────────
 
@@ -129,13 +133,46 @@ export async function runSwarm(
     model: string;
     tokens: number;
   }>,
-  onAgentComplete?: (agentRole: string, result: string) => void
+  onAgentComplete?: (agentRole: string, result: string) => void,
+  userId?: string
 ): Promise<{ synthesis: string; agentResults: SwarmResult[]; totalCostUsd: number }> {
+  // ── Emergency Stop: Register execution ──
+  const blockReason = canStartSwarm(userId);
+  if (blockReason) {
+    log.warn('Swarm execution blocked by emergency stop', { reason: blockReason });
+    return {
+      synthesis: `[Blocked] ${blockReason}`,
+      agentResults: [],
+      totalCostUsd: 0,
+    };
+  }
+
+  const executionId = registerSwarmExecution(userId, task);
+  if (!executionId) {
+    return {
+      synthesis: '[Blocked] Could not register swarm execution (limit reached or emergency stop).',
+      agentResults: [],
+      totalCostUsd: 0,
+    };
+  }
+
   const agentResults: SwarmResult[] = [];
   const results: string[] = [];
 
   // Analyze task for intelligent routing
   const analysis = analyzeTask(task);
+
+  // ── Emergency Stop: Check cost limit ──
+  if (!isWithinCostLimit(analysis.estimatedTokens * 0.00003)) {
+    // Rough cost estimate — if estimated cost > limit, abort early
+    completeSwarmExecution(executionId);
+    log.warn('Swarm execution aborted: estimated cost exceeds limit', { estimatedTokens: analysis.estimatedTokens });
+    return {
+      synthesis: '[Aborted] Estimated cost exceeds the swarm budget limit.',
+      agentResults: [],
+      totalCostUsd: 0,
+    };
+  }
 
   // Build context prefix
   const contextParts: string[] = [];
@@ -166,6 +203,24 @@ export async function runSwarm(
     const promises = subTasks.map(async (st) => {
       const systemPrompt = AGENT_PROMPTS[st.agent] || AGENT_PROMPTS.researcher;
       const startTime = Date.now();
+
+      // ── Emergency Stop: Check before each agent ──
+      const abortReason = shouldContinueSwarm(executionId);
+      if (abortReason) {
+        log.warn('Swarm agent aborted mid-execution', { agent: st.agent, reason: abortReason });
+        agentResults.push({
+          agent: st.agent,
+          result: `[Aborted: ${abortReason}]`,
+          provider: 'aborted',
+          model: 'aborted',
+          tier: st.modelSelection.tier,
+          tokens: 0,
+          timeMs: 0,
+          costUsd: 0,
+        });
+        results.push(`## ${capitalize(st.agent)} Agent\n[Aborted: ${abortReason}]`);
+        return;
+      }
 
       // Check budget and potentially downgrade or skip
       let modelSelection = st.modelSelection;
@@ -246,6 +301,13 @@ export async function runSwarm(
     let previousResults = '';
 
     for (const st of subTasks) {
+      // ── Emergency Stop: Check before each agent ──
+      const abortReason = shouldContinueSwarm(executionId);
+      if (abortReason) {
+        log.warn('Swarm sequential agent aborted', { agent: st.agent, reason: abortReason });
+        break;
+      }
+
       const systemPrompt = AGENT_PROMPTS[st.agent] || AGENT_PROMPTS.researcher;
       const fullPrompt = previousResults
         ? `${st.prompt}\n\n## Previous Agent Results:\n${previousResults.slice(-400)}`
@@ -349,6 +411,9 @@ End with "**Next Step:** [one specific action]"`;
 
     const totalCostUsd = agentResults.reduce((sum, r) => sum + r.costUsd, 0);
 
+    // ── Emergency Stop: Clean up ──
+    completeSwarmExecution(executionId);
+
     return { synthesis: synthesisResult.text, agentResults, totalCostUsd };
   } catch (e) {
     console.warn('[Swarm] Synthesis failed, returning concatenated results:', e);
@@ -365,6 +430,9 @@ End with "**Next Step:** [one specific action]"`;
     };
 
     agentResults.push(fallbackResult);
+
+    // ── Emergency Stop: Clean up ──
+    completeSwarmExecution(executionId);
 
     return { synthesis: results.join('\n\n---\n\n'), agentResults, totalCostUsd: 0 };
   }

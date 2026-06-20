@@ -11,6 +11,7 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 export async function POST() {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('revenue-seed', auth.user.id);
   if (rl) return rl;
   const { supabase, user } = auth;

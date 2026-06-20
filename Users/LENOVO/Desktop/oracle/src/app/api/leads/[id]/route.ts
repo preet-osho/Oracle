@@ -14,6 +14,7 @@ export async function GET(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { data, error } = await supabase
@@ -39,6 +40,7 @@ export async function PUT(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('leads', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -93,6 +95,7 @@ export async function DELETE(
   const { id } = await params;
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('leads', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;

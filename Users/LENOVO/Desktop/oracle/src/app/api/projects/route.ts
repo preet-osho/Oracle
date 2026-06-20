@@ -11,12 +11,13 @@ import { enforceRateLimit } from '@/lib/rate-limit';
 export async function GET() {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
   try {
     const { data, error } = await supabase
       .from('projects')
       .select('*')
-      .eq('user_id', auth.user.id)
+      .eq('org_id', auth.org.orgId)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -32,6 +33,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const rl = await enforceRateLimit('projects', auth.user.id);
   if (rl) return rl;
   const { supabase } = auth;
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
       .from('projects')
       .insert({
         id: body.id || crypto.randomUUID(),
-        user_id: auth.user.id,
+        org_id: auth.org.orgId,
         client_name: body.clientName || body.client_name || '',
         industry: body.industry || '',
         sector: body.sector || '',

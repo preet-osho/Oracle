@@ -37,6 +37,8 @@ export interface ExecutionResult {
   totalDurationMs: number;
   success: boolean;
   error?: string;
+  /** Inngest event ID when dispatched to background queue */
+  backgroundEventId?: string;
 }
 
 // ─── Event Helpers ─────────────────────
@@ -55,7 +57,42 @@ function dispatchComplete(result: ExecutionResult): void {
   );
 }
 
+// ─── Background Queue Dispatch ────────
+
+/**
+ * Attempt to dispatch a task to Inngest for background execution.
+ * Uses dynamic import to avoid hard dependency when Inngest is not installed.
+ * Returns the event ID if dispatched, or null to fall back to synchronous.
+ */
+async function tryInngestDispatch(
+  task: ClientTask,
+  options: {
+    approach?: 'balanced' | 'premium' | 'fast';
+    parallel?: boolean;
+  }
+): Promise<string | null> {
+  try {
+    const { isInngestConfigured, dispatchTaskExecution } = await import('@/lib/inngest/dispatch');
+    if (!isInngestConfigured()) return null;
+
+    return dispatchTaskExecution({
+      taskId: task.id,
+      clientName: task.clientName,
+      title: task.title,
+      description: task.description,
+      category: task.category,
+      assignedAgents: task.assignedAgents,
+      approach: options.approach || 'balanced',
+      parallel: options.parallel !== false,
+    });
+  } catch {
+    // Inngest not installed or not configured — fall back to synchronous
+    return null;
+  }
+}
+
 // ─── Main Execution Function ───────────
+// Tries Inngest background queue first, falls back to synchronous.
 
 export async function executeClientTask(
   task: ClientTask,
@@ -68,6 +105,33 @@ export async function executeClientTask(
   const approach = options.approach || 'balanced';
   const parallel = options.parallel !== false; // default to parallel
 
+  // 0. Try background queue first — falls back to sync if Inngest unavailable
+  const bgEventId = await tryInngestDispatch(task, options);
+  if (bgEventId) {
+    updateClientTask(task.id, { status: 'executing' });
+    dispatchProgress({
+      taskId: task.id,
+      clientName: task.clientName,
+      status: 'executing',
+      completedAgents: [],
+      totalAgents: task.assignedAgents.length || 1,
+      startedAt: startTime,
+      elapsed: 0,
+    });
+    // Return immediately — Inngest handles execution in background
+    return {
+      taskId: task.id,
+      synthesis: '',
+      agentResults: [],
+      totalCostUsd: 0,
+      totalTokens: 0,
+      totalDurationMs: 0,
+      success: true,
+      backgroundEventId: bgEventId,
+    };
+  }
+
+  // Fallback: synchronous execution
   // 1. Mark task as analyzing
   updateClientTask(task.id, { status: 'analyzing' });
   dispatchProgress({

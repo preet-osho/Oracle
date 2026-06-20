@@ -13,12 +13,22 @@ import { createCipheriv, createDecipheriv, randomBytes } from 'crypto';
 
 const ENCRYPTION_KEY = process.env.API_KEY_ENCRYPTION_KEY;
 
-if (!ENCRYPTION_KEY && process.env.NODE_ENV === 'production') {
-  console.error('[FATAL] API_KEY_ENCRYPTION_KEY environment variable is required in production');
+if (!ENCRYPTION_KEY) {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('[FATAL] API_KEY_ENCRYPTION_KEY environment variable is required in production');
+  } else {
+    console.warn('[SECURITY] API_KEY_ENCRYPTION_KEY not set. Generate one with: openssl rand -hex 32');
+  }
 }
 
 function getRawKey(): string {
-  return ENCRYPTION_KEY || 'oracle-dev-key-change-in-production-32b!';
+  if (!ENCRYPTION_KEY) {
+    throw new Error(
+      '[FATAL] API_KEY_ENCRYPTION_KEY environment variable is required. ' +
+      'Generate one with: openssl rand -hex 32 and set it in .env.local'
+    );
+  }
+  return ENCRYPTION_KEY;
 }
 
 function getKeyBuffer(): Buffer {

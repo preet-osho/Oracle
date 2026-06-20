@@ -15,12 +15,13 @@ import { encrypt, decrypt, maskKey } from '@/lib/encryption';
 export async function GET() {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
 
   const { data, error } = await supabase
     .from('user_api_keys')
     .select('id, provider_id, encrypted_key, is_active, created_at, updated_at')
-    .eq('user_id', auth.user.id)
+    .eq('org_id', auth.org.orgId)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -49,6 +50,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
 
   let body: { provider_id?: string; api_key?: string };
@@ -84,7 +86,7 @@ export async function POST(request: NextRequest) {
     .from('user_api_keys')
     .upsert(
       {
-        user_id: auth.user.id,
+        org_id: auth.org.orgId,
         provider_id,
         encrypted_key,
         key_hint,
@@ -125,6 +127,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
   const { supabase } = auth;
 
   const { searchParams } = new URL(request.url);
@@ -140,7 +143,7 @@ export async function DELETE(request: NextRequest) {
   const { error } = await supabase
     .from('user_api_keys')
     .delete()
-    .eq('user_id', auth.user.id)
+    .eq('org_id', auth.org.orgId)
     .eq('provider_id', provider_id);
 
   if (error) {

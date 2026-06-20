@@ -29,6 +29,7 @@ function getServiceClient(): SupabaseClient | null {
 export async function GET(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   const supabase = getServiceClient();
   if (!supabase) {
@@ -209,6 +210,7 @@ export async function GET(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
+  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
   let body: { userId: string };
   try {
