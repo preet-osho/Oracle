@@ -4,13 +4,7 @@ import React from 'react';
 
 // ─── Mocks ───
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: (p: Record<string, unknown>) => <div {...p}>{p.children as React.ReactNode}</div>,
-    span: (p: Record<string, unknown>) => <span {...p}>{p.children as React.ReactNode}</span>,
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
+// framer-motion mock is global in test-setup.ts (strips animation-specific props)
 
 const { mockListProjects, mockListInvoices } = vi.hoisted(() => {
   const mockListProjects = vi.fn().mockResolvedValue([]);
