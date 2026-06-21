@@ -2,6 +2,26 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import type { PlanId } from '@/lib/subscription';
+
+let mockPlan: PlanId = 'starter';
+
+vi.mock('./FeatureGate', () => ({
+  useSubscriptionState: () => ({ plan: mockPlan, isValid: true, loading: false }),
+  getRequiredPlanForFeature: (feature: string) => {
+    const map: Record<string, PlanId> = { webSearch: 'pro', clientMemory: 'pro', proposals: 'pro', invoices: 'pro' };
+    return map[feature] || 'pro';
+  },
+  UpgradeModal: ({ open, onOpenChange, featureLabel }: { open: boolean; onOpenChange: (open: boolean) => void; featureLabel?: string }) => (
+    open ? (
+      <div data-testid="upgrade-modal">
+        <span>Upgrade Modal: {featureLabel}</span>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+}));
+
 import { ConfigTab } from './ConfigTab';
 
 // ─── Mocks ─────────────────────────────
@@ -159,6 +179,7 @@ vi.mock('@/lib/api', () => ({
 describe('ConfigTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPlan = 'starter';
     mockByokKeys = {};
     mockAutoRoute = true;
     mockSelectedModel = { providerId: 'groq', modelId: 'llama-3.3-70b-versatile' };
@@ -536,6 +557,7 @@ describe('ConfigTab', () => {
     });
 
     it('toggles web search and shows API key input', async () => {
+      mockPlan = 'pro';
       const user = userEvent.setup();
       render(<ConfigTab />);
       const label = screen.getByText('Web search');
@@ -543,6 +565,68 @@ describe('ConfigTab', () => {
       if (toggleButton) {
         await user.click(toggleButton);
         expect(screen.getByPlaceholderText('Tavily/Serper API key')).toBeDefined();
+      }
+    });
+
+    it('shows lock icon on web search for starter users', async () => {
+      mockPlan = 'starter';
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      const lockIcons = screen.getAllByText('🔒');
+      expect(lockIcons.length).toBeGreaterThanOrEqual(1);
+      const upgradeHints = screen.getAllByText(/Requires Pro plan/);
+      expect(upgradeHints.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not show lock icon on web search for pro users', async () => {
+      mockPlan = 'pro';
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.queryByText('🔒')).toBeNull();
+    });
+
+    it('opens upgrade modal when starter user clicks web search toggle', async () => {
+      mockPlan = 'starter';
+      const user = userEvent.setup();
+      render(<ConfigTab />);
+      const label = screen.getByText('Web search');
+      const toggleButton = label.closest('div')?.parentElement?.querySelector('button');
+      if (toggleButton) {
+        await user.click(toggleButton);
+        expect(screen.getByTestId('upgrade-modal')).toBeDefined();
+        expect(screen.getByText('Upgrade Modal: Web Search')).toBeDefined();
+      }
+    });
+
+    it('shows lock icon on auto-extract memories for starter users', async () => {
+      mockPlan = 'starter';
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      const lockIcons = screen.getAllByText('🔒');
+      expect(lockIcons.length).toBeGreaterThanOrEqual(2); // web search + memory
+    });
+
+    it('does not show lock icon on auto-extract memories for pro users', async () => {
+      mockPlan = 'pro';
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.queryByText('🔒')).toBeNull();
+    });
+
+    it('opens upgrade modal when starter user clicks auto-extract memories toggle', async () => {
+      mockPlan = 'starter';
+      const user = userEvent.setup();
+      render(<ConfigTab />);
+      const label = screen.getByText('Auto-extract memories');
+      const toggleButton = label.closest('div')?.parentElement?.querySelector('button');
+      if (toggleButton) {
+        await user.click(toggleButton);
+        expect(screen.getByTestId('upgrade-modal')).toBeDefined();
+        expect(screen.getByText('Upgrade Modal: Client Memory')).toBeDefined();
       }
     });
 

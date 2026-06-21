@@ -1,8 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
+import type { PlanId } from '@/lib/subscription';
 
 // ─── Mocks ───
+
+let mockPlan: PlanId = 'starter';
+
+vi.mock('./FeatureGate', () => ({
+  useSubscriptionState: () => ({ plan: mockPlan, isValid: true, loading: false }),
+  getRequiredPlanForFeature: (feature: string) => {
+    const map: Record<string, PlanId> = { webSearch: 'pro', clientMemory: 'pro' };
+    return map[feature] || 'pro';
+  },
+  UpgradeModal: ({ open, onOpenChange, featureLabel }: { open: boolean; onOpenChange: (open: boolean) => void; featureLabel?: string }) => (
+    open ? (
+      <div data-testid="upgrade-modal">
+        <span>Upgrade Modal: {featureLabel}</span>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    ) : null
+  ),
+  TierBadge: () => null,
+  TierTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 vi.mock('@/stores/router.store', () => ({
   useRouterStore: () => ({
@@ -73,6 +94,7 @@ import { Sidebar } from './Sidebar';
 describe('Sidebar', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPlan = 'starter';
   });
 
   it('renders when isOpen is true', () => {
@@ -127,5 +149,50 @@ describe('Sidebar', () => {
   it('renders web search toggle', () => {
     render(<Sidebar isOpen={true} onClose={vi.fn()} />);
     expect(screen.getByText('Enable web search')).toBeDefined();
+  });
+
+  it('shows lock icon on web search for starter users', () => {
+    mockPlan = 'starter';
+    render(<Sidebar isOpen={true} onClose={vi.fn()} />);
+    expect(screen.getByText('🔒')).toBeDefined();
+    expect(screen.getByText(/Requires Pro plan/)).toBeDefined();
+  });
+
+  it('does not show lock icon on web search for pro users', () => {
+    mockPlan = 'pro';
+    render(<Sidebar isOpen={true} onClose={vi.fn()} />);
+    expect(screen.queryByText('🔒')).toBeNull();
+    expect(screen.queryByText(/Requires Pro plan/)).toBeNull();
+  });
+
+  it('does not show lock icon on web search for agency users', () => {
+    mockPlan = 'agency';
+    render(<Sidebar isOpen={true} onClose={vi.fn()} />);
+    expect(screen.queryByText('🔒')).toBeNull();
+  });
+
+  it('opens upgrade modal when starter user clicks web search toggle', () => {
+    mockPlan = 'starter';
+    render(<Sidebar isOpen={true} onClose={vi.fn()} />);
+    // The toggle is inside the Web Search section - click the toggle button
+    const toggleButtons = screen.getAllByRole('button');
+    // Find the toggle near 'Enable web search'
+    const webSearchSection = toggleButtons.find((btn) => {
+      const parent = btn.closest('div');
+      return parent?.textContent?.includes('Enable web search') && btn.getAttribute('aria-pressed') !== null;
+    });
+    if (webSearchSection) {
+      fireEvent.click(webSearchSection);
+      expect(screen.getByTestId('upgrade-modal')).toBeDefined();
+      expect(screen.getByText('Upgrade Modal: Web Search')).toBeDefined();
+    }
+  });
+
+  it('shows Upgrade link below web search for starter users', () => {
+    mockPlan = 'starter';
+    render(<Sidebar isOpen={true} onClose={vi.fn()} />);
+    const upgradeLink = screen.getByText('Upgrade', { selector: 'a' });
+    expect(upgradeLink).toBeDefined();
+    expect(upgradeLink.getAttribute('href')).toBe('/pricing');
   });
 });
