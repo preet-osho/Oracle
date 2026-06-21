@@ -3,11 +3,26 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
-// ─── Mock FeatureGate (pro plan so tests see full content) ───
+// ─── Mock FeatureGate (configurable plan) ───
+let mockPlan = 'pro' as string;
 vi.mock('./FeatureGate', () => ({
-  useSubscriptionState: () => ({ plan: 'pro', isValid: true, loading: false }),
-  FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  UpgradePrompt: () => null,
+  useSubscriptionState: () => ({ plan: mockPlan, isValid: true, loading: false }),
+  FeatureGate: ({ children, feature, fallback }: { children: React.ReactNode; feature?: string; fallback?: React.ReactNode }) => {
+    // Simulate FeatureGate: if plan doesn't meet required, show fallback
+    const requiredPlan = feature === 'proposals' ? 'pro' : 'starter';
+    const hierarchy = ['starter', 'pro', 'agency'];
+    if (hierarchy.indexOf(mockPlan) >= hierarchy.indexOf(requiredPlan)) {
+      return <>{children}</>;
+    }
+    return <>{fallback}</>;
+  },
+  UpgradePrompt: ({ requiredPlan, feature }: { requiredPlan?: string; feature?: string }) => (
+    <div data-testid="upgrade-prompt">
+      <div data-testid="upgrade-lock">🔒</div>
+      <p>{feature ? `${feature} requires` : 'This feature requires'} the {requiredPlan} plan</p>
+      <a href="/pricing">View Plans</a>
+    </div>
+  ),
   UpgradeModal: () => null,
   TierBadge: () => null,
   TierTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -54,6 +69,7 @@ import { createStreamingChunks, streamFromChunks } from './test-utils';
 
 describe('RoadmapTab', () => {
   beforeEach(() => {
+    mockPlan = 'pro';
     vi.clearAllMocks();
     mockProposalsList.mockResolvedValue([]);
     mockProposalsCreate.mockResolvedValue({
@@ -315,6 +331,62 @@ describe('RoadmapTab', () => {
 
       await user.click(screen.getByText('⚡ Agent'));
       expect(onAskOracle).toHaveBeenCalledWith('Test brief');
+    });
+  });
+
+  // ── Feature Gating (FeatureGate wrapper) ──
+
+  describe('feature gating', () => {
+    it('shows UpgradePrompt for starter users', () => {
+      mockPlan = 'starter';
+      render(<RoadmapTab />);
+      expect(screen.getByTestId('upgrade-prompt')).toBeDefined();
+      expect(screen.getByText(/Proposals requires/)).toBeDefined();
+    });
+
+    it('shows upgrade lock icon for starter users', () => {
+      mockPlan = 'starter';
+      render(<RoadmapTab />);
+      expect(screen.getByTestId('upgrade-lock')).toBeDefined();
+      expect(screen.getByText('🔒')).toBeDefined();
+    });
+
+    it('shows View Plans link for starter users', () => {
+      mockPlan = 'starter';
+      render(<RoadmapTab />);
+      const link = screen.getByText('View Plans');
+      expect(link).toBeDefined();
+      expect(link.getAttribute('href')).toBe('/pricing');
+    });
+
+    it('does NOT show proposal generator for starter users', () => {
+      mockPlan = 'starter';
+      render(<RoadmapTab />);
+      expect(screen.queryByText('🎯 Roadmap & Proposals')).toBeNull();
+      expect(screen.queryByText('🎯 Generate Proposal')).toBeNull();
+      expect(screen.queryByPlaceholderText(/Paste a client brief here/)).toBeNull();
+    });
+
+    it('shows full proposal generator for pro users', () => {
+      mockPlan = 'pro';
+      render(<RoadmapTab />);
+      expect(screen.getByText('🎯 Roadmap & Proposals')).toBeDefined();
+      expect(screen.getByText('🎯 Generate Proposal')).toBeDefined();
+      expect(screen.queryByTestId('upgrade-prompt')).toBeNull();
+    });
+
+    it('shows full proposal generator for agency users', () => {
+      mockPlan = 'agency';
+      render(<RoadmapTab />);
+      expect(screen.getByText('🎯 Roadmap & Proposals')).toBeDefined();
+      expect(screen.getByText('🎯 Generate Proposal')).toBeDefined();
+      expect(screen.queryByTestId('upgrade-prompt')).toBeNull();
+    });
+
+    it('shows required plan name in upgrade prompt', () => {
+      mockPlan = 'starter';
+      render(<RoadmapTab />);
+      expect(screen.getByText(/Proposals requires the pro plan/)).toBeDefined();
     });
   });
 });

@@ -3,11 +3,22 @@ import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 
-// ─── Mock FeatureGate (pro plan so tests see full content) ───
+// ─── Mock FeatureGate (configurable plan) ───
+let mockPlan = 'pro' as string;
 vi.mock('./FeatureGate', () => ({
-  useSubscriptionState: () => ({ plan: 'pro', isValid: true, loading: false }),
+  useSubscriptionState: () => ({ plan: mockPlan, isValid: true, loading: false }),
   FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  UpgradeModal: () => null,
+  UpgradeModal: ({ open, onOpenChange, requiredPlan, featureLabel }: { open: boolean; onOpenChange: (open: boolean) => void; requiredPlan: string; featureLabel?: string }) => {
+    if (!open) return null;
+    return (
+      <div data-testid="upgrade-modal">
+        <p>Upgrade to {requiredPlan}</p>
+        <p>{featureLabel} requires the {requiredPlan} plan</p>
+        <a href="/pricing">View Plans</a>
+        <button onClick={() => onOpenChange(false)}>Close</button>
+      </div>
+    );
+  },
   UpgradePrompt: () => null,
   TierBadge: () => null,
   TierTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -147,6 +158,7 @@ const MOCK_TIME_ENTRIES = [
 
 describe('ProjectsTab', () => {
   beforeEach(() => {
+    mockPlan = 'pro';
     vi.clearAllMocks();
     mockProjectsList.mockResolvedValue(MOCK_PROJECTS);
     mockTimeEntriesList.mockResolvedValue(MOCK_TIME_ENTRIES);
@@ -397,6 +409,98 @@ describe('ProjectsTab', () => {
         expect(screen.getByText(/📄 Invoice/)).toBeDefined();
         expect(screen.getByText('INVOICE TO')).toBeDefined();
       });
+    });
+  });
+
+  // ── Invoice Feature Gating ──
+
+  describe('invoice feature gating', () => {
+    it('shows lock icon on invoice button for starter users', async () => {
+      mockPlan = 'starter';
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      // Invoice button should show 🔒 instead of 📄
+      const lockButtons = screen.getAllByTitle('Upgrade to Invoice');
+      expect(lockButtons.length).toBeGreaterThan(0);
+      expect(lockButtons[0].textContent).toContain('🔒');
+    });
+
+    it('does NOT show lock icon on invoice button for pro users', async () => {
+      mockPlan = 'pro';
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      // Invoice button should show 📄 without lock
+      const invoiceButtons = screen.getAllByTitle('Invoice');
+      expect(invoiceButtons.length).toBeGreaterThan(0);
+      expect(invoiceButtons[0].textContent).toContain('📄');
+      // No upgrade-to-invoice buttons
+      expect(screen.queryByTitle('Upgrade to Invoice')).toBeNull();
+    });
+
+    it('does NOT show lock icon on invoice button for agency users', async () => {
+      mockPlan = 'agency';
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      const invoiceButtons = screen.getAllByTitle('Invoice');
+      expect(invoiceButtons.length).toBeGreaterThan(0);
+      expect(screen.queryByTitle('Upgrade to Invoice')).toBeNull();
+    });
+
+    it('opens UpgradeModal when starter clicks locked invoice button', async () => {
+      mockPlan = 'starter';
+      const user = userEvent.setup();
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      const lockButtons = screen.getAllByTitle('Upgrade to Invoice');
+      await user.click(lockButtons[0]);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('upgrade-modal')).toBeDefined();
+        expect(screen.getByText(/Upgrade to pro/)).toBeDefined();
+        expect(screen.getByText(/Invoicing requires the pro plan/)).toBeDefined();
+      });
+    });
+
+    it('upgrade modal has View Plans link to /pricing', async () => {
+      mockPlan = 'starter';
+      const user = userEvent.setup();
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      const lockButtons = screen.getAllByTitle('Upgrade to Invoice');
+      await user.click(lockButtons[0]);
+
+      await waitFor(() => {
+        const viewPlans = screen.getByText('View Plans');
+        expect(viewPlans.getAttribute('href')).toBe('/pricing');
+      });
+    });
+
+    it('starter does NOT see regular invoice buttons (only locked)', async () => {
+      mockPlan = 'starter';
+      render(<ProjectsTab />);
+      await waitFor(() => {
+        expect(screen.getByText('Acme Corp')).toBeDefined();
+      });
+
+      // No regular invoice buttons — only upgrade-to-invoice buttons
+      expect(screen.queryByTitle('Invoice')).toBeNull();
+      const lockButtons = screen.getAllByTitle('Upgrade to Invoice');
+      expect(lockButtons.length).toBe(2); // One per project
     });
   });
 });
