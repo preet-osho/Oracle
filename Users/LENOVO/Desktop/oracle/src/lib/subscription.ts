@@ -604,3 +604,45 @@ export async function expireSubscriptions(): Promise<number> {
     return 0;
   }
 }
+
+// ─── Daily Usage Cleanup ─────────────
+
+export const DAILY_USAGE_RETENTION_DAYS = 90;
+
+/**
+ * Delete daily_usage rows older than 90 days to prevent unbounded table growth.
+ * Called by cron/automation on a daily schedule.
+ * Returns the number of rows deleted.
+ */
+export async function cleanupOldDailyUsage(): Promise<number> {
+  try {
+    const supabase = getSubscriptionClient();
+    if (!supabase) return 0;
+
+    // Calculate cutoff date in YYYY-MM-DD format
+    const cutoff = new Date(Date.now() - DAILY_USAGE_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+    const cutoffDate = cutoff.toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('daily_usage')
+      .delete()
+      .lt('date', cutoffDate)
+      .select('user_id');
+
+    if (error) {
+      log.error('Failed to cleanup old daily usage', { error: error.message, cutoffDate });
+      return 0;
+    }
+
+    const count = data?.length || 0;
+    if (count > 0) {
+      log.info(`Cleaned up ${count} old daily_usage rows (cutoff: ${cutoffDate})`);
+    }
+    return count;
+  } catch (err) {
+    log.error('Daily usage cleanup failed', {
+      error: err instanceof Error ? err.message : 'Unknown',
+    });
+    return 0;
+  }
+}

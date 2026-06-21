@@ -13,6 +13,7 @@ import {
   type PlanId,
   type UserSubscription,
 } from './subscription';
+import { DAILY_USAGE_RETENTION_DAYS } from './subscription';
 
 // ─── Mock logger ───
 vi.mock('./logger', () => ({
@@ -233,5 +234,17 @@ describe('PLAN_AGENT_ACCESS', () => {
 
   it('agency has more agents than pro', () => {
     expect(PLAN_AGENT_ACCESS.agency.length).toBeGreaterThanOrEqual(PLAN_AGENT_ACCESS.pro.length);
+  });
+});
+
+// ─── Daily Usage Cleanup ────────────
+
+describe('DAILY_USAGE_RETENTION_DAYS', () => {
+  it('is set to 90 days', () => {
+    expect(DAILY_USAGE_RETENTION_DAYS).toBe(90);
+  });
+
+  it('is a positive number', () => {
+    expect(DAILY_USAGE_RETENTION_DAYS).toBeGreaterThan(0);
   });
 });

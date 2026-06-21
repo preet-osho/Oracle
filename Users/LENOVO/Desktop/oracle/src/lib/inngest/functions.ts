@@ -849,6 +849,28 @@ export const batchMemoryExtraction = inngest.createFunction(
   }
 );
 
+// ─── 10. Daily Usage Cleanup Function ─────────
+// Cron-triggered daily cleanup of old daily_usage rows (>90 days).
+// Prevents unbounded table growth.
+
+export const cleanupDailyUsage = inngest.createFunction(
+  {
+    id: 'cleanup-daily-usage',
+    name: 'Cleanup Old Daily Usage',
+    retries: 2,
+    triggers: [{ cron: '0 3 * * *' }], // Every day at 03:00 UTC
+  },
+  async ({ step }) => {
+    const result = await step.run('cleanup-old-rows', async () => {
+      const { cleanupOldDailyUsage } = await import('@/lib/subscription');
+      return cleanupOldDailyUsage();
+    });
+
+    log.info('Daily usage cleanup completed', { rowsDeleted: result });
+    return { rowsDeleted: result };
+  }
+);
+
 // ─── Export all functions for the serve endpoint ──
 
 export const inngestFunctions = [
@@ -861,4 +883,5 @@ export const inngestFunctions = [
   automationTick,
   batchQualityReview,
   batchMemoryExtraction,
+  cleanupDailyUsage,
 ];
