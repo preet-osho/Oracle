@@ -4,6 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transitions, buttonTapProps } from '@/styles/design-tokens';
 import { AGENT_TYPES, AGENT_GROUPS, PROJECT_STATUS_COLORS, type AgentType, type ProjectSummary, type ConversationSummary } from './agent-config';
+import { useSubscriptionState, TierBadge, getRequiredPlanForAgent } from './FeatureGate';
+import { hasAgentAccess } from '@/lib/subscription';
 
 interface ChatHeaderProps {
   title: string;
@@ -35,6 +37,7 @@ export function ChatHeader({
   onNewChat, onDeleteConversation,
 }: ChatHeaderProps) {
   const agentInfo = AGENT_TYPES.find((a) => a.id === agentType) || AGENT_TYPES[0];
+  const { plan } = useSubscriptionState();
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const [projectSearch, setProjectSearch] = useState('');
   const projectSearchRef = useRef<HTMLInputElement>(null);
@@ -234,21 +237,36 @@ export function ChatHeader({
                         <p className="px-3 pt-1.5 pb-1 text-[9px] font-semibold uppercase tracking-wider text-[var(--oracle-text-muted)]">
                           {group === 'Core' ? '⚡ Core Agents' : '🎯 Specialist Agents'}
                         </p>
-                        {groupAgents.map((a) => (
-                          <button
-                            key={a.id}
-                            onClick={() => onSelectAgent(a.id)}
-                            className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
-                              agentType === a.id ? 'bg-[var(--oracle-primary)]/10' : 'hover:bg-[var(--oracle-card-hover)]'
-                            }`}
-                          >
-                            <span className="text-base">{a.emoji}</span>
-                            <div>
-                              <span className="block text-[12px] font-medium text-[var(--oracle-text-2)]">{a.label}</span>
-                              <span className="text-[10px] text-[var(--oracle-text-muted)]">{a.description}</span>
-                            </div>
-                          </button>
-                        ))}
+                        {groupAgents.map((a) => {
+                          const allowed = hasAgentAccess(plan, a.id);
+                          const requiredPlan = allowed ? null : getRequiredPlanForAgent(a.id);
+                          return (
+                            <button
+                              key={a.id}
+                              onClick={() => allowed && onSelectAgent(a.id)}
+                              disabled={!allowed}
+                              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
+                                agentType === a.id
+                                  ? 'bg-[var(--oracle-primary)]/10'
+                                  : allowed
+                                    ? 'hover:bg-[var(--oracle-card-hover)]'
+                                    : 'opacity-50 cursor-not-allowed'
+                              }`}
+                            >
+                              <span className="text-base">{a.emoji}</span>
+                              <div className="flex-1 min-w-0">
+                                <span className="block text-[12px] font-medium text-[var(--oracle-text-2)]">{a.label}</span>
+                                <span className="text-[10px] text-[var(--oracle-text-muted)]">{a.description}</span>
+                              </div>
+                              {!allowed && (
+                                <div className="flex items-center gap-1.5 flex-shrink-0">
+                                  <span className="text-[12px]">🔒</span>
+                                  <TierBadge plan={requiredPlan!} compact />
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     );
                   })}
