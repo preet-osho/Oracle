@@ -7,6 +7,8 @@ import { PROVIDERS } from '@/data/providers';
 import { QUICK_ACTIONS } from '@/styles/design-tokens';
 import { transitions } from '@/styles/design-tokens';
 import { processDocument, indexDocument } from '@/lib/rag';
+import { useSubscriptionState, UpgradeModal, getRequiredPlanForFeature } from './FeatureGate';
+import type { PlanId } from '@/lib/subscription';
 
 // ─── Sidebar ───────────────────────────
 
@@ -31,6 +33,14 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
   } = useRouterStore();
 
   const configuredProviders = Object.keys(byokKeys);
+  const { plan } = useSubscriptionState();
+  const webSearchRequiredPlan = getRequiredPlanForFeature('webSearch');
+  const webSearchAllowed = plan === 'pro' || plan === 'agency';
+  const [featureModal, setFeatureModal] = useState<{ open: boolean; feature: string; requiredPlan: PlanId }>({
+    open: false,
+    feature: '',
+    requiredPlan: 'pro',
+  });
 
   return (
     <AnimatePresence>
@@ -129,11 +139,30 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
               {/* ── Web Search ── */}
               <Section title="🌐 Web Search">
                 <div className="flex items-center justify-between">
-                  <span className="text-[13px] text-[var(--oracle-text-2)]">
-                    Enable web search
-                  </span>
-                  <ToggleSwitch checked={webSearchEnabled} onChange={() => onWebSearchToggle?.()} />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] text-[var(--oracle-text-2)]">
+                      Enable web search
+                    </span>
+                    {!webSearchAllowed && (
+                      <span className="text-[10px]">🔒</span>
+                    )}
+                  </div>
+                  <ToggleSwitch
+                    checked={webSearchEnabled}
+                    onChange={() => {
+                      if (webSearchAllowed) {
+                        onWebSearchToggle?.();
+                      } else {
+                        setFeatureModal({ open: true, feature: 'Web Search', requiredPlan: webSearchRequiredPlan });
+                      }
+                    }}
+                  />
                 </div>
+                {!webSearchAllowed && (
+                  <p className="mt-1.5 text-[10px] text-[var(--oracle-text-muted)]">
+                    Requires {webSearchRequiredPlan === 'agency' ? 'Agency' : 'Pro'} plan · <a href="/pricing" className="text-[var(--oracle-primary)] hover:underline">Upgrade</a>
+                  </p>
+                )}
               </Section>
 
               {/* ── Model Selector ── */}
@@ -152,6 +181,14 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
                 <QualityBar score={qualityScore} />
               </Section>
             </div>
+
+            {/* ── Upgrade Modal ── */}
+            <UpgradeModal
+              open={featureModal.open}
+              onOpenChange={(open) => setFeatureModal((prev) => ({ ...prev, open }))}
+              requiredPlan={featureModal.requiredPlan}
+              featureLabel={featureModal.feature}
+            />
           </motion.aside>
         </>
       )}

@@ -322,11 +322,13 @@ export function UpgradeModal({
   onOpenChange,
   requiredPlan,
   agentLabel,
+  featureLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   requiredPlan: PlanId;
   agentLabel?: string;
+  featureLabel?: string;
 }) {
   const { plan } = useSubscriptionState();
   const benefits = TIER_BENEFITS[requiredPlan];
@@ -345,6 +347,8 @@ export function UpgradeModal({
           <DialogDescription>
             {agentLabel ? (
               <>The <strong>{agentLabel}</strong> agent requires the {planLabels[requiredPlan]} plan.</>
+            ) : featureLabel ? (
+              <><strong>{featureLabel}</strong> requires the {planLabels[requiredPlan]} plan.</>
             ) : (
               <>This feature requires the {planLabels[requiredPlan]} plan.</>
             )}
