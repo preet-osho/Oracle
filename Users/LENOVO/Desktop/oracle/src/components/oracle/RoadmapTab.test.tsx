@@ -2,6 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+
+// ─── Mock FeatureGate (pro plan so tests see full content) ───
+vi.mock('./FeatureGate', () => ({
+  useSubscriptionState: () => ({ plan: 'pro', isValid: true, loading: false }),
+  FeatureGate: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  UpgradePrompt: () => null,
+  UpgradeModal: () => null,
+  TierBadge: () => null,
+  TierTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  getRequiredPlanForAgent: () => 'starter' as const,
+}));
+
 import { RoadmapTab } from './RoadmapTab';
 
 // ─── Mocks ─────────────────────────────
