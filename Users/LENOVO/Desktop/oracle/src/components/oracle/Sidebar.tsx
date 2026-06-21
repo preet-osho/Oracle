@@ -43,6 +43,7 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
   });
 
   return (
+    <>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -182,17 +183,19 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
               </Section>
             </div>
 
-            {/* ── Upgrade Modal ── */}
-            <UpgradeModal
-              open={featureModal.open}
-              onOpenChange={(open) => setFeatureModal((prev) => ({ ...prev, open }))}
-              requiredPlan={featureModal.requiredPlan}
-              featureLabel={featureModal.feature}
-            />
           </motion.aside>
         </>
       )}
     </AnimatePresence>
+
+    {/* ── Upgrade Modal (outside AnimatePresence so it persists when sidebar closes) ── */}
+    <UpgradeModal
+      open={featureModal.open}
+      onOpenChange={(open) => setFeatureModal((prev) => ({ ...prev, open }))}
+      requiredPlan={featureModal.requiredPlan}
+      featureLabel={featureModal.feature}
+    />
+    </>
   );
 }
 
