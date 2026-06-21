@@ -26,6 +26,7 @@ import { recogniseTaskPatterns } from '@/lib/pattern-recognition';
 
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { DailyUsageIndicator, useSubscriptionState } from '@/components/oracle/FeatureGate';
 import { GuardStatsPanel } from '@/components/oracle/GuardStatsPanel';
 import { AGENT_TYPES, AGENT_SYSTEM_PROMPTS, type AgentType, type ConversationSummary, type ProjectSummary } from '@/components/oracle/agent-config';
 import { ChatHeader } from '@/components/oracle/ChatHeader';
@@ -110,6 +111,11 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   // Drag-and-drop state
   const [isDragging, setIsDragging] = useState(false);
 
+  // Daily usage state
+  const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number } | null>(null);
+  const dailyUsageRef = useRef<{ used: number; limit: number } | null>(null);
+  const { plan } = useSubscriptionState();
+
   // Star reactions (persisted in localStorage)
   const [starredMessages, setStarredMessages] = useState<Record<string, boolean>>(() => {
     if (typeof window !== 'undefined') {
@@ -127,6 +133,42 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
   // Store
   const { streamingEnabled, addCost, addUsageRecord, configuredProviders } = useRouterStore();
+
+  // ── Fetch daily usage on mount and after each message ──
+  const fetchDailyUsage = useCallback(async () => {
+    try {
+      const res = await fetch('/api/subscription/status');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.usage) {
+          const usage = { used: data.usage.used ?? 0, limit: data.usage.limit ?? -1 };
+          setDailyUsage(usage);
+          dailyUsageRef.current = usage;
+
+          // Show warning toast at 80% (only once per threshold)
+          if (usage.limit > 0) {
+            const pct = (usage.used / usage.limit) * 100;
+            const prevPct = dailyUsageRef.current
+              ? (dailyUsageRef.current.used / dailyUsageRef.current.limit) * 100
+              : 0;
+            if (pct >= 80 && prevPct < 80) {
+              toast(`⚠️ You've used ${usage.used}/${usage.limit} daily requests. Upgrade for unlimited.`, {
+                duration: 6000,
+                icon: '⚠️',
+              });
+            }
+          }
+        }
+      }
+    } catch {
+      // Non-critical — fail silently
+    }
+  }, []);
+
+  // Fetch on mount
+  useEffect(() => {
+    fetchDailyUsage();
+  }, [fetchDailyUsage]);
 
   // ── Load conversations on mount ──
   useEffect(() => {
@@ -698,6 +740,22 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
         if (!proxyResponse.ok) {
           const errorData = await proxyResponse.json().catch(() => ({ error: 'Proxy request failed' }));
+
+          // Handle daily limit exceeded
+          if (errorData.code === 'DAILY_LIMIT_EXCEEDED') {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMessage.id
+                  ? { ...m, content: `📊 Daily limit reached (${errorData.used}/${errorData.limit}). Upgrade your plan for unlimited requests.`, isStreaming: false }
+                  : m
+              )
+            );
+            setIsStreaming(false);
+            toast.error('🚫 Daily limit reached — Upgrade your plan for unlimited AI requests', { duration: 5000, icon: '🚫' });
+            fetchDailyUsage(); // Refresh usage counter
+            return;
+          }
+
           throw new Error(errorData.error || `AI proxy error (${proxyResponse.status})`);
         }
 
@@ -790,6 +848,9 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           tags: [agentType, finalProvider],
         });
 
+        // Refresh daily usage after successful request
+        fetchDailyUsage();
+
       } else {
         const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
 
@@ -809,6 +870,22 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
         if (!proxyResponse.ok) {
           const errorData = await proxyResponse.json().catch(() => ({ error: 'Proxy request failed' }));
+
+          // Handle daily limit exceeded
+          if (errorData.code === 'DAILY_LIMIT_EXCEEDED') {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === assistantMessage.id
+                  ? { ...m, content: `📊 Daily limit reached (${errorData.used}/${errorData.limit}). Upgrade your plan for unlimited requests.`, isStreaming: false }
+                  : m
+              )
+            );
+            setIsStreaming(false);
+            toast.error('🚫 Daily limit reached — Upgrade your plan for unlimited AI requests', { duration: 5000, icon: '🚫' });
+            fetchDailyUsage();
+            return;
+          }
+
           throw new Error(errorData.error || `AI proxy error (${proxyResponse.status})`);
         }
 
@@ -868,6 +945,9 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           wasSuccessful: result.text.length > 0,
           tags: [agentType, result.provider],
         });
+
+        // Refresh daily usage after successful request
+        fetchDailyUsage();
       }
     } catch (err) {
       // Record health on error (client-side, localStorage)
@@ -1075,6 +1155,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         estimatedCost={estimatedCost}
         detectedPatterns={detectedPatterns}
         crossDomainSuggestions={crossDomainSuggestions}
+        dailyUsage={dailyUsage}
         onSend={handleSend}
         onPaste={handlePaste}
         onFileAttach={handleFileAttach}

@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { estimateTokens } from '@/lib/utils';
 import { AGENT_TYPES, type AgentType } from './agent-config';
+import { DailyUsageIndicator } from './FeatureGate';
 import type { ChatMessage } from './MessageBubble';
 
 // ─── Chat Input Area ───────────────────
@@ -19,6 +20,7 @@ interface ChatInputAreaProps {
   estimatedCost: { inr: number; usd: number; isFree: boolean } | null;
   detectedPatterns: Array<{ category: string; confidence: number; matchedKeywords: string[] }>;
   crossDomainSuggestions: Array<{ service: string; relevance: number; rationale: string; value: string }>;
+  dailyUsage?: { used: number; limit: number } | null;
   onSend: (overrideContent?: string) => void;
   onPaste: (e: React.ClipboardEvent) => void;
   onFileAttach: (e: React.ChangeEvent<HTMLInputElement>) => void;
@@ -29,7 +31,7 @@ interface ChatInputAreaProps {
 export function ChatInputArea({
   input, setInput, isStreaming, agentType, setAgentType,
   attachments, setAttachments, estimatedCost,
-  detectedPatterns, crossDomainSuggestions,
+  detectedPatterns, crossDomainSuggestions, dailyUsage,
   onSend, onPaste, onFileAttach,
   onSidebarToggle, sidebarOpen,
 }: ChatInputAreaProps) {
@@ -103,6 +105,17 @@ export function ChatInputArea({
                 </button>
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Daily Usage Indicator */}
+        {dailyUsage && dailyUsage.limit > 0 && (
+          <div className="mb-2 flex items-center gap-2 rounded-lg bg-[var(--oracle-surface-2)]/60 px-3 py-1.5">
+            <span className="text-[10px] text-[var(--oracle-text-muted)]">📊 Today:</span>
+            <DailyUsageIndicator used={dailyUsage.used} limit={dailyUsage.limit} />
+            {dailyUsage.used >= dailyUsage.limit && (
+              <a href="/pricing" className="text-[10px] font-medium text-[var(--oracle-primary)] hover:underline">Upgrade →</a>
+            )}
           </div>
         )}
 
