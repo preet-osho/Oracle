@@ -48,6 +48,8 @@ export function ConfigTab() {
   const { plan } = useSubscriptionState();
   const webSearchRequiredPlan = getRequiredPlanForFeature('webSearch');
   const webSearchAllowed = plan === 'pro' || plan === 'agency';
+  const clientMemoryRequiredPlan = getRequiredPlanForFeature('clientMemory');
+  const clientMemoryAllowed = plan === 'pro' || plan === 'agency';
   const [featureModal, setFeatureModal] = useState<{ open: boolean; feature: string; requiredPlan: PlanId }>({
     open: false,
     feature: '',
@@ -385,7 +387,25 @@ export function ConfigTab() {
             <div className="oracle-glass rounded-xl p-4 space-y-4">
               <ToggleRow label="Streaming responses" description="Stream tokens as they arrive" checked={streamingEnabled} onChange={toggleStreaming} />
               <ToggleRow label="Auto-score responses" description="Score every response on quality metrics" checked={autoScore} onChange={() => setAutoScore(!autoScore)} />
-              <ToggleRow label="Auto-extract memories" description="Save key facts from conversations" checked={autoMemory} onChange={() => setAutoMemory(!autoMemory)} />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-[var(--oracle-text-1)]">Auto-extract memories</p>
+                  <p className="text-[11px] text-[var(--oracle-text-muted)]">Save key facts from conversations{!clientMemoryAllowed && ` · Requires ${clientMemoryRequiredPlan === 'agency' ? 'Agency' : 'Pro'} plan`}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!clientMemoryAllowed && <span className="text-[10px]">🔒</span>}
+                  <ToggleSwitch
+                    checked={autoMemory}
+                    onChange={() => {
+                      if (clientMemoryAllowed) {
+                        setAutoMemory(!autoMemory);
+                      } else {
+                        setFeatureModal({ open: true, feature: 'Client Memory', requiredPlan: clientMemoryRequiredPlan });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[13px] font-medium text-[var(--oracle-text-1)]">Web search</p>

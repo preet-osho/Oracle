@@ -94,7 +94,7 @@ export function ChatInputArea({
               {locked ? (
                 <a
                   href="/pricing"
-                  className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-primary)] hover:bg-[var(--oracle-card-hover)] transition-colors"
+                  className="oracle-cta-pulse ml-auto rounded-md px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-primary)] hover:bg-[var(--oracle-card-hover)] transition-colors"
                 >
                   Upgrade →
                 </a>
