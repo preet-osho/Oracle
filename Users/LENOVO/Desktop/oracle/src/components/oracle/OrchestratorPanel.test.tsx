@@ -247,7 +247,7 @@ describe('OrchestratorPanel', () => {
         expect(screen.getByText('Analyzing...')).toBeDefined();
       });
 
-      resolvePromise?.(undefined);
+      await act(async () => { resolvePromise?.(undefined); });
     });
 
     it('handles analysis failure gracefully', async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryExtractor } from './MemoryExtractor';
@@ -58,25 +58,25 @@ describe('MemoryExtractor', () => {
   // ── Rendering ──
 
   describe('rendering', () => {
-    it('renders the memory extraction header', () => {
-      render(<MemoryExtractor />);
+    it('renders the memory extraction header', async () => {
+      await act(async () => { render(<MemoryExtractor />); });
       expect(screen.getByText('🧠 Memory Extraction')).toBeDefined();
       expect(screen.getByText(/Extract and save key client facts/)).toBeDefined();
     });
 
-    it('renders the extract button', () => {
-      render(<MemoryExtractor />);
+    it('renders the extract button', async () => {
+      await act(async () => { render(<MemoryExtractor />); });
       expect(screen.getByText('🧠 Extract Memories')).toBeDefined();
     });
 
-    it('renders empty state when no memories exist', () => {
-      render(<MemoryExtractor />);
+    it('renders empty state when no memories exist', async () => {
+      await act(async () => { render(<MemoryExtractor />); });
       expect(screen.getByText('No Memories Extracted Yet')).toBeDefined();
       expect(screen.getByText(/Paste a conversation transcript above/)).toBeDefined();
     });
 
-    it('has a textarea for conversation input', () => {
-      render(<MemoryExtractor />);
+    it('has a textarea for conversation input', async () => {
+      await act(async () => { render(<MemoryExtractor />); });
       const textarea = screen.getByPlaceholderText(/Paste a conversation transcript here/);
       expect(textarea).toBeDefined();
     });
@@ -101,8 +101,8 @@ describe('MemoryExtractor', () => {
       expect(screen.getByText('5 characters')).toBeDefined();
     });
 
-    it('disables extract button when textarea is empty', () => {
-      render(<MemoryExtractor />);
+    it('disables extract button when textarea is empty', async () => {
+      await act(async () => { render(<MemoryExtractor />); });
       const button = screen.getByText('🧠 Extract Memories');
       expect(button).toBeDisabled();
     });
@@ -248,7 +248,7 @@ describe('MemoryExtractor', () => {
         expect(screen.getByText('Extracting...')).toBeDefined();
       });
 
-      resolvePromise?.(undefined);
+      await act(async () => { resolvePromise?.(undefined); });
     });
 
     it('handles extraction failure gracefully', async () => {
