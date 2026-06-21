@@ -254,3 +254,62 @@ export function getRequiredPlanForAgent(agentType: string): PlanId {
 export function getRequiredPlanForFeature(feature: string): PlanId {
   return FEATURE_REQUIRED_PLAN[feature] || 'starter';
 }
+
+// ─── Tier Benefits (for tooltip display) ────
+
+export const TIER_BENEFITS: Record<PlanId, { name: string; price: string; benefits: string[] }> = {
+  starter: {
+    name: 'Starter (Free)',
+    price: '₹0/mo',
+    benefits: ['50 AI responses/day', '5 service domains', '10 curated prompts', 'Basic quality scoring'],
+  },
+  pro: {
+    name: 'Pro',
+    price: '₹2,999/mo',
+    benefits: ['Unlimited AI responses', 'All 40+ service domains', 'All 55+ expert prompts', 'Per-client memory & RAG', 'Web search', 'Quality scoring & analytics', 'Proposals & invoicing', '10 AI agents'],
+  },
+  agency: {
+    name: 'Agency',
+    price: '₹9,999/mo',
+    benefits: ['Everything in Pro', '5 team seats', 'Multi-client management', 'Custom prompt library', 'White-label proposals', 'Voice agents', 'Workflow automation', 'API access', 'All 13 AI agents'],
+  },
+};
+
+// ─── Tier Tooltip ──────────────────────
+
+export function TierTooltip({ requiredPlan, children }: { requiredPlan: PlanId; children: React.ReactNode }) {
+  const benefits = TIER_BENEFITS[requiredPlan];
+  if (!benefits) return <>{children}</>;
+
+  return (
+    <div className="group/tooltip relative inline-flex">
+      {children}
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-50 pointer-events-none">
+        <div className="rounded-xl border border-[var(--oracle-border)] bg-[var(--oracle-bg)] shadow-xl p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <TierBadge plan={requiredPlan} />
+            <span className="text-[11px] font-medium text-[var(--oracle-text-muted)]">{benefits.price}</span>
+          </div>
+          <ul className="space-y-1">
+            {benefits.benefits.slice(0, 4).map((b, i) => (
+              <li key={i} className="flex items-start gap-1.5 text-[10px] text-[var(--oracle-text-3)]">
+                <span className="text-[var(--oracle-success)] mt-0.5">✓</span>
+                {b}
+              </li>
+            ))}
+          </ul>
+          {benefits.benefits.length > 4 && (
+            <p className="mt-1.5 text-[9px] text-[var(--oracle-text-muted)]">+ {benefits.benefits.length - 4} more features</p>
+          )}
+          <a
+            href="/pricing"
+            className="mt-2 block w-full rounded-lg bg-[var(--oracle-primary)] py-1.5 text-center text-[10px] font-semibold text-white hover:opacity-90 transition-opacity pointer-events-auto"
+          >
+            Upgrade to {requiredPlan === 'agency' ? 'Agency' : 'Pro'}
+          </a>
+        </div>
+        <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-[var(--oracle-bg)] border-r border-b border-[var(--oracle-border)] -mt-1" />
+      </div>
+    </div>
+  );
+}

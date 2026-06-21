@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transitions, buttonTapProps } from '@/styles/design-tokens';
 import { AGENT_TYPES, AGENT_GROUPS, PROJECT_STATUS_COLORS, type AgentType, type ProjectSummary, type ConversationSummary } from './agent-config';
-import { useSubscriptionState, TierBadge, getRequiredPlanForAgent } from './FeatureGate';
+import { useSubscriptionState, TierBadge, getRequiredPlanForAgent, TierTooltip } from './FeatureGate';
 import { hasAgentAccess } from '@/lib/subscription';
 
 interface ChatHeaderProps {
@@ -244,7 +244,7 @@ export function ChatHeader({
                             <button
                               key={a.id}
                               onClick={() => allowed && onSelectAgent(a.id)}
-                              disabled={!allowed}
+                              aria-disabled={!allowed}
                               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
                                 agentType === a.id
                                   ? 'bg-[var(--oracle-primary)]/10'
@@ -258,11 +258,13 @@ export function ChatHeader({
                                 <span className="block text-[12px] font-medium text-[var(--oracle-text-2)]">{a.label}</span>
                                 <span className="text-[10px] text-[var(--oracle-text-muted)]">{a.description}</span>
                               </div>
-                              {!allowed && (
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <span className="text-[12px]">🔒</span>
-                                  <TierBadge plan={requiredPlan!} compact />
-                                </div>
+                              {!allowed && requiredPlan && (
+                                <TierTooltip requiredPlan={requiredPlan}>
+                                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                                    <span className="text-[12px]">🔒</span>
+                                    <TierBadge plan={requiredPlan} compact />
+                                  </div>
+                                </TierTooltip>
                               )}
                             </button>
                           );
