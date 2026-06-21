@@ -6,6 +6,7 @@
 // ═══════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import type { PlanId } from '@/lib/subscription';
 
 // ─── Subscription State (reactive via hooks) ───
@@ -311,5 +312,84 @@ export function TierTooltip({ requiredPlan, children }: { requiredPlan: PlanId; 
         <div className="absolute top-full left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 bg-[var(--oracle-bg)] border-r border-b border-[var(--oracle-border)] -mt-1" />
       </div>
     </div>
+  );
+}
+
+// ─── Upgrade Modal ─────────────────────
+
+export function UpgradeModal({
+  open,
+  onOpenChange,
+  requiredPlan,
+  agentLabel,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  requiredPlan: PlanId;
+  agentLabel?: string;
+}) {
+  const { plan } = useSubscriptionState();
+  const benefits = TIER_BENEFITS[requiredPlan];
+  const planLabels: Record<PlanId, string> = { starter: 'Starter (Free)', pro: 'Pro', agency: 'Agency' };
+
+  if (!benefits) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            🔒
+            <span>Upgrade to {requiredPlan === 'agency' ? 'Agency' : 'Pro'}</span>
+          </DialogTitle>
+          <DialogDescription>
+            {agentLabel ? (
+              <>The <strong>{agentLabel}</strong> agent requires the {planLabels[requiredPlan]} plan.</>
+            ) : (
+              <>This feature requires the {planLabels[requiredPlan]} plan.</>
+            )}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {/* Current plan */}
+          <div className="flex items-center gap-2 rounded-lg bg-[var(--oracle-surface-2)] px-3 py-2">
+            <span className="text-[11px] text-[var(--oracle-text-muted)]">Your plan:</span>
+            <TierBadge plan={plan} />
+          </div>
+
+          {/* Required plan benefits */}
+          <div className="rounded-lg border border-[var(--oracle-border)] p-3">
+            <div className="flex items-center gap-2 mb-2">
+              <TierBadge plan={requiredPlan} />
+              <span className="text-[12px] font-semibold text-[var(--oracle-text-1)]">{benefits.price}</span>
+            </div>
+            <ul className="space-y-1.5">
+              {benefits.benefits.map((b, i) => (
+                <li key={i} className="flex items-start gap-2 text-[11px] text-[var(--oracle-text-3)]">
+                  <span className="text-[var(--oracle-success)] mt-0.5 flex-shrink-0">✓</span>
+                  {b}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-1">
+          <a
+            href="/pricing"
+            className="flex-1 rounded-lg bg-[var(--oracle-primary)] py-2.5 text-center text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            View Plans
+          </a>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="rounded-lg border border-[var(--oracle-border)] px-4 py-2.5 text-[13px] font-medium text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)] transition-colors"
+          >
+            Maybe Later
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

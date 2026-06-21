@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { transitions, buttonTapProps } from '@/styles/design-tokens';
+import type { PlanId } from '@/lib/subscription';
 import { AGENT_TYPES, AGENT_GROUPS, PROJECT_STATUS_COLORS, type AgentType, type ProjectSummary, type ConversationSummary } from './agent-config';
-import { useSubscriptionState, TierBadge, getRequiredPlanForAgent, TierTooltip } from './FeatureGate';
+import { useSubscriptionState, TierBadge, getRequiredPlanForAgent, TierTooltip, UpgradeModal } from './FeatureGate';
 import { hasAgentAccess } from '@/lib/subscription';
 
 interface ChatHeaderProps {
@@ -41,6 +42,9 @@ export function ChatHeader({
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const [projectSearch, setProjectSearch] = useState('');
   const projectSearchRef = useRef<HTMLInputElement>(null);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [upgradeAgentName, setUpgradeAgentName] = useState<string | undefined>();
+  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState<PlanId>('pro');
 
   useEffect(() => {
     if (showProjectSelector) {
@@ -243,7 +247,15 @@ export function ChatHeader({
                           return (
                             <button
                               key={a.id}
-                              onClick={() => allowed && onSelectAgent(a.id)}
+                              onClick={() => {
+                                if (allowed) {
+                                  onSelectAgent(a.id);
+                                } else if (requiredPlan) {
+                                  setUpgradeAgentName(a.label);
+                                  setUpgradeRequiredPlan(requiredPlan);
+                                  setUpgradeModalOpen(true);
+                                }
+                              }}
                               aria-disabled={!allowed}
                               className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left transition-colors ${
                                 agentType === a.id
@@ -278,6 +290,14 @@ export function ChatHeader({
           )}
         </AnimatePresence>
       </div>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        open={upgradeModalOpen}
+        onOpenChange={setUpgradeModalOpen}
+        requiredPlan={upgradeRequiredPlan}
+        agentLabel={upgradeAgentName}
+      />
 
       {/* Export buttons */}
       {messageCount > 0 && (
