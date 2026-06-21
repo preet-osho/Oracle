@@ -8,6 +8,7 @@ import { PROVIDERS, SMART_ROUTING_RULES } from '@/data/providers';
 import { estimateTokens } from '@/lib/utils';
 import { PromptRegistry } from '@/lib/prompt-versioning';
 import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
+import { sanitizeDocumentContent, sanitizeExternalContext } from '@/lib/prompt-sanitizer';
 
 // ─── Interfaces ────────────────────────
 
@@ -493,21 +494,29 @@ export class NeverStopRouter {
     for (const msg of messages) {
       let content = msg.content;
 
-      // Inject document context if available
+      // Inject document context if available (sanitize each document)
       if (options.documents && options.documents.length > 0 && msg.role === 'user') {
-        const docContext = options.documents.join('\n\n---\n\n');
+        const sanitizedDocs = options.documents.map((doc, i) => {
+          const result = sanitizeDocumentContent(doc, `document_${i}`);
+          return result.sanitized;
+        });
+        const docContext = sanitizedDocs.join('\n\n---\n\n');
         content = `[Document Context]\n${docContext}\n\n---\n\n${content}`;
       }
 
-      // Inject agent memory if available
+      // Inject agent memory if available (sanitize)
       if (options.agentMemory && msg.role === 'user') {
-        content = `[Client Memory]\n${options.agentMemory}\n\n---\n\n${content}`;
+        const memResult = sanitizeExternalContext(options.agentMemory, 'agent_memory');
+        content = `[Client Memory]\n${memResult.sanitized}\n\n---\n\n${content}`;
       }
 
-      // Handle attachments
+      // Handle attachments (sanitize each)
       if (msg.attachments && msg.attachments.length > 0) {
         const attachContent = msg.attachments
-          .map((a) => `[Attachment: ${a.name}]\n${a.content}`)
+          .map((a) => {
+            const result = sanitizeExternalContext(a.content, 'attachment');
+            return `[Attachment: ${a.name}]\n${result.sanitized}`;
+          })
           .join('\n\n');
         content = `${attachContent}\n\n---\n\n${content}`;
       }

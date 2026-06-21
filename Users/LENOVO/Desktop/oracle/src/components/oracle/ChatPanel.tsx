@@ -7,6 +7,7 @@ import { transitions } from '@/styles/design-tokens';
 import { useRouterStore } from '@/stores/router.store';
 import { conversationsApi, knowledgeDocsApi, projectsApi, memoriesApi } from '@/lib/api';
 import { processDocument, retrieveRelevant, chunkText, indexDocument } from '@/lib/rag';
+import { sanitizeDocumentContent, sanitizeSearchResults, sanitizeExternalContext } from '@/lib/prompt-sanitizer';
 import { getMemories, formatMemoryForContext } from '@/lib/memory';
 import { QUALITY_SCORING_PROMPT } from '@/lib/system-prompt';
 import { saveQualityScore } from '@/lib/quality';
@@ -392,8 +393,13 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     if (knowledgeDocs.length > 0) {
       const relevantChunks = await retrieveRelevant(userMessage, knowledgeDocs, 3);
       if (relevantChunks.length > 0) {
-        parts.push('## Knowledge Base Context\n' + relevantChunks.join('\n\n'));
-        documents.push(...relevantChunks);
+        // Sanitize each chunk to prevent document-based prompt injection
+        const sanitizedChunks = relevantChunks.map((chunk, i) => {
+          const result = sanitizeDocumentContent(chunk, `knowledge_base_${i}`);
+          return result.sanitized;
+        });
+        parts.push('## Knowledge Base Context\n' + sanitizedChunks.join('\n\n'));
+        documents.push(...sanitizedChunks);
       }
     }
 
@@ -421,9 +427,11 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           const data = await proxyResponse.json();
           const results = data.results || [];
           if (results.length > 0) {
-            const formatted = formatSearchResults(results);
+            // Sanitize search results to prevent search-result-based prompt injection
+            const sanitizedResults = sanitizeSearchResults(results);
+            const formatted = formatSearchResults(sanitizedResults);
             parts.push('## Web Search Results\n' + formatted);
-            documents.push(...results.map((r: { title: string; snippet: string }) => `${r.title}: ${r.snippet}`));
+            documents.push(...sanitizedResults.map((r) => `${r.title}: ${r.snippet}`));
             setSearchContext(formatted);
             searchUsed = true;
           }
@@ -440,7 +448,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       documents,
       searchUsed,
     };
-  }, [knowledgeDocs, clientMemories, agentType]);
+  }, [knowledgeDocs, clientMemories, agentType, webSearchEnabled]);
 
   // ── Optimize messages for context window ──
   const getOptimizedMessages = useCallback((msgs: ChatMessage[]): Array<{ role: string; content: string }> => {
@@ -617,8 +625,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
     let messageContent = messageText;
     if (!overrideContent && attachments.length > 0) {
-      const attachmentText = attachments.map((a) => `[Attachment: ${a.name}]\n${a.content}`).join('\n\n');
-      messageContent = messageContent + '\n\n' + attachmentText;
+      // Sanitize each attachment to prevent attachment-based prompt injection
+      const sanitizedAttachments = attachments.map((a) => {
+        const result = sanitizeExternalContext(a.content, 'attachment');
+        return `[Attachment: ${a.name}]\n${result.sanitized}`;
+      });
+      messageContent = messageContent + '\n\n' + sanitizedAttachments.join('\n\n');
     }
 
     const userMessage: ChatMessage = {

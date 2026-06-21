@@ -23,7 +23,7 @@ const INJECTION_PATTERNS: Array<{ pattern: RegExp; description: string }> = [
   { pattern: /\bsystem\s*prompt\b.*\b(override|replace|change|rewrite|modify)\b/i, description: 'system prompt manipulation' },
   { pattern: /\bend\s+of\s+(system\s+)?prompt\b/i, description: 'prompt boundary injection' },
   { pattern: /\b---\s*end\s+/i, description: 'delimiter injection' },
-  { pattern: /\b###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i, description: 'role spoofing' },
+  { pattern: /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i, description: 'role spoofing' },
 
   // Role hijacking
   { pattern: /\byou\s+are\s+(a|an)\s+(hacker|attacker|jailbreak|DAN|unrestricted)/i, description: 'role hijacking' },
@@ -182,6 +182,271 @@ export function isPromptSafe(input: string | undefined | null): boolean {
   if (!input) return true;
   const result = sanitizeSystemPrompt(input);
   return result.riskLevel === 'none' || result.riskLevel === 'low';
+}
+
+// ─── External Content Sanitization ────
+
+const MAX_DOCUMENT_CONTENT_LENGTH = 20_000; // 20KB max per document
+const MAX_SEARCH_RESULT_LENGTH = 2_000;     // 2KB max per search result
+const MAX_EXTERNAL_CONTEXT_LENGTH = 30_000;  // 30KB max for all external context
+
+/**
+ * Sanitize uploaded document content before injecting into prompts.
+ * Documents are a high-risk injection vector since users can upload
+ * files containing adversarial instructions disguised as data.
+ *
+ * Defense layers:
+ * 1. Length enforcement (prevent token flooding)
+ * 2. Zero-width character stripping (remove obfuscation)
+ * 3. Delimiter injection detection (flag role-spoofing attempts)
+ * 4. Audit logging for security review
+ */
+export function sanitizeDocumentContent(
+  content: string,
+  documentName: string,
+  context: { userId?: string; route?: string } = {}
+): SanitizationResult {
+  if (!content || typeof content !== 'string') {
+    return { sanitized: '', wasModified: false, threatsDetected: [], riskLevel: 'none' };
+  }
+
+  let sanitized = content;
+  const threatsDetected: string[] = [];
+
+  // Layer 1: Length enforcement
+  if (sanitized.length > MAX_DOCUMENT_CONTENT_LENGTH) {
+    sanitized = sanitized.slice(0, MAX_DOCUMENT_CONTENT_LENGTH);
+    threatsDetected.push('document_length_overflow');
+    log.warn('Document content exceeded max length, truncated', {
+      documentName,
+      originalLength: content.length,
+      truncatedTo: MAX_DOCUMENT_CONTENT_LENGTH,
+      ...context,
+    });
+  }
+
+  // Layer 2: Strip zero-width characters (common in obfuscated injection)
+  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
+  if (zeroWidthPattern.test(sanitized)) {
+    sanitized = sanitized.replace(zeroWidthPattern, '');
+    threatsDetected.push('document_zero_width_chars');
+  }
+
+  // Layer 3: Detect delimiter injection in documents
+  // Attackers embed role markers in documents to hijack the AI
+  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
+  if (delimiterPattern.test(sanitized)) {
+    threatsDetected.push('document_role_spoofing');
+    log.warn('Potential role spoofing detected in uploaded document', {
+      documentName,
+      ...context,
+    });
+  }
+
+  // Layer 4: Detect instruction override attempts embedded in documents
+  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
+  if (overridePattern.test(sanitized)) {
+    threatsDetected.push('document_instruction_override');
+    log.warn('Potential instruction override detected in uploaded document', {
+      documentName,
+      ...context,
+    });
+  }
+
+  // Layer 5: Risk assessment
+  let riskLevel: SanitizationResult['riskLevel'] = 'none';
+  if (threatsDetected.includes('document_role_spoofing') || threatsDetected.includes('document_instruction_override')) {
+    riskLevel = 'medium';
+  } else if (threatsDetected.length > 0) {
+    riskLevel = 'low';
+  }
+
+  // Audit logging
+  if (threatsDetected.length > 0) {
+    log.warn('Threats detected in uploaded document', {
+      documentName,
+      threats: threatsDetected,
+      riskLevel,
+      ...context,
+    });
+  }
+
+  return { sanitized, wasModified: sanitized !== content, threatsDetected, riskLevel };
+}
+
+/**
+ * Sanitize web search results before injecting into prompts.
+ * Search results are a high-risk vector since attackers can poison
+ * web content to include adversarial instructions in search snippets.
+ *
+ * Defense layers:
+ * 1. Length enforcement per result
+ * 2. Zero-width character stripping
+ * 3. Delimiter injection detection
+ * 4. Audit logging
+ */
+export interface SanitizedSearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+  publishedDate?: string;
+}
+
+export function sanitizeSearchResults(
+  results: Array<{ title: string; snippet: string; url: string; publishedDate?: string }>,
+  context: { userId?: string; route?: string } = {}
+): SanitizedSearchResult[] {
+  if (!Array.isArray(results)) return [];
+
+  const sanitizedResults: SanitizedSearchResult[] = [];
+  const allThreats: string[] = [];
+
+  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
+  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
+  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
+
+  for (const result of results) {
+    let title = result.title || '';
+    let snippet = result.snippet || '';
+    let wasModified = false;
+    const threats: string[] = [];
+
+    // Length enforcement on title
+    if (title.length > 500) {
+      title = title.slice(0, 500);
+      wasModified = true;
+      threats.push('title_truncated');
+    }
+
+    // Length enforcement on snippet
+    if (snippet.length > MAX_SEARCH_RESULT_LENGTH) {
+      snippet = snippet.slice(0, MAX_SEARCH_RESULT_LENGTH);
+      wasModified = true;
+      threats.push('snippet_truncated');
+    }
+
+    // Zero-width character stripping on both
+    if (zeroWidthPattern.test(title)) {
+      title = title.replace(zeroWidthPattern, '');
+      wasModified = true;
+      threats.push('title_zero_width');
+    }
+    if (zeroWidthPattern.test(snippet)) {
+      snippet = snippet.replace(zeroWidthPattern, '');
+      wasModified = true;
+      threats.push('snippet_zero_width');
+    }
+
+    // Delimiter injection detection
+    if (delimiterPattern.test(title) || delimiterPattern.test(snippet)) {
+      threats.push('role_spoofing');
+    }
+
+    // Instruction override detection
+    if (overridePattern.test(title) || overridePattern.test(snippet)) {
+      threats.push('instruction_override');
+    }
+
+    allThreats.push(...threats);
+
+    sanitizedResults.push({
+      title,
+      snippet,
+      url: result.url,
+      publishedDate: result.publishedDate,
+    });
+  }
+
+  // Audit logging for any threats
+  if (allThreats.length > 0) {
+    log.warn('Threats detected in search results', {
+      threats: allThreats,
+      resultCount: results.length,
+      ...context,
+    });
+  }
+
+  return sanitizedResults;
+}
+
+/**
+ * Sanitize any external context (agent memory, attachments, etc.)
+ * before injecting into prompts. Generic wrapper around content sanitization.
+ */
+export function sanitizeExternalContext(
+  content: string,
+  sourceType: 'attachment' | 'agent_memory' | 'rag_chunk' | 'unknown',
+  context: { userId?: string; route?: string } = {}
+): SanitizationResult {
+  if (!content || typeof content !== 'string') {
+    return { sanitized: '', wasModified: false, threatsDetected: [], riskLevel: 'none' };
+  }
+
+  let sanitized = content;
+  const threatsDetected: string[] = [];
+
+  // Length enforcement based on source type
+  const maxLength = sourceType === 'agent_memory' ? 5_000 : MAX_EXTERNAL_CONTEXT_LENGTH;
+  if (sanitized.length > maxLength) {
+    sanitized = sanitized.slice(0, maxLength);
+    threatsDetected.push(`${sourceType}_length_overflow`);
+    log.warn('External context exceeded max length, truncated', {
+      sourceType,
+      originalLength: content.length,
+      truncatedTo: maxLength,
+      ...context,
+    });
+  }
+
+  // Strip zero-width characters
+  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
+  if (zeroWidthPattern.test(sanitized)) {
+    sanitized = sanitized.replace(zeroWidthPattern, '');
+    threatsDetected.push(`${sourceType}_zero_width_chars`);
+  }
+
+  // Detect delimiter injection
+  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
+  if (delimiterPattern.test(sanitized)) {
+    threatsDetected.push(`${sourceType}_role_spoofing`);
+    log.warn('Potential role spoofing detected in external context', {
+      sourceType,
+      ...context,
+    });
+  }
+
+  // Detect instruction override attempts
+  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
+  if (overridePattern.test(sanitized)) {
+    threatsDetected.push(`${sourceType}_instruction_override`);
+    log.warn('Potential instruction override detected in external context', {
+      sourceType,
+      ...context,
+    });
+  }
+
+  // Risk assessment
+  let riskLevel: SanitizationResult['riskLevel'] = 'none';
+  const roleSpoofing = threatsDetected.some((t) => t.includes('role_spoofing'));
+  const instructionOverride = threatsDetected.some((t) => t.includes('instruction_override'));
+
+  if (roleSpoofing || instructionOverride) {
+    riskLevel = 'medium';
+  } else if (threatsDetected.length > 0) {
+    riskLevel = 'low';
+  }
+
+  // Audit logging
+  if (threatsDetected.length > 0) {
+    log.warn('Threats detected in external context', {
+      sourceType,
+      threats: threatsDetected,
+      riskLevel,
+      ...context,
+    });
+  }
+
+  return { sanitized, wasModified: sanitized !== content, threatsDetected, riskLevel };
 }
 
 // ─── User Message Sanitization ────────
