@@ -1,6 +1,6 @@
 # ORACLE — Product Truth Document
 
-> **Version:** 3.0 · **Last updated:** June 19, 2026
+> **Version:** 3.1 · **Last updated:** June 21, 2026
 > **Canonical source of truth.** All product decisions, repairs, and feature work should reference this document.
 
 ---
@@ -366,6 +366,7 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | **Phase 8** | UI polish | ✅ Done | Enhanced Sidebar QualityBar with SVG circular gauge + grade letter. Created reusable `LoadingSkeleton` components (ChatMessage, Card, Table, Stats). |
 | **Phase 9** | Failure modes | ✅ Done | Fixed critical provider health bug: `recordProviderHealth()` used `localStorage` but was called server-side (silently no-op). Migrated to client-side recording — server returns `_health` metadata in response body (sync) and SSE chunks (streaming). Fixed `latencyMs` bug (was `Date.now() - Date.now()` = always 0). Added health recording to streaming handler. Created `api-key-validation.ts` for live key testing. Added `OfflineBanner` with `navigator.onLine` detection. Added 26 unit tests in `provider-health.test.ts` + 5 integration tests in `ChatPanel.test.tsx` (1,433 total tests across 83 files). |
 | **Phase 10** | Release readiness | ✅ Done | CSP production hardening: `base-uri 'self'`, `object-src 'none'`, `worker-src 'self'`, `manifest-src 'self'`, `upgrade-insecure-requests`. Accessibility: `SkipNav` component (WCAG 2.1 AA), `#main-content` target, `.skip-nav:focus` CSS. Performance: `optimizePackageImports` for lucide-react, recharts, framer-motion, @tanstack/react-query; JetBrains_Mono `preload: false`. All 1,433 tests passing, build verified, TypeScript clean. |
+| **Phase 11** | Test cleanup & zero warnings | ✅ Done | Eliminated `act()` warnings across 10 component test files (ChatPanel, ConfigTab, RoadmapTab, Header, NotificationPanel, OrchestratorPanel, ProjectsTab, MemoryExtractor, AppShell, Sidebar). Wrapped 60+ synchronous `render()` calls in `await act()`. Removed 7 local `vi.mock('framer-motion')` overrides from Header, NotificationPanel, Sidebar, TestCasesTab, WorkflowsTab, AppShell, OnboardingWizard — all now use the global prop-stripping mock from `test-setup.ts`. Added `motion.aside` and SVG element mocks (`linearGradient`, `stop`, `defs`) to the global framer-motion mock. Updated recharts mock in AnalyticsTab tests to not render SVG children, eliminating jsdom SVG warnings. All 1,600 tests passing, 0 TypeScript errors, 0 `act()` warnings, 0 `whileHover`/`whileTap` prop warnings, 0 SVG tag warnings. |
 
 ---
 
@@ -402,6 +403,7 @@ Real Estate · Healthcare · Legal · Manufacturing/B2B · Education/EdTech · H
 | `src/components/oracle/EmptyState.tsx` | Empty state with quick start cards |
 | `src/components/oracle/MarkdownComponents.tsx` | ReactMarkdown custom renderers |
 | `src/components/oracle/LoadingSkeleton.tsx` | Reusable skeleton components (Chat, Card, Table, Stats) |
+| `src/components/oracle/test-setup.ts` | Oracle-specific test setup: framer-motion mock (prop-stripping), design-tokens mock |
 | `src/components/oracle/OfflineBanner.tsx` | Offline detection banner (navigator.onLine) |
 | `src/components/oracle/SkipNav.tsx` | WCAG 2.1 AA skip navigation component |
 | `src/components/oracle/` | 70+ UI components |
