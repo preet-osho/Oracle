@@ -285,4 +285,77 @@ describe('BusinessTab', () => {
       });
     });
   });
+
+  // ── Edge Cases ──
+
+  describe('edge cases', () => {
+    it('handles API seed failure gracefully (keeps template data)', async () => {
+      mockFetch.mockImplementation(async () => {
+        throw new Error('Network error');
+      });
+      await waitFor(() => {
+        render(<BusinessTab />);
+      });
+      // Should still show default template streams
+      expect(screen.getByText('SEO Services')).toBeDefined();
+      expect(screen.getByText('Web Development')).toBeDefined();
+    });
+
+    it('handles delete API failure gracefully (optimistic update)', async () => {
+      mockFetch.mockImplementation(async (url: string | Request, init?: RequestInit) => {
+        if (typeof url === 'string' && url.includes('/api/revenue-streams/seed') && init?.method === 'POST') {
+          return { ok: true, json: async () => ({ streams: [] }) };
+        }
+        if (typeof url === 'string' && url.includes('/api/revenue-streams') && init?.method === 'DELETE') {
+          throw new Error('Delete failed');
+        }
+        if (typeof url === 'string' && url.includes('/api/revenue-streams')) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: true, json: async () => ({}) };
+      });
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<BusinessTab />);
+      });
+      await user.click(screen.getByText('SEO Services'));
+      // Click the Remove button
+      const removeButton = screen.getByText('🗑 Remove');
+      await user.click(removeButton);
+      // Stream should be removed optimistically even though API failed
+      expect(screen.queryByText('SEO Services')).toBeNull();
+    });
+
+    it('onAskOracle callback is invoked from stream actions', async () => {
+      const onAskOracle = vi.fn();
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<BusinessTab onAskOracle={onAskOracle} />);
+      });
+      await user.click(screen.getByText('SEO Services'));
+      await user.click(screen.getByText('⚡ Ask Oracle'));
+      expect(onAskOracle).toHaveBeenCalled();
+    });
+
+    it('onAskOracle callback is invoked from micro-saas ideas', async () => {
+      const onAskOracle = vi.fn();
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<BusinessTab onAskOracle={onAskOracle} />);
+      });
+      await user.click(screen.getByText('☁️ Micro-SaaS Research'));
+      const researchButtons = screen.getAllByText('⚡ Research');
+      await user.click(researchButtons[0]);
+      expect(onAskOracle).toHaveBeenCalled();
+    });
+
+    it('shows correct stats for active streams only', async () => {
+      // Only 1 stream is Active (SEO Services at 50000/mo), other is Planning
+      await waitFor(() => {
+        render(<BusinessTab />);
+      });
+      // Should show active count as 1 (not 2)
+      expect(screen.getByText('1')).toBeDefined(); // Active Streams count
+    });
+  });
 });

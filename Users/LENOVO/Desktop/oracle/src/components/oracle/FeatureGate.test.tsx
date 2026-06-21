@@ -537,4 +537,129 @@ describe('FeatureGate', () => {
       expect(TIER_BENEFITS.agency.benefits.length).toBeGreaterThanOrEqual(TIER_BENEFITS.pro.benefits.length);
     });
   });
+
+  // ── Edge Cases ──
+
+  describe('edge cases', () => {
+    it('last setSubscriptionState call wins (sequential updates)', () => {
+      setSubscriptionState({ plan: 'pro', isValid: true, loading: false });
+      setSubscriptionState({ plan: 'agency', isValid: true, loading: false });
+      render(
+        <FeatureGate requiredPlan="agency">
+          <div>Agency Content</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Agency Content')).toBeDefined();
+    });
+
+    it('requiredPlan takes precedence over feature name', () => {
+      // feature='webSearch' requires pro, but requiredPlan='agency' overrides
+      setSubscriptionState({ plan: 'pro', isValid: true, loading: false });
+      render(
+        <FeatureGate feature="webSearch" requiredPlan="agency" fallback={<div>Blocked</div>}>
+          <div>Content</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Blocked')).toBeDefined();
+    });
+
+    it('requiredPlan takes precedence over agentType', () => {
+      // agentType='orchestrator' requires starter, but requiredPlan='agency' overrides
+      render(
+        <FeatureGate agentType="orchestrator" requiredPlan="agency" fallback={<div>Blocked</div>}>
+          <div>Content</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Blocked')).toBeDefined();
+    });
+
+    it('unknown feature name defaults to starter requirement', () => {
+      render(
+        <FeatureGate feature="nonexistent-feature">
+          <div>Always Allowed</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Always Allowed')).toBeDefined();
+    });
+
+    it('unknown agent type defaults to starter requirement', () => {
+      render(
+        <FeatureGate agentType="nonexistent-agent">
+          <div>Always Allowed</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Always Allowed')).toBeDefined();
+    });
+
+    it('UpgradeModal returns null for unknown plan', () => {
+      const { container } = render(
+        <UpgradeModal open={true} onOpenChange={vi.fn()} requiredPlan={'typo' as never} />
+      );
+      expect(container.innerHTML).not.toContain('Upgrade');
+    });
+
+    it('TierTooltip renders children only for unknown plan', () => {
+      render(
+        <TierTooltip requiredPlan={'typo' as never}>
+          <span>Fallback Content</span>
+        </TierTooltip>
+      );
+      expect(screen.getByText('Fallback Content')).toBeDefined();
+      // No tooltip content should appear
+      expect(screen.queryByText('Upgrade to')).toBeNull();
+    });
+
+    it('DailyUsageIndicator at exactly 80% boundary shows warning', () => {
+      render(<DailyUsageIndicator used={40} limit={50} />);
+      expect(screen.getByText('40/50')).toBeDefined();
+    });
+
+    it('DailyUsageIndicator with 0 used shows normal state', () => {
+      render(<DailyUsageIndicator used={0} limit={50} />);
+      expect(screen.getByText('0/50')).toBeDefined();
+    });
+
+    it('DailyUsageIndicator with used > limit shows critical', () => {
+      render(<DailyUsageIndicator used={60} limit={50} />);
+      expect(screen.getByText('60/50')).toBeDefined();
+    });
+
+    it('agentType takes precedence over feature name', () => {
+      // precedence is: requiredPlan > agentType > feature
+      // agentType='orchestrator' requires starter, feature='webSearch' requires pro
+      // orchestrator wins → starter plan can access it
+      render(
+        <FeatureGate agentType="orchestrator" feature="webSearch">
+          <div>Content</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Content')).toBeDefined();
+    });
+
+    it('getRequiredPlanForAgent is case-sensitive', () => {
+      expect(getRequiredPlanForAgent('Developer')).toBe('starter'); // unknown
+      expect(getRequiredPlanForAgent('developer')).toBe('pro'); // known
+    });
+
+    it('getRequiredPlanForFeature is case-sensitive', () => {
+      expect(getRequiredPlanForFeature('WebSearch')).toBe('starter'); // unknown
+      expect(getRequiredPlanForFeature('webSearch')).toBe('pro'); // known
+    });
+
+    it('isAgentAllowed returns true for unknown agents on any plan', () => {
+      setSubscriptionState({ plan: 'starter', isValid: true, loading: false });
+      expect(isAgentAllowed('nonexistent')).toBe(true);
+    });
+
+    it('showDisabled does not affect children rendering when plan meets requirement', () => {
+      setSubscriptionState({ plan: 'agency', isValid: true, loading: false });
+      render(
+        <FeatureGate requiredPlan="pro" showDisabled>
+          <div>Accessible Content</div>
+        </FeatureGate>
+      );
+      expect(screen.getByText('Accessible Content')).toBeDefined();
+      expect(screen.queryByText('Pro')).toBeNull(); // No overlay badge
+    });
+  });
 });

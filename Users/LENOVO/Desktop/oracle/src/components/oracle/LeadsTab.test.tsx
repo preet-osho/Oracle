@@ -360,4 +360,107 @@ describe('LeadsTab', () => {
       expect(screen.getByText('Business name is required.')).toBeDefined();
     });
   });
+
+  // ── Edge Cases ──
+
+  describe('edge cases', () => {
+    it('handles API seed failure gracefully (keeps template data)', async () => {
+      mockFetch.mockImplementation(async () => {
+        throw new Error('Network error');
+      });
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      // Should still show default template leads
+      expect(screen.getByText('Spice Garden Restaurant')).toBeDefined();
+      expect(screen.getByText('FitZone Gym')).toBeDefined();
+    });
+
+    it('handles delete API failure gracefully (optimistic update)', async () => {
+      mockFetch.mockImplementation(async (url: string | Request, init?: RequestInit) => {
+        if (typeof url === 'string' && url.includes('/api/leads/seed') && init?.method === 'POST') {
+          return { ok: true, json: async () => ({ leads: [] }) };
+        }
+        if (typeof url === 'string' && url.includes('/api/leads') && init?.method === 'DELETE') {
+          throw new Error('Delete failed');
+        }
+        if (typeof url === 'string' && url.includes('/api/leads')) {
+          return { ok: true, json: async () => [] };
+        }
+        return { ok: true, json: async () => ({}) };
+      });
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      // Expand the first lead to see delete button
+      await user.click(screen.getByText('Spice Garden Restaurant'));
+      const deleteButtons = screen.getAllByText('🗑');
+      await user.click(deleteButtons[0]);
+      // Lead should be removed optimistically even though API failed
+      expect(screen.queryByText('Spice Garden Restaurant')).toBeNull();
+    });
+
+    it('search with no results shows empty state', async () => {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      const searchInput = screen.getByPlaceholderText(/Search leads/);
+      await user.type(searchInput, 'NonexistentBusiness12345');
+      expect(screen.getByText(/No leads found/)).toBeDefined();
+    });
+
+    it('onAskOracle callback is invoked from lead actions', async () => {
+      const onAskOracle = vi.fn();
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab onAskOracle={onAskOracle} />);
+      });
+      await user.click(screen.getByText('Spice Garden Restaurant'));
+      const askButtons = screen.getAllByText('⚡');
+      await user.click(askButtons[0]);
+      expect(onAskOracle).toHaveBeenCalled();
+    });
+
+    it('follow-ups view filters to only hot/warm or dated leads', async () => {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      const followUpsTab = screen.getAllByText(/Follow-ups/)[0].closest('button')!;
+      await user.click(followUpsTab);
+      // Smile Dental (Contacted + followUpDate) and FitZone (Hot) should appear
+      expect(screen.getByText('Smile Dental Clinic')).toBeDefined();
+      expect(screen.getByText('FitZone Gym')).toBeDefined();
+      // Spice Garden (New, no followUpDate) should NOT appear
+      expect(screen.queryByText('Spice Garden Restaurant')).toBeNull();
+    });
+
+    it('closes add lead modal when cancel is clicked', async () => {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      await user.click(screen.getByText('+ Add Lead'));
+      expect(screen.getByText('+ Add New Lead')).toBeDefined();
+      await user.click(screen.getByText('Cancel'));
+      expect(screen.queryByText('+ Add New Lead')).toBeNull();
+    });
+
+    it('workflow criteria toggle collapses when clicked again', async () => {
+      const user = userEvent.setup();
+      await waitFor(() => {
+        render(<LeadsTab />);
+      });
+      const workflowsTab = screen.getAllByText(/Generation Workflows/)[0].closest('button')!;
+      await user.click(workflowsTab);
+      // Expand
+      await user.click(screen.getByText(/View 5 qualification criteria/));
+      expect(screen.getByText('No website listed in Google Maps profile')).toBeDefined();
+      // Collapse
+      await user.click(screen.getByText(/Hide criteria/));
+      expect(screen.queryByText('No website listed in Google Maps profile')).toBeNull();
+    });
+  });
 });
