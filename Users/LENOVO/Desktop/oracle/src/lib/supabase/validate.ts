@@ -8,6 +8,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import type { User, SupabaseClient } from '@supabase/supabase-js';
 import { type OrgRole } from '@/lib/permissions';
+import { checkSubscription } from '@/lib/subscription';
 
 export interface AuthResult {
   user: User;
@@ -67,6 +68,28 @@ export async function validateAuth(): Promise<
     }
   } catch {
     // Org context not available yet (migration not applied) — proceed without it
+  }
+
+  // ── Subscription Enforcement for API Routes ──
+  // Skip subscription check for public routes and subscription management
+  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
+  const exemptApiRoutes = ['/api/subscription', '/api/health', '/api/razorpay', '/api/auth'];
+  const isExemptApi = exemptApiRoutes.some((route) => pathname.startsWith(route));
+
+  if (!isExemptApi) {
+    const subCheck = await checkSubscription(user.id);
+    if (!subCheck.allowed) {
+      return {
+        error: NextResponse.json(
+          {
+            error: subCheck.reason || 'Subscription required',
+            subscriptionRequired: true,
+            upgradeUrl: subCheck.upgradeUrl || '/pricing',
+          },
+          { status: 403 }
+        ),
+      };
+    }
   }
 
   return { user, supabase, org };

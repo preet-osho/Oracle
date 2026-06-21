@@ -198,6 +198,23 @@ function useRazorpayCheckout() {
       );
 
       if (verification.verified) {
+        // Record subscription on server
+        try {
+          const subResponse = await fetch("/api/subscription/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "activate",
+              planId: plan.id,
+              orderId: result.razorpay_order_id,
+            }),
+          });
+          if (!subResponse.ok) {
+            console.warn("Failed to record subscription, but payment was successful");
+          }
+        } catch (subErr) {
+          console.warn("Subscription recording failed:", subErr);
+        }
         setStatus("success");
       } else {
         throw new Error("Payment verification failed. Please contact support.");
