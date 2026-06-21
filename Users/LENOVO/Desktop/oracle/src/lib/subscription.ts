@@ -140,6 +140,166 @@ export const TRIAL_DURATION_MS = 14 * 24 * 60 * 60 * 1000;
 // Grace period after trial/payment expiry: 3 days
 export const GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000;
 
+// ─── Agent Tier Mapping ────────────────
+
+/**
+ * Which agent types are available on each plan.
+ * Starter: only orchestrator + core agents
+ * Pro: core + specialist agents
+ * Agency: all agents
+ */
+export const PLAN_AGENT_ACCESS: Record<PlanId, string[]> = {
+  starter: ['orchestrator', 'researcher', 'writer', 'analyst'],
+  pro: ['orchestrator', 'researcher', 'writer', 'developer', 'analyst', 'strategist', 'marketer', 'designer', 'finance', 'qa'],
+  agency: ['orchestrator', 'researcher', 'writer', 'developer', 'analyst', 'strategist', 'marketer', 'designer', 'finance', 'voice', 'qa', 'coordinator', 'workflow'],
+};
+
+/** Check if a plan allows access to a specific agent type */
+export function hasAgentAccess(planId: PlanId, agentType: string): boolean {
+  return PLAN_AGENT_ACCESS[planId].includes(agentType);
+}
+
+// ─── Daily Usage Tracking ──────────────
+
+export interface DailyUsage {
+  userId: string;
+  date: string; // YYYY-MM-DD
+  aiRequests: number;
+}
+
+/**
+ * Get the current date string in YYYY-MM-DD format (UTC).
+ */
+export function getTodayKey(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Get today's AI request count for a user.
+ */
+export async function getDailyUsage(userId: string): Promise<number> {
+  try {
+    const supabase = getSubscriptionClient();
+    if (!supabase) return 0; // If Supabase not configured, allow usage
+
+    const date = getTodayKey();
+    const { data, error } = await supabase
+      .from('daily_usage')
+      .select('ai_requests')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .single();
+
+    if (error || !data) return 0;
+    return data.ai_requests || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Increment today's AI request count for a user. Uses upsert for atomicity.
+ */
+export async function incrementDailyUsage(userId: string): Promise<number> {
+  try {
+    const supabase = getSubscriptionClient();
+    if (!supabase) return 1; // If Supabase not configured, allow usage
+
+    const date = getTodayKey();
+
+    // Atomic increment using Supabase RPC or raw SQL via upsert
+    // First, try to increment existing row
+    const { data: existing } = await supabase
+      .from('daily_usage')
+      .select('ai_requests')
+      .eq('user_id', userId)
+      .eq('date', date)
+      .single();
+
+    if (existing) {
+      const newCount = existing.ai_requests + 1;
+      await supabase
+        .from('daily_usage')
+        .update({ ai_requests: newCount })
+        .eq('user_id', userId)
+        .eq('date', date);
+      return newCount;
+    }
+
+    // Insert new row for today
+    const { data: inserted } = await supabase
+      .from('daily_usage')
+      .insert({ user_id: userId, date, ai_requests: 1 })
+      .select('ai_requests')
+      .single();
+
+    return inserted?.ai_requests || 1;
+  } catch {
+    return 1; // On error, allow the request
+  }
+}
+
+/**
+ * Check if user has remaining AI requests for today.
+ * Returns { allowed, remaining, limit, used }.
+ */
+export async function checkDailyLimit(
+  userId: string,
+  planId: PlanId
+): Promise<{ allowed: boolean; remaining: number; limit: number; used: number }> {
+  const plan = PLANS[planId];
+  const maxPerDay = plan.limits.aiResponsesPerDay;
+
+  // Unlimited plan
+  if (maxPerDay === -1) {
+    return { allowed: true, remaining: -1, limit: -1, used: 0 };
+  }
+
+  const used = await getDailyUsage(userId);
+  const remaining = Math.max(0, maxPerDay - used);
+
+  return {
+    allowed: remaining > 0,
+    remaining,
+    limit: maxPerDay,
+    used,
+  };
+}
+
+/**
+ * Increment and check in one step — atomically increments the counter
+ * and returns the new count. Call this INSTEAD of checkDailyLimit + incrementDailyUsage.
+ */
+export async function incrementAndCheckDailyLimit(
+  userId: string,
+  planId: PlanId
+): Promise<{ allowed: boolean; remaining: number; limit: number; used: number }> {
+  const plan = PLANS[planId];
+  const maxPerDay = plan.limits.aiResponsesPerDay;
+
+  // Unlimited plan — no counting needed
+  if (maxPerDay === -1) {
+    return { allowed: true, remaining: -1, limit: -1, used: 0 };
+  }
+
+  // Check first to avoid wasting a count on rejected requests
+  const currentUsed = await getDailyUsage(userId);
+  if (currentUsed >= maxPerDay) {
+    return { allowed: false, remaining: 0, limit: maxPerDay, used: currentUsed };
+  }
+
+  // Under limit — increment atomically
+  const newUsed = await incrementDailyUsage(userId);
+  const remaining = Math.max(0, maxPerDay - newUsed);
+
+  return {
+    allowed: newUsed <= maxPerDay,
+    remaining,
+    limit: maxPerDay,
+    used: newUsed,
+  };
+}
+
 // ─── Supabase Client ──────────────────
 
 let subscriptionClient: SupabaseClient | null = null;

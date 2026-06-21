@@ -12,6 +12,8 @@ import {
   createSubscription,
   startTrial,
   cancelSubscription,
+  checkDailyLimit,
+  getEffectivePlan,
   PLANS,
   type PlanId,
 } from '@/lib/subscription';
@@ -24,6 +26,9 @@ export async function GET() {
 
   const subscription = await getUserSubscription(auth.user.id);
   const check = await checkSubscription(auth.user.id);
+
+  const planId = getEffectivePlan(subscription);
+  const dailyLimit = await checkDailyLimit(auth.user.id, planId);
 
   return NextResponse.json({
     subscription: subscription ? {
@@ -39,11 +44,19 @@ export async function GET() {
       reason: check.reason,
       upgradeUrl: check.upgradeUrl,
     },
+    plan: planId,
+    isValid: check.allowed,
+    usage: {
+      used: dailyLimit.used,
+      limit: dailyLimit.limit,
+      remaining: dailyLimit.remaining,
+    },
     plans: Object.values(PLANS).map((p) => ({
       id: p.id,
       name: p.name,
       price: p.price,
       features: p.features,
+      limits: p.limits,
     })),
   });
 }

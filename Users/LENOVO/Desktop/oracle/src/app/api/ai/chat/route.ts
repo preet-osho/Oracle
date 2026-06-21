@@ -16,6 +16,7 @@ import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 import { recordCost } from '@/lib/cost-tracker';
 import { recordProviderHealth } from '@/lib/provider-health-server';
 import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';
+import { getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit, PLANS } from '@/lib/subscription';
 
 // ─── Request Body ──────────────────────
 
@@ -39,7 +40,31 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error;
   if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
 
-  // 2. Rate limit (per-user, 10 req/min)
+  // 2. Subscription-based daily limit enforcement (atomic increment + check)
+  const subscription = await getUserSubscription(auth.user.id);
+  const planId = getEffectivePlan(subscription);
+
+  const dailyCheck = await incrementAndCheckDailyLimit(auth.user.id, planId);
+  if (!dailyCheck.allowed) {
+    writeAuditLog({
+      userId: auth.user.id,
+      action: AUDIT_ACTIONS.AI_CHAT,
+      entityType: 'ai_request',
+      metadata: { blocked: true, reason: 'daily_limit', planId, used: dailyCheck.used, limit: dailyCheck.limit },
+    });
+    return Response.json(
+      {
+        error: `Daily limit reached (${dailyCheck.used}/${dailyCheck.limit}). Upgrade your plan for more requests.`,
+        code: 'DAILY_LIMIT_EXCEEDED',
+        used: dailyCheck.used,
+        limit: dailyCheck.limit,
+        upgradeUrl: '/pricing',
+      },
+      { status: 403 }
+    );
+  }
+
+  // 3. Rate limit (per-user, 10 req/min)
   const rateLimitKey = `ai:chat:${auth.user.id}`;
   const rateLimit = await checkRateLimit(rateLimitKey, AI_CHAT_RATE_LIMIT);
   if (!rateLimit.allowed) {
@@ -73,7 +98,7 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // 3. Parse body
+  // 4. Parse body
   let body: ChatRequest;
   try {
     body = await request.json();
@@ -125,7 +150,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 3. Look up API key from server-side storage (user_api_keys table)
+  // 5. Look up API key from server-side storage (user_api_keys table)
   //    Keys are encrypted at rest and never exposed to the browser
   const clientHeaders = request.headers;
   const resolvedProviderId = clientHeaders.get('x-oracle-provider-id') || providerId || 'groq';
@@ -167,7 +192,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'No model specified' }, { status: 400 });
   }
 
-  // 4. Build messages payload (using sanitized messages)
+  // 6. Build messages payload (using sanitized messages)
   const apiMessages: Array<{ role: string; content: string }> = [];
   if (systemPrompt) {
     if (resolvedProviderId === 'anthropic') {
@@ -178,10 +203,10 @@ export async function POST(request: NextRequest) {
   }
   apiMessages.push(...sanitizedMessages);
 
-  // 5. Determine streaming mode
+  // 7. Determine streaming mode
   const isStream = stream !== false; // default to streaming
 
-  // 6. Audit log the AI request (fire-and-forget, persists to audit_logs table)
+  // 8. Audit log the AI request (fire-and-forget, persists to audit_logs table)
   writeAuditLog({
     userId: auth.user.id,
     action: AUDIT_ACTIONS.AI_CHAT,
@@ -194,7 +219,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  // 7. Check circuit breaker — skip known-failing providers
+  // 9. Check circuit breaker — skip known-failing providers
   if (!isAvailable(resolvedProviderId)) {
     const unavailable = getUnavailableProviders();
     return Response.json(
@@ -203,7 +228,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // 8. Route to provider (streaming or sync)
+  // 10. Route to provider (streaming or sync)
 
   if (isStream) {
     return handleStreaming(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, auth.user.id);

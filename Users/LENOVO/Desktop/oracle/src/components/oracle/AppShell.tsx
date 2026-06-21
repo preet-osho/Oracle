@@ -20,6 +20,7 @@ import { ORACLE_TABS, isValidTab, type OracleTab } from '@/styles/design-tokens'
 import { OnboardingWizard } from './OnboardingWizard';
 import { SkipNav } from './SkipNav';
 import { OfflineBanner } from './OfflineBanner';
+import { setSubscriptionState } from './FeatureGate';
 
 // ─── Lazy Load Tabs ───────────────────
 const PromptsTab = lazy(() => import('./PromptsTab').then((m) => ({ default: m.PromptsTab })));
@@ -98,6 +99,21 @@ export function AppShell() {
   const [sidebarProjects, setSidebarProjects] = useState<Array<{ id: string; clientName: string; industry: string; service: string; status: string; memoryCount: number }>>([]);
   const [sidebarQualityScore, setSidebarQualityScore] = useState(0);
   const [sidebarSelectedProjectId, setSidebarSelectedProjectId] = useState<string | null>(null);
+
+  // ── Load subscription status on mount ──
+  useEffect(() => {
+    fetch('/api/subscription/status')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.plan) {
+          setSubscriptionState({ plan: data.plan, isValid: data.isValid ?? true, loading: false });
+
+        }
+      })
+      .catch(() => {
+        setSubscriptionState({ plan: 'starter', isValid: true, loading: false });
+      });
+  }, []);
 
   // ── Load API keys from server on mount (with localStorage migration) ──
   const { loadKeysFromServer, _initialized, onboardingCompleted, completeOnboarding } = useRouterStore();
