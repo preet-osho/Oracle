@@ -18,7 +18,7 @@ import {
 // ─── GET — Status ──────────────────────
 
 export async function GET() {
-  const auth = await validateAuth();
+  const auth = await validateAuth({ skipSubscriptionCheck: true });
   if ('error' in auth) return auth.error;
 
   const status = getEmergencyStopStatus();
@@ -35,7 +35,7 @@ export async function GET() {
 // ─── POST — Activate / Deactivate ──────
 
 export async function POST(request: NextRequest) {
-  const auth = await validateAuth();
+  const auth = await validateAuth({ skipSubscriptionCheck: true });
   if ('error' in auth) return auth.error;
 
   let body: { action?: 'activate' | 'deactivate'; reason?: string };

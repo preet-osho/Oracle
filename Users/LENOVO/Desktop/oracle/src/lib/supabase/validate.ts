@@ -35,7 +35,12 @@ export interface AuthResult {
  * // Use `org` for org-scoped queries.
  * ```
  */
-export async function validateAuth(): Promise<
+export interface ValidateAuthOptions {
+  /** Skip subscription enforcement (for payment, health, and subscription management routes) */
+  skipSubscriptionCheck?: boolean;
+}
+
+export async function validateAuth(options?: ValidateAuthOptions): Promise<
   AuthResult | { error: NextResponse }
 > {
   const supabase = await createClient();
@@ -71,12 +76,9 @@ export async function validateAuth(): Promise<
   }
 
   // ── Subscription Enforcement for API Routes ──
-  // Skip subscription check for public routes and subscription management
-  const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
-  const exemptApiRoutes = ['/api/subscription', '/api/health', '/api/razorpay', '/api/auth'];
-  const isExemptApi = exemptApiRoutes.some((route) => pathname.startsWith(route));
-
-  if (!isExemptApi) {
+  // Middleware handles page route enforcement. For API routes, we enforce here.
+  // Routes that must work without subscription (health, payment, subscription mgmt) pass skipSubscriptionCheck: true.
+  if (!options?.skipSubscriptionCheck) {
     const subCheck = await checkSubscription(user.id);
     if (!subCheck.allowed) {
       return {

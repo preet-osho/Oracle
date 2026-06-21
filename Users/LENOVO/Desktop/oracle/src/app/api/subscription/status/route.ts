@@ -19,7 +19,7 @@ import {
 // ─── GET /api/subscription/status ─────
 
 export async function GET() {
-  const auth = await validateAuth();
+  const auth = await validateAuth({ skipSubscriptionCheck: true });
   if ('error' in auth) return auth.error;
 
   const subscription = await getUserSubscription(auth.user.id);
@@ -51,7 +51,7 @@ export async function GET() {
 // ─── POST /api/subscription/status ────
 
 export async function POST(request: Request) {
-  const auth = await validateAuth();
+  const auth = await validateAuth({ skipSubscriptionCheck: true });
   if ('error' in auth) return auth.error;
 
   try {
