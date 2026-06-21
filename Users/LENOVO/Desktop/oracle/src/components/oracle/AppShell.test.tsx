@@ -142,6 +142,11 @@ describe('AppShell', () => {
   beforeEach(() => {
     currentTab = 'agent';
     vi.clearAllMocks();
+    // Mock global.fetch for /api/subscription/status (called in useEffect)
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ plan: 'pro', isValid: true }),
+    });
   });
 
   it('renders the default agent tab with ChatPanel', () => {

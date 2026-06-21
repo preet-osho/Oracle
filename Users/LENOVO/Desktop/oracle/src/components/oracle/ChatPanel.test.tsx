@@ -275,6 +275,8 @@ describe('ChatPanel', () => {
     it('does not send on Shift+Enter', async () => {
       const user = userEvent.setup();
       render(<ChatPanel />);
+      // Clear any fetch calls from component initialization (e.g. /api/subscription/status)
+      vi.mocked(global.fetch).mockClear();
       const textarea = screen.getByLabelText('Chat input');
       await user.type(textarea, 'Hello{Shift>}{Enter}{/Shift}');
       expect(global.fetch).not.toHaveBeenCalled();
@@ -283,6 +285,8 @@ describe('ChatPanel', () => {
     it('does not send empty messages', async () => {
       const user = userEvent.setup();
       render(<ChatPanel />);
+      // Clear any fetch calls from component initialization (e.g. /api/subscription/status)
+      vi.mocked(global.fetch).mockClear();
       const textarea = screen.getByLabelText('Chat input');
       await user.type(textarea, '   ');
       fireEvent.keyDown(textarea, { key: 'Enter' });
@@ -589,8 +593,10 @@ describe('ChatPanel', () => {
       });
 
       const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
-      expect(fetchCalls.length).toBeGreaterThanOrEqual(1);
-      const body = JSON.parse(fetchCalls[0][1].body);
+      // Find the POST call with a body (the /api/ai/chat call), not the subscription status GET
+      const chatCall = fetchCalls.find((call: [string, RequestInit]) => call[1]?.body);
+      expect(chatCall).toBeDefined();
+      const body = JSON.parse(chatCall![1].body as string);
       expect(body.stream).toBe(true);
     });
 
