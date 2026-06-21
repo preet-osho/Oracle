@@ -42,9 +42,10 @@ export function ChatHeader({
   const selectedProject = projects.find((p) => p.id === selectedProjectId);
   const [projectSearch, setProjectSearch] = useState('');
   const projectSearchRef = useRef<HTMLInputElement>(null);
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [upgradeAgentName, setUpgradeAgentName] = useState<string | undefined>();
-  const [upgradeRequiredPlan, setUpgradeRequiredPlan] = useState<PlanId>('pro');
+  const [upgradeModal, setUpgradeModal] = useState<{ open: boolean; agentName?: string; requiredPlan: PlanId }>({
+    open: false,
+    requiredPlan: 'pro',
+  });
 
   useEffect(() => {
     if (showProjectSelector) {
@@ -251,9 +252,7 @@ export function ChatHeader({
                                 if (allowed) {
                                   onSelectAgent(a.id);
                                 } else if (requiredPlan) {
-                                  setUpgradeAgentName(a.label);
-                                  setUpgradeRequiredPlan(requiredPlan);
-                                  setUpgradeModalOpen(true);
+                                  setUpgradeModal({ open: true, agentName: a.label, requiredPlan });
                                 }
                               }}
                               aria-disabled={!allowed}
@@ -293,10 +292,10 @@ export function ChatHeader({
 
       {/* Upgrade Modal */}
       <UpgradeModal
-        open={upgradeModalOpen}
-        onOpenChange={setUpgradeModalOpen}
-        requiredPlan={upgradeRequiredPlan}
-        agentLabel={upgradeAgentName}
+        open={upgradeModal.open}
+        onOpenChange={(open) => setUpgradeModal((prev) => ({ ...prev, open }))}
+        requiredPlan={upgradeModal.requiredPlan}
+        agentLabel={upgradeModal.agentName}
       />
 
       {/* Export buttons */}
