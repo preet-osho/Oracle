@@ -190,6 +190,14 @@ const MAX_DOCUMENT_CONTENT_LENGTH = 20_000; // 20KB max per document
 const MAX_SEARCH_RESULT_LENGTH = 2_000;     // 2KB max per search result
 const MAX_EXTERNAL_CONTEXT_LENGTH = 30_000;  // 30KB max for all external context
 
+// ─── Shared Regex Patterns (module-level to avoid recompilation) ────
+// NOTE: No /g flag — lastIndex leaks between calls on shared module-level regexes.
+// Use .replace(new RegExp(ZERO_WIDTH_PATTERN.source, 'gi'), '') when replacing all.
+const ZERO_WIDTH_PATTERN = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/i;
+const ZERO_WIDTH_GLOBAL = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/gi;
+const ROLE_SPOOFING_PATTERN = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
+const INSTRUCTION_OVERRIDE_PATTERN = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
+
 /**
  * Sanitize uploaded document content before injecting into prompts.
  * Documents are a high-risk injection vector since users can upload
@@ -226,16 +234,14 @@ export function sanitizeDocumentContent(
   }
 
   // Layer 2: Strip zero-width characters (common in obfuscated injection)
-  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
-  if (zeroWidthPattern.test(sanitized)) {
-    sanitized = sanitized.replace(zeroWidthPattern, '');
+  if (ZERO_WIDTH_PATTERN.test(sanitized)) {
+    sanitized = sanitized.replace(ZERO_WIDTH_GLOBAL, '');
     threatsDetected.push('document_zero_width_chars');
   }
 
   // Layer 3: Detect delimiter injection in documents
   // Attackers embed role markers in documents to hijack the AI
-  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
-  if (delimiterPattern.test(sanitized)) {
+  if (ROLE_SPOOFING_PATTERN.test(sanitized)) {
     threatsDetected.push('document_role_spoofing');
     log.warn('Potential role spoofing detected in uploaded document', {
       documentName,
@@ -244,8 +250,7 @@ export function sanitizeDocumentContent(
   }
 
   // Layer 4: Detect instruction override attempts embedded in documents
-  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
-  if (overridePattern.test(sanitized)) {
+  if (INSTRUCTION_OVERRIDE_PATTERN.test(sanitized)) {
     threatsDetected.push('document_instruction_override');
     log.warn('Potential instruction override detected in uploaded document', {
       documentName,
@@ -254,8 +259,13 @@ export function sanitizeDocumentContent(
   }
 
   // Layer 5: Risk assessment
+  const hasRoleSpoofing = threatsDetected.includes('document_role_spoofing');
+  const hasInstructionOverride = threatsDetected.includes('document_instruction_override');
+
   let riskLevel: SanitizationResult['riskLevel'] = 'none';
-  if (threatsDetected.includes('document_role_spoofing') || threatsDetected.includes('document_instruction_override')) {
+  if (hasRoleSpoofing && hasInstructionOverride) {
+    riskLevel = 'high'; // Multiple distinct attack types
+  } else if (hasRoleSpoofing || hasInstructionOverride) {
     riskLevel = 'medium';
   } else if (threatsDetected.length > 0) {
     riskLevel = 'low';
@@ -301,10 +311,6 @@ export function sanitizeSearchResults(
   const sanitizedResults: SanitizedSearchResult[] = [];
   const allThreats: string[] = [];
 
-  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
-  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
-  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
-
   for (const result of results) {
     let title = result.title || '';
     let snippet = result.snippet || '';
@@ -326,24 +332,24 @@ export function sanitizeSearchResults(
     }
 
     // Zero-width character stripping on both
-    if (zeroWidthPattern.test(title)) {
-      title = title.replace(zeroWidthPattern, '');
+    if (ZERO_WIDTH_PATTERN.test(title)) {
+      title = title.replace(ZERO_WIDTH_GLOBAL, '');
       wasModified = true;
       threats.push('title_zero_width');
     }
-    if (zeroWidthPattern.test(snippet)) {
-      snippet = snippet.replace(zeroWidthPattern, '');
+    if (ZERO_WIDTH_PATTERN.test(snippet)) {
+      snippet = snippet.replace(ZERO_WIDTH_GLOBAL, '');
       wasModified = true;
       threats.push('snippet_zero_width');
     }
 
     // Delimiter injection detection
-    if (delimiterPattern.test(title) || delimiterPattern.test(snippet)) {
+    if (ROLE_SPOOFING_PATTERN.test(title) || ROLE_SPOOFING_PATTERN.test(snippet)) {
       threats.push('role_spoofing');
     }
 
     // Instruction override detection
-    if (overridePattern.test(title) || overridePattern.test(snippet)) {
+    if (INSTRUCTION_OVERRIDE_PATTERN.test(title) || INSTRUCTION_OVERRIDE_PATTERN.test(snippet)) {
       threats.push('instruction_override');
     }
 
@@ -399,15 +405,13 @@ export function sanitizeExternalContext(
   }
 
   // Strip zero-width characters
-  const zeroWidthPattern = /[\u200B-\u200F\u2028-\u202F\u2060-\u2064\uFEFF]/g;
-  if (zeroWidthPattern.test(sanitized)) {
-    sanitized = sanitized.replace(zeroWidthPattern, '');
+  if (ZERO_WIDTH_PATTERN.test(sanitized)) {
+    sanitized = sanitized.replace(ZERO_WIDTH_GLOBAL, '');
     threatsDetected.push(`${sourceType}_zero_width_chars`);
   }
 
   // Detect delimiter injection
-  const delimiterPattern = /(^|\s)###\s*(system|assistant|new)\s+(message|prompt|instructions?)\b/i;
-  if (delimiterPattern.test(sanitized)) {
+  if (ROLE_SPOOFING_PATTERN.test(sanitized)) {
     threatsDetected.push(`${sourceType}_role_spoofing`);
     log.warn('Potential role spoofing detected in external context', {
       sourceType,
@@ -416,8 +420,7 @@ export function sanitizeExternalContext(
   }
 
   // Detect instruction override attempts
-  const overridePattern = /\b(forget|ignore|disregard)\s+(all\s+)?(previous|your|above|prior)\s+(instructions?|rules?|prompts?)\b/i;
-  if (overridePattern.test(sanitized)) {
+  if (INSTRUCTION_OVERRIDE_PATTERN.test(sanitized)) {
     threatsDetected.push(`${sourceType}_instruction_override`);
     log.warn('Potential instruction override detected in external context', {
       sourceType,
@@ -426,11 +429,13 @@ export function sanitizeExternalContext(
   }
 
   // Risk assessment
-  let riskLevel: SanitizationResult['riskLevel'] = 'none';
   const roleSpoofing = threatsDetected.some((t) => t.includes('role_spoofing'));
   const instructionOverride = threatsDetected.some((t) => t.includes('instruction_override'));
 
-  if (roleSpoofing || instructionOverride) {
+  let riskLevel: SanitizationResult['riskLevel'] = 'none';
+  if (roleSpoofing && instructionOverride) {
+    riskLevel = 'high'; // Multiple distinct attack types
+  } else if (roleSpoofing || instructionOverride) {
     riskLevel = 'medium';
   } else if (threatsDetected.length > 0) {
     riskLevel = 'low';
