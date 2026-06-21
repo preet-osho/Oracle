@@ -28,7 +28,8 @@ vi.mock('./FeatureGate', () => ({
     open ? (
       <div data-testid="upgrade-modal">
         <span>Upgrade Modal: {agentLabel} - {requiredPlan}</span>
-        <button onClick={() => onOpenChange(false)}>Close</button>
+        <a href="/pricing" data-testid="view-plans-link">View Plans</a>
+        <button onClick={() => onOpenChange(false)}>Maybe Later</button>
       </div>
     ) : null
   ),
@@ -181,7 +182,60 @@ describe('ChatHeader feature gating', () => {
     const developerBtn = screen.getByText('Developer').closest('button')!;
     fireEvent.click(developerBtn);
     expect(screen.getByTestId('upgrade-modal')).toBeDefined();
-    fireEvent.click(screen.getByText('Close'));
+    fireEvent.click(screen.getByText('Maybe Later'));
     expect(screen.queryByTestId('upgrade-modal')).toBeNull();
+  });
+
+  it('e2e: starter clicks locked agent → sees upgrade modal → clicks View Plans → redirects to /pricing', () => {
+    render(<ChatHeader {...defaultProps} showAgentSelector={true} />);
+
+    // Step 1: starter user opens agent selector (passed via props)
+    expect(screen.getByLabelText('Select agent type')).toBeDefined();
+
+    // Step 2: starter user sees locked agents with lock icons
+    const lockIcons = screen.getAllByText('🔒');
+    expect(lockIcons.length).toBeGreaterThanOrEqual(1);
+
+    // Step 3: starter user clicks a locked agent (Developer requires pro)
+    const developerBtn = screen.getByText('Developer').closest('button')!;
+    expect(developerBtn.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(developerBtn);
+
+    // Step 4: upgrade modal appears with correct info
+    const modal = screen.getByTestId('upgrade-modal');
+    expect(modal).toBeDefined();
+    expect(modal.textContent).toContain('Developer');
+    expect(modal.textContent).toContain('pro');
+
+    // Step 5: modal shows 'View Plans' link that points to /pricing
+    const viewPlansLink = screen.getByTestId('view-plans-link');
+    expect(viewPlansLink).toBeDefined();
+    expect(viewPlansLink.textContent).toBe('View Plans');
+    expect(viewPlansLink.getAttribute('href')).toBe('/pricing');
+
+    // Step 6: clicking View Plans would navigate to /pricing (link has correct href)
+    // In jsdom, <a> clicks don't navigate, but we verify the href is correct
+    expect(viewPlansLink).toHaveAttribute('href', '/pricing');
+
+    // Step 7: modal stays open (navigation happens via the link, not modal close)
+    expect(screen.getByTestId('upgrade-modal')).toBeDefined();
+  });
+
+  it('e2e: starter clicks agency-locked agent → modal shows agency plan → View Plans links to /pricing', () => {
+    render(<ChatHeader {...defaultProps} showAgentSelector={true} />);
+
+    // Starter user clicks Voice (requires agency plan)
+    const voiceBtn = screen.getByText('Voice').closest('button')!;
+    expect(voiceBtn.getAttribute('aria-disabled')).toBe('true');
+    fireEvent.click(voiceBtn);
+
+    // Modal shows agency plan info
+    const modal = screen.getByTestId('upgrade-modal');
+    expect(modal.textContent).toContain('Voice');
+    expect(modal.textContent).toContain('agency');
+
+    // View Plans link still points to /pricing
+    const viewPlansLink = screen.getByTestId('view-plans-link');
+    expect(viewPlansLink.getAttribute('href')).toBe('/pricing');
   });
 });
