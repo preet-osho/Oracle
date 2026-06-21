@@ -361,6 +361,20 @@
   50% { opacity: 1; }
 }
 
+/* ── Upgrade CTA Pulse ── */
+@keyframes ctaPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(79, 70, 229, 0); }
+}
+
+.oracle-cta-pulse {
+  animation: ctaPulse 2s ease-in-out infinite;
+}
+
+.oracle-cta-pulse:hover {
+  animation: none;
+}
+
 /* ── Shimmer Loading ── */
 .oracle-shimmer {
   position: relative;

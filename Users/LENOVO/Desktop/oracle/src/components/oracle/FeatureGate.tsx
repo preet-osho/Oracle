@@ -382,7 +382,7 @@ export function UpgradeModal({
         <div className="flex gap-2 mt-1">
           <a
             href="/pricing"
-            className="flex-1 rounded-lg bg-[var(--oracle-primary)] py-2.5 text-center text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
+            className="oracle-cta-pulse flex-1 rounded-lg bg-[var(--oracle-primary)] py-2.5 text-center text-[13px] font-semibold text-white hover:opacity-90 transition-opacity"
           >
             View Plans
           </a>
