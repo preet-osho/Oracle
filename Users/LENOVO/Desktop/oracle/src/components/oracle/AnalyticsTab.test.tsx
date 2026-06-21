@@ -13,14 +13,12 @@ import type { UsageRecord } from '@/types';
 vi.mock('recharts', () => ({
   ResponsiveContainer: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'responsive-container' }, children),
-  AreaChart: (props: Record<string, unknown>) =>
-    React.createElement('div', { 'data-testid': 'area-chart' }, props.children as React.ReactNode),
-  BarChart: (props: Record<string, unknown>) =>
-    React.createElement('div', { 'data-testid': 'bar-chart' }, props.children as React.ReactNode),
-  PieChart: (props: Record<string, unknown>) =>
-    React.createElement('div', { 'data-testid': 'pie-chart' }, props.children as React.ReactNode),
-  LineChart: (props: Record<string, unknown>) =>
-    React.createElement('div', { 'data-testid': 'line-chart' }, props.children as React.ReactNode),
+  // Chart components return a simple div WITHOUT rendering children,
+  // to avoid jsdom SVG warnings from <defs>, <linearGradient>, <stop>
+  AreaChart: () => React.createElement('div', { 'data-testid': 'area-chart' }),
+  BarChart: () => React.createElement('div', { 'data-testid': 'bar-chart' }),
+  PieChart: () => React.createElement('div', { 'data-testid': 'pie-chart' }),
+  LineChart: () => React.createElement('div', { 'data-testid': 'line-chart' }),
   Area: () => null,
   Bar: () => null,
   Pie: () => null,
