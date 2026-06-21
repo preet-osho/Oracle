@@ -11,6 +11,8 @@ import { loadGuardConfig, saveGuardConfig, DEFAULT_GUARD_CONFIG } from '@/lib/ha
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import type { GuardConfig } from '@/types';
+import { useSubscriptionState, UpgradeModal, getRequiredPlanForFeature } from './FeatureGate';
+import type { PlanId } from '@/lib/subscription';
 
 
 // ─── API Helpers ──────────────────────
@@ -43,6 +45,14 @@ export function ConfigTab() {
   const [autoMemory, setAutoMemory] = useState(false);
   const { temperature, setTemperature } = useRouterStore();
   const [guardConfig, setGuardConfig] = useState<GuardConfig>(loadGuardConfig);
+  const { plan } = useSubscriptionState();
+  const webSearchRequiredPlan = getRequiredPlanForFeature('webSearch');
+  const webSearchAllowed = plan === 'pro' || plan === 'agency';
+  const [featureModal, setFeatureModal] = useState<{ open: boolean; feature: string; requiredPlan: PlanId }>({
+    open: false,
+    feature: '',
+    requiredPlan: 'pro',
+  });
 
   // webSearch and webSearchKey are local to ConfigTab
   const [webSearch, setWebSearch] = useState(false);
@@ -376,8 +386,26 @@ export function ConfigTab() {
               <ToggleRow label="Streaming responses" description="Stream tokens as they arrive" checked={streamingEnabled} onChange={toggleStreaming} />
               <ToggleRow label="Auto-score responses" description="Score every response on quality metrics" checked={autoScore} onChange={() => setAutoScore(!autoScore)} />
               <ToggleRow label="Auto-extract memories" description="Save key facts from conversations" checked={autoMemory} onChange={() => setAutoMemory(!autoMemory)} />
-              <ToggleRow label="Web search" description="Enable real-time web research" checked={webSearch} onChange={() => setWebSearch(!webSearch)} />
-              {webSearch && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium text-[var(--oracle-text-1)]">Web search</p>
+                  <p className="text-[11px] text-[var(--oracle-text-muted)]">Enable real-time web research{!webSearchAllowed && ` · Requires ${webSearchRequiredPlan === 'agency' ? 'Agency' : 'Pro'} plan`}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!webSearchAllowed && <span className="text-[10px]">🔒</span>}
+                  <ToggleSwitch
+                    checked={webSearch}
+                    onChange={() => {
+                      if (webSearchAllowed) {
+                        setWebSearch(!webSearch);
+                      } else {
+                        setFeatureModal({ open: true, feature: 'Web Search', requiredPlan: webSearchRequiredPlan });
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              {webSearch && webSearchAllowed && (
                 <div className="flex gap-2 pl-[140px]">
                   <input value={webSearchKey} onChange={(e) => setWebSearchKey(e.target.value)} placeholder="Tavily/Serper API key" className="flex-1 rounded-lg border border-[var(--oracle-border)] bg-[var(--oracle-surface-2)] px-3 py-2 font-mono text-[11px] text-[var(--oracle-text-1)] placeholder:text-[var(--oracle-text-muted)] outline-none focus:border-[var(--oracle-primary)]" />
                 </div>
@@ -726,6 +754,14 @@ claude`}
           </Section>
         </div>
       </div>
+
+      {/* ── Upgrade Modal (outside scroll area so it persists) ── */}
+      <UpgradeModal
+        open={featureModal.open}
+        onOpenChange={(open) => setFeatureModal((prev) => ({ ...prev, open }))}
+        requiredPlan={featureModal.requiredPlan}
+        featureLabel={featureModal.feature}
+      />
     </div>
   );
 }
