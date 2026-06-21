@@ -88,15 +88,6 @@ vi.mock('@/data/providers', () => ({
   ],
 }));
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: (p: Record<string, unknown>) => <div {...p}>{p.children as React.ReactNode}</div>,
-    button: (p: Record<string, unknown>) => <button {...p}>{p.children as React.ReactNode}</button>,
-    span: (p: Record<string, unknown>) => <span {...p}>{p.children as React.ReactNode}</span>,
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 vi.mock('@/styles/design-tokens', () => ({
   motionVariants: { fadeUp: {} },
   transitions: { smooth: {}, snappy: {} },

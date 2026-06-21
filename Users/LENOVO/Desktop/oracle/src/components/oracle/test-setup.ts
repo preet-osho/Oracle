@@ -37,6 +37,7 @@ vi.mock('framer-motion', () => {
       li: wrap('li'),
       ul: wrap('ul'),
       img: wrap('img'),
+      aside: wrap('aside'),
       // SVG elements used inside motion wrappers (e.g. recharts gradients)
       linearGradient: wrap('linearGradient'),
       stop: wrap('stop'),

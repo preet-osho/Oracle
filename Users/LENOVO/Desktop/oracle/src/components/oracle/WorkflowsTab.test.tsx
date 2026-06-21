@@ -4,14 +4,6 @@ import React from 'react';
 
 // ─── Mocks ───
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: (p: Record<string, unknown>) => <div {...p}>{p.children as React.ReactNode}</div>,
-    button: (p: Record<string, unknown>) => <button {...p}>{p.children as React.ReactNode}</button>,
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 vi.mock('@/styles/design-tokens', () => ({
   motionVariants: { fadeUp: {} },
   transitions: { smooth: {}, snappy: {} },

@@ -4,15 +4,6 @@ import React from 'react';
 
 // ─── Mocks ───
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: (p: Record<string, unknown>) => <div {...p}>{p.children as React.ReactNode}</div>,
-    button: (p: Record<string, unknown>) => <button {...p}>{p.children as React.ReactNode}</button>,
-    aside: (p: Record<string, unknown>) => <aside {...p}>{p.children as React.ReactNode}</aside>,
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
 vi.mock('@/stores/router.store', () => ({
   useRouterStore: () => ({
     selectedModel: { providerId: 'openai', modelId: 'gpt-4o' },

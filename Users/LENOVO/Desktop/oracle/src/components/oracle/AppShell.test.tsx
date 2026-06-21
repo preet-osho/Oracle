@@ -47,16 +47,6 @@ vi.mock('@/lib/migrate-localstorage', () => ({
   migrateKeysToServer: vi.fn().mockResolvedValue({ migrated: 0, failed: 0 }),
 }));
 
-vi.mock('framer-motion', () => ({
-  motion: {
-    div: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => <div {...props}>{children}</div>,
-    button: ({ children, ...props }: React.PropsWithChildren<Record<string, unknown>>) => <button {...props}>{children}</button>,
-  },
-  AnimatePresence: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-}));
-
-
-
 vi.mock('@tanstack/react-query', () => ({
   QueryClientProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   QueryClient: class MockQueryClient {
