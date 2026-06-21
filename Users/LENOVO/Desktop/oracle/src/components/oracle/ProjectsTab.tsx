@@ -14,6 +14,8 @@ import { projectsApi, timeEntriesApi, invoicesApi } from '@/lib/api';
 import { calculateGST } from '@/lib/tax-calculator';
 import { generateContract, CONTRACT_TEMPLATES, type ContractDetails } from '@/lib/contract-generator';
 import { addExpense, deleteExpense, updateExpense, getExpensesByProject, getExpenseSummary, EXPENSE_CATEGORIES, type Expense, type ExpenseCategory } from '@/lib/expense-tracker';
+import { useSubscriptionState, UpgradeModal } from './FeatureGate';
+import type { PlanId } from '@/lib/subscription';
 
 async function loadProjects(): Promise<ClientProject[]> {
   try {
@@ -79,6 +81,9 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
   const [showContract, setShowContract] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState<string | null>(null);
   const [projectExpenses, setProjectExpenses] = useState<Record<string, Expense[]>>({});
+  const { plan } = useSubscriptionState();
+  const invoicesAllowed = plan === 'pro' || plan === 'agency';
+  const [invoiceModal, setInvoiceModal] = useState<{ open: boolean; requiredPlan: PlanId }>({ open: false, requiredPlan: 'pro' });
 
   useEffect(() => {
     loadProjects().then(setProjects);
@@ -389,7 +394,13 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
                         <div className="flex items-center gap-1">
                           <motion.button {...buttonTapProps} onClick={() => onAskOracle?.(`Tell me about client ${project.clientName} in ${project.industry}`)} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Ask Oracle">⚡</motion.button>
                           <motion.button {...buttonTapProps} onClick={() => setShowTimer(project.id)} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Log Time">⏱</motion.button>
-                          <motion.button {...buttonTapProps} onClick={() => handleGenerateInvoice(project)} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Invoice">📄</motion.button>
+                          <motion.button {...buttonTapProps} onClick={() => {
+                            if (invoicesAllowed) {
+                              handleGenerateInvoice(project);
+                            } else {
+                              setInvoiceModal({ open: true, requiredPlan: 'pro' });
+                            }
+                          }} className={`rounded-lg px-2 py-1 text-[11px] ${invoicesAllowed ? 'text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]' : 'text-[var(--oracle-warning)] opacity-60'}`} title={invoicesAllowed ? 'Invoice' : 'Upgrade to Invoice'}>{invoicesAllowed ? '📄' : '🔒'}</motion.button>
                           <motion.button {...buttonTapProps} onClick={() => setShowExpenses(project.id)} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Expenses">💸</motion.button>
                           <motion.button {...buttonTapProps} onClick={() => setShowContract(project.id)} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Generate Contract">📝</motion.button>
                           <motion.button {...buttonTapProps} onClick={() => { setEditingProject(project); setShowForm(true); }} className="rounded-lg px-2 py-1 text-[11px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)]" title="Edit">✏️</motion.button>
@@ -506,6 +517,14 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
           />
         )}
       </AnimatePresence>
+
+      {/* Invoice Upgrade Modal */}
+      <UpgradeModal
+        open={invoiceModal.open}
+        onOpenChange={(open) => setInvoiceModal((prev) => ({ ...prev, open }))}
+        requiredPlan={invoiceModal.requiredPlan}
+        featureLabel="Invoicing"
+      />
 
       {/* Invoice Modal */}
           <AnimatePresence>

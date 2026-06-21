@@ -9,6 +9,7 @@ import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { proposalsApi } from '@/lib/api';
 import { ROADMAP_GENERATION_PROMPT } from '@/lib/system-prompt';
 import { exportProposalToPDF, exportProposalToWord } from '@/lib/proposal-pdf';
+import { FeatureGate, UpgradePrompt } from './FeatureGate';
 
 // ─── Types ────────────────────────────
 interface Proposal {
@@ -97,6 +98,11 @@ export function RoadmapTab({ onAskOracle }: { onAskOracle?: (prompt: string) => 
   }, []);
 
   return (
+    <FeatureGate feature="proposals" fallback={
+      <div className="flex h-full flex-col items-center justify-center px-4">
+        <UpgradePrompt requiredPlan="pro" feature="Proposals" />
+      </div>
+    }>
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-4xl">
@@ -212,6 +218,7 @@ Examples:
         </div>
       </div>
     </div>
+    </FeatureGate>
   );
 }
 
