@@ -4,7 +4,8 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { estimateTokens } from '@/lib/utils';
 import { AGENT_TYPES, type AgentType } from './agent-config';
-import { DailyUsageIndicator } from './FeatureGate';
+import { DailyUsageIndicator, useSubscriptionState } from './FeatureGate';
+import { hasAgentAccess } from '@/lib/subscription';
 import type { ChatMessage } from './MessageBubble';
 
 // ─── Chat Input Area ───────────────────
@@ -36,6 +37,8 @@ export function ChatInputArea({
   onSidebarToggle, sidebarOpen,
 }: ChatInputAreaProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { plan } = useSubscriptionState();
+  const agentAllowed = hasAgentAccess(plan, agentType);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -64,25 +67,45 @@ export function ChatInputArea({
           const agentInfo = AGENT_TYPES.find((a) => a.id === agentType);
           if (!agentInfo) return null;
           const isOrchestrator = agentType === 'orchestrator';
+          const locked = !agentAllowed;
           return (
             <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 ${
-              isOrchestrator
-                ? 'bg-[var(--oracle-surface-2)]/60 border-[var(--oracle-border)]'
-                : 'bg-[var(--oracle-primary)]/5 border-[var(--oracle-primary)]/15'
+              locked
+                ? 'bg-[var(--oracle-warning)]/5 border-[var(--oracle-warning)]/20'
+                : isOrchestrator
+                  ? 'bg-[var(--oracle-surface-2)]/60 border-[var(--oracle-border)]'
+                  : 'bg-[var(--oracle-primary)]/5 border-[var(--oracle-primary)]/15'
             }`}>
-              <span className="text-sm">{agentInfo.emoji}</span>
+              {locked && <span className="text-sm">🔒</span>}
+              {!locked && <span className="text-sm">{agentInfo.emoji}</span>}
               <span className={`text-[11px] font-semibold ${
-                isOrchestrator ? 'text-[var(--oracle-text-3)]' : 'text-[var(--oracle-primary-l)]'
+                locked
+                  ? 'text-[var(--oracle-warning)]'
+                  : isOrchestrator
+                    ? 'text-[var(--oracle-text-3)]'
+                    : 'text-[var(--oracle-primary-l)]'
               }`}>{agentInfo.label} Agent</span>
-              <span className="text-[10px] text-[var(--oracle-text-muted)] hidden sm:inline">· {isOrchestrator ? 'Multi-agent orchestrator mode' : 'Specialized system prompt loaded'}</span>
-              {!isOrchestrator && (
+              {locked && (
+                <span className="text-[10px] text-[var(--oracle-warning)] hidden sm:inline">· Requires {plan === 'starter' ? 'Pro' : 'Agency'} plan</span>
+              )}
+              {!locked && (
+                <span className="text-[10px] text-[var(--oracle-text-muted)] hidden sm:inline">· {isOrchestrator ? 'Multi-agent orchestrator mode' : 'Specialized system prompt loaded'}</span>
+              )}
+              {locked ? (
+                <a
+                  href="/pricing"
+                  className="ml-auto rounded-md px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-primary)] hover:bg-[var(--oracle-card-hover)] transition-colors"
+                >
+                  Upgrade →
+                </a>
+              ) : !isOrchestrator ? (
                 <button
                   onClick={() => setAgentType('orchestrator')}
                   className="ml-auto rounded-md px-2 py-0.5 text-[10px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)] hover:text-[var(--oracle-text-3)] transition-colors"
                 >
                   Switch to Orchestrator
                 </button>
-              )}
+              ) : null}
             </div>
           );
         })()}
