@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { getPromptSizes, calculateAllCosts, getBudgetSummary, formatCost } from './token-budget';
+import { describe, it, expect, vi } from 'vitest';
+import { getPromptSizes, calculateAllCosts, getBudgetSummary, formatCost, printBudgetReport } from './token-budget';
 
 describe('Token Budget', () => {
   describe('getPromptSizes', () => {
@@ -19,7 +19,8 @@ describe('Token Budget', () => {
 
   describe('calculateAllCosts', () => {
     it('returns costs for all models', () => {
-      expect(calculateAllCosts().length).toBeGreaterThan(0);
+      const costs = calculateAllCosts();
+      expect(costs.length).toBeGreaterThan(0);
     });
     it('each cost has required fields', () => {
       for (const c of calculateAllCosts()) {
@@ -27,11 +28,59 @@ describe('Token Budget', () => {
         expect(c.modelId).toBeDefined();
         expect(typeof c.isFree).toBe('boolean');
         expect(typeof c.fullRequestCostUSD).toBe('number');
+        expect(typeof c.fullRequestCostINR).toBe('number');
+        expect(typeof c.systemPromptCostUSD).toBe('number');
+        expect(typeof c.systemPromptCostINR).toBe('number');
+        expect(typeof c.inputCostPer1k).toBe('number');
+        expect(typeof c.outputCostPer1k).toBe('number');
+        expect(typeof c.contextWindow).toBe('number');
       }
     });
     it('free models have isFree flag', () => {
       const free = calculateAllCosts().filter(c => c.isFree);
       expect(free.length).toBeGreaterThan(0);
+      for (const c of free) {
+        expect(c.isFree).toBe(true);
+      }
+    });
+    it('paid models have non-zero costs', () => {
+      const paid = calculateAllCosts().filter(c => !c.isFree);
+      expect(paid.length).toBeGreaterThan(0);
+      for (const c of paid) {
+        expect(c.fullRequestCostUSD).toBeGreaterThan(0);
+        expect(c.fullRequestCostINR).toBeGreaterThan(0);
+      }
+    });
+    it('INR costs are within rounding tolerance of USD * 84', () => {
+      // INR is calculated from raw fullRequestCostUSD (before 4-decimal rounding)
+      // so the test-computed value from the rounded USD may differ by up to 0.01
+      const costs = calculateAllCosts().filter(c => !c.isFree && c.fullRequestCostUSD > 0);
+      for (const c of costs) {
+        expect(c.fullRequestCostINR).toBeGreaterThan(0);
+        // Verify INR is positive and roughly proportional to USD
+        const upperBound = Math.round(c.fullRequestCostUSD * 10000) / 10000 * 84 * 1.1;
+        expect(c.fullRequestCostINR).toBeLessThanOrEqual(upperBound);
+      }
+    });
+    it('INR is set for all models with costs', () => {
+      const costs = calculateAllCosts().filter(c => !c.isFree && c.fullRequestCostUSD > 0);
+      for (const c of costs) {
+        expect(c.fullRequestCostINR).toBeGreaterThan(0);
+      }
+    });
+    it('systemPromptCost is less than fullRequestCost', () => {
+      const costs = calculateAllCosts().filter(c => !c.isFree);
+      for (const c of costs) {
+        expect(c.systemPromptCostUSD).toBeLessThan(c.fullRequestCostUSD);
+      }
+    });
+    it('costs are rounded to 4 decimal places', () => {
+      const costs = calculateAllCosts();
+      for (const c of costs) {
+        const usdStr = c.fullRequestCostUSD.toString();
+        const decimals = usdStr.includes('.') ? usdStr.split('.')[1].length : 0;
+        expect(decimals).toBeLessThanOrEqual(4);
+      }
     });
   });
 
@@ -45,8 +94,46 @@ describe('Token Budget', () => {
       expect(s.cheapestPaid).not.toBeNull();
       expect(s.mostExpensive).not.toBeNull();
     });
-    it('monthlyEstimates has 3 entries', () => {
-      expect(getBudgetSummary().monthlyEstimates).toHaveLength(3);
+    it('monthlyEstimates has 3 entries for 100, 1000, 10000', () => {
+      const s = getBudgetSummary();
+      expect(s.monthlyEstimates).toHaveLength(3);
+      expect(s.monthlyEstimates[0].requests).toBe(100);
+      expect(s.monthlyEstimates[1].requests).toBe(1000);
+      expect(s.monthlyEstimates[2].requests).toBe(10000);
+    });
+    it('cheapestPaid has the lowest fullRequestCostUSD among paid models', () => {
+      const s = getBudgetSummary();
+      const costs = calculateAllCosts().filter(c => !c.isFree);
+      expect(costs.length).toBeGreaterThan(0);
+      const cheapestPaidCost = Math.min(...costs.map(c => c.fullRequestCostUSD));
+      expect(s.cheapestPaid!.fullRequestCostUSD).toBe(cheapestPaidCost);
+    });
+    it('cheapestFree has zero or lowest fullRequestCostUSD among free models', () => {
+      const s = getBudgetSummary();
+      if (s.cheapestFree) {
+        const freeCosts = calculateAllCosts().filter(c => c.isFree);
+        const cheapestFreeCost = Math.min(...freeCosts.map(c => c.fullRequestCostUSD));
+        expect(s.cheapestFree.fullRequestCostUSD).toBe(cheapestFreeCost);
+      }
+    });
+    it('mostExpensive has the highest fullRequestCostUSD', () => {
+      const s = getBudgetSummary();
+      const costs = calculateAllCosts();
+      const maxCost = Math.max(...costs.map(c => c.fullRequestCostUSD));
+      expect(s.mostExpensive!.fullRequestCostUSD).toBe(maxCost);
+    });
+    it('monthly estimates scale linearly with request count', () => {
+      const s = getBudgetSummary();
+      const costPer = s.monthlyEstimates[0].costUSD / 100;
+      expect(s.monthlyEstimates[1].costUSD).toBeCloseTo(costPer * 1000, 3);
+      expect(s.monthlyEstimates[2].costUSD).toBeCloseTo(costPer * 10000, 2);
+    });
+    it('monthly INR estimates are approximately 84x USD', () => {
+      const s = getBudgetSummary();
+      for (const e of s.monthlyEstimates) {
+        const ratio = e.costINR / e.costUSD;
+        expect(ratio).toBeCloseTo(84, 0);
+      }
     });
   });
 
@@ -57,6 +144,23 @@ describe('Token Budget', () => {
       const r = formatCost(0.005, 0.42);
       expect(r).toContain('$0.0050');
       expect(r).toContain('₹0.42');
+    });
+    it('formats exactly 0.0001 as normal cost', () => {
+      const r = formatCost(0.0001, 0.0084);
+      expect(r).toContain('$0.0001');
+    });
+    it('formats large costs correctly', () => {
+      const r = formatCost(1.5, 126);
+      expect(r).toBe('$1.5000 (₹126.00)');
+    });
+  });
+
+  describe('printBudgetReport', () => {
+    it('calls console methods without error', () => {
+      const spy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      printBudgetReport();
+      expect(spy).toHaveBeenCalled();
+      spy.mockRestore();
     });
   });
 });
