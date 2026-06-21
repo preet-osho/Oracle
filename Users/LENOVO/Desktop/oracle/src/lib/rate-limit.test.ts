@@ -1,11 +1,14 @@
+// ═══════════════════════════════════════
+// ORACLE — Rate Limiter Tests
+// In-memory fallback, enforceRateLimit, resetUserRateLimits, edge cases
+// ═══════════════════════════════════════
+
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ─── Mock Redis to use in-memory fallback ───
+// ─── Mocks ──────────────────────────────
 
 vi.mock('@upstash/ratelimit', () => ({
-  Ratelimit: {
-    slidingWindow: vi.fn(),
-  },
+  Ratelimit: { slidingWindow: vi.fn() },
 }));
 
 vi.mock('@upstash/redis', () => ({
@@ -16,10 +19,28 @@ vi.mock('@upstash/redis', () => ({
 process.env.UPSTASH_REDIS_REST_URL = '';
 process.env.UPSTASH_REDIS_REST_TOKEN = '';
 
-// ─── Import after mocks ───
+vi.mock('@supabase/supabase-js', () => ({
+  createClient: vi.fn(() => ({
+    from: vi.fn(() => ({
+      select: vi.fn().mockResolvedValue({ data: [], error: null }),
+    })),
+  })),
+}));
+
+vi.mock('@/lib/logger', () => ({
+  createLogger: () => ({
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
+
+// ─── Import after mocks ─────────────────
 
 import {
   checkRateLimit,
+  enforceRateLimit,
+  resetUserRateLimits,
   getClientIp,
   __resetRateLimitStoreForTests,
   LOGIN_RATE_LIMIT,
@@ -29,9 +50,11 @@ import {
   API_WRITE_RATE_LIMIT,
   PASSWORD_UPDATE_RATE_LIMIT,
   EMAIL_VERIFY_RATE_LIMIT,
+  AI_CHAT_RATE_LIMIT,
+  WEB_SEARCH_RATE_LIMIT,
 } from './rate-limit';
 
-// ─── Tests ─────────────────────────────
+// ─── getClientIp Tests ──────────────────
 
 describe('getClientIp', () => {
   it('extracts IP from x-forwarded-for header', () => {
@@ -66,7 +89,19 @@ describe('getClientIp', () => {
     const headers = new Headers({ 'x-forwarded-for': '  1.2.3.4  , 5.6.7.8' });
     expect(getClientIp(headers)).toBe('1.2.3.4');
   });
+
+  it('falls back to x-real-ip when x-forwarded-for missing', () => {
+    const headers = new Headers({ 'x-real-ip': '9.8.7.6' });
+    expect(getClientIp(headers)).toBe('9.8.7.6');
+  });
+
+  it('falls back to cf-connecting-ip when others missing', () => {
+    const headers = new Headers({ 'cf-connecting-ip': '5.5.5.5' });
+    expect(getClientIp(headers)).toBe('5.5.5.5');
+  });
 });
+
+// ─── Preset Config Tests ────────────────
 
 describe('preset configs', () => {
   it('LOGIN_RATE_LIMIT allows 5 requests per 15 minutes', () => {
@@ -103,7 +138,19 @@ describe('preset configs', () => {
     expect(EMAIL_VERIFY_RATE_LIMIT.maxRequests).toBe(10);
     expect(EMAIL_VERIFY_RATE_LIMIT.windowMs).toBe(15 * 60 * 1000);
   });
+
+  it('AI_CHAT_RATE_LIMIT allows 10 requests per minute', () => {
+    expect(AI_CHAT_RATE_LIMIT.maxRequests).toBe(10);
+    expect(AI_CHAT_RATE_LIMIT.windowMs).toBe(60 * 1000);
+  });
+
+  it('WEB_SEARCH_RATE_LIMIT allows 15 requests per minute', () => {
+    expect(WEB_SEARCH_RATE_LIMIT.maxRequests).toBe(15);
+    expect(WEB_SEARCH_RATE_LIMIT.windowMs).toBe(60 * 1000);
+  });
 });
+
+// ─── checkRateLimit (in-memory) Tests ───
 
 describe('checkRateLimit (in-memory fallback)', () => {
   beforeEach(() => {
@@ -120,7 +167,6 @@ describe('checkRateLimit (in-memory fallback)', () => {
       maxRequests: 3,
       windowMs: 60000,
     });
-
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBe(2);
   });
@@ -158,7 +204,6 @@ describe('checkRateLimit (in-memory fallback)', () => {
     await checkRateLimit('reset:user-1', config);
     await checkRateLimit('reset:user-1', config);
 
-    // Window expired
     vi.advanceTimersByTime(61000);
 
     const result = await checkRateLimit('reset:user-1', config);
@@ -194,5 +239,149 @@ describe('checkRateLimit (in-memory fallback)', () => {
 
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it('returns correct resetAt timestamp', async () => {
+    const before = Date.now();
+    const result = await checkRateLimit('ts:user-1', { maxRequests: 5, windowMs: 30000 });
+    expect(result.resetAt).toBeGreaterThanOrEqual(before + 30000);
+    expect(result.resetAt).toBeLessThanOrEqual(before + 30001);
+  });
+
+  it('works with maxRequests of 1', async () => {
+    const result = await checkRateLimit('single:user-1', { maxRequests: 1, windowMs: 60000 });
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(0);
+
+    const blocked = await checkRateLimit('single:user-1', { maxRequests: 1, windowMs: 60000 });
+    expect(blocked.allowed).toBe(false);
+  });
+});
+
+// ─── enforceRateLimit Tests ──────────────
+
+describe('enforceRateLimit', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetRateLimitStoreForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns null when allowed', async () => {
+    const result = await enforceRateLimit('projects', 'user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns 429 Response when rate limit exceeded', async () => {
+    // Use a very low limit
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await enforceRateLimit('test-endpoint', 'user-1', config);
+    const response = await enforceRateLimit('test-endpoint', 'user-1', config);
+
+    expect(response).not.toBeNull();
+    expect(response!.status).toBe(429);
+  });
+
+  it('includes Retry-After header in 429 response', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await enforceRateLimit('headers', 'user-1', config);
+    const response = await enforceRateLimit('headers', 'user-1', config);
+
+    expect(response!.headers.get('Retry-After')).toBeTruthy();
+  });
+
+  it('includes rate limit headers in 429 response', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await enforceRateLimit('hdrs', 'user-1', config);
+    const response = await enforceRateLimit('hdrs', 'user-1', config);
+
+    expect(response!.headers.get('X-RateLimit-Limit')).toBe('1');
+    expect(response!.headers.get('X-RateLimit-Remaining')).toBe('0');
+    expect(response!.headers.get('X-RateLimit-Reset')).toBeTruthy();
+  });
+
+  it('uses default config when none provided', async () => {
+    const result = await enforceRateLimit('default', 'user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns JSON error body in 429', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await enforceRateLimit('json', 'user-1', config);
+    const response = await enforceRateLimit('json', 'user-1', config);
+
+    const body = await response!.json();
+    expect(body.error).toContain('Rate limit exceeded');
+  });
+});
+
+// ─── resetUserRateLimits Tests ───────────
+
+describe('resetUserRateLimits', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetRateLimitStoreForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('deletes matching in-memory keys', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    // Use up the rate limit
+    await checkRateLimit('ai:chat:user-1', config);
+    await checkRateLimit('api:write:user-1', config);
+
+    const deleted = await resetUserRateLimits('user-1');
+    expect(deleted).toBe(2);
+  });
+
+  it('returns 0 when no keys match', async () => {
+    const deleted = await resetUserRateLimits('nonexistent-user');
+    expect(deleted).toBe(0);
+  });
+
+  it('resets rate limit allowing new requests', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await checkRateLimit('ai:chat:reset-test', config);
+    const blocked = await checkRateLimit('ai:chat:reset-test', config);
+    expect(blocked.allowed).toBe(false);
+
+    await resetUserRateLimits('reset-test');
+    const allowed = await checkRateLimit('ai:chat:reset-test', config);
+    expect(allowed.allowed).toBe(true);
+  });
+});
+
+// ─── __resetRateLimitStoreForTests ───────
+
+describe('__resetRateLimitStoreForTests', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('clears all rate limit entries', async () => {
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await checkRateLimit('clear:user-1', config);
+    __resetRateLimitStoreForTests();
+
+    const result = await checkRateLimit('clear:user-1', config);
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(0);
   });
 });
