@@ -16,7 +16,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 **17 business logic functions** for Indian agency operations with **115 executable tests** (3,023 total tests, 0 failures).
 
-#### WhatsApp Business API (6 functions)
+#### WhatsApp Business API (7 functions)
 - `compareBSPCosts()` — Compares BSP pricing (Meta Direct, 360dialog, WANotifier, Interakt, AiSensy, Wati) with subscription + per-message + markup model
 - `checkWhatsAppCompliance()` — Warns about promotional messaging without opt-in, high-volume review triggers, 1000+ recipient verification
 - `checkINRBillingMigration()` — Urgency-based warning for Meta's INR billing migration deadline (Dec 31, 2026)
@@ -41,15 +41,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `getTierBudgetRecommendation()` — Tier-1/2/3 city classification with budget ranges and package recommendations
 - `getVernacularContentGuidance()` — Tone guidance for Hindi (urban/rural), Tamil, Bengali content
 
-#### Agency Positioning (4 functions)
+#### Agency Positioning (3 functions)
 - `getAINativeValueFrame()` — Positioning framework, talking points, differentiation strategies
 - `getHumanPolishPipeline()` — Content-type-specific checklists with AI contribution estimates and quality gates
 - `getCommodityDifferentiation()` — Threat-level analysis with defensive strategies and client education scripts
 
 ### Fixed
 - **cost-tracker.test.ts stale data leakage** — Changed `vi.clearAllMocks()` to `vi.resetAllMocks()` and added explicit `mockGte` reset in `beforeEach` to prevent stale mock implementations from leaking between tests
+- **37 pre-existing type errors fixed** — Resolved all TypeScript errors across 7 files: `logger.test.ts` (7), `csrf.test.ts` (2), `export-utils.test.ts` (2), `hallucination-guard.ts` (2), `ChatPanel.test.tsx` (1), `q3-scenarios.ts` (3), `q3-scenarios.test.ts` (6). `tsc --noEmit` now passes with 0 errors (was 37).
 
 ### Changed
+- **Strict TypeScript configuration** — Created `tsconfig.strict.json` extending base config with 5 additional strict flags (`noUncheckedIndexedAccess`, `noImplicitReturns`, `noFallthroughCasesInSwitch`, `noUnusedLocals`, `noUnusedParameters`) scoped to Q3 files via glob pattern `src/lib/q3-*.ts`
+- **Pre-commit hook enforcement** — Added `npm run typecheck:strict` to `.husky/pre-commit` between lint and test:quick, ensuring Q3 files always comply with strict TypeScript rules before commit
+- **CI pipeline update** — Added `Run strict typecheck (Q3 files)` step to `.github/workflows/ci.yml` typecheck job, using `npm run typecheck:strict`
+- **package.json** — Added `typecheck:strict` script (`tsc -p tsconfig.strict.json --noEmit`)
 - **Test consolidation** — Merged `q3-scenarios-remaining.test.ts` (34 tests) into `q3-scenarios.test.ts` (67 tests) for a single unified Q3 test file (115 tests total)
 - **README.md** — Added Indian Market Intelligence features section, Q3 test commands, and Q3 2026 summary table
 - **USER_COMPLAINT_TRACKER.md** — Updated 17 Q3 scenarios to ✅ Covered, refreshed coverage summary (17/17 testable scenarios covered)
