@@ -41,8 +41,8 @@ beforeEach(() => {
     download: '',
   } as unknown as HTMLAnchorElement);
 
-  vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-  vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+  vi.spyOn(document.body, 'appendChild').mockImplementation((node: Node) => node);
+  vi.spyOn(document.body, 'removeChild').mockImplementation((node: Node) => node);
 
   // Mock URL.createObjectURL — capture the Blob
   vi.spyOn(URL, 'createObjectURL').mockImplementation((blob: Blob | MediaSource) => {

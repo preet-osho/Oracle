@@ -594,7 +594,7 @@ describe('ChatPanel', () => {
 
       const fetchCalls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls;
       // Find the POST call with a body (the /api/ai/chat call), not the subscription status GET
-      const chatCall = fetchCalls.find((call: [string, RequestInit]) => call[1]?.body);
+      const chatCall = fetchCalls.find((call: unknown[]) => (call[1] as RequestInit | undefined)?.body);
       expect(chatCall).toBeDefined();
       const body = JSON.parse(chatCall![1].body as string);
       expect(body.stream).toBe(true);

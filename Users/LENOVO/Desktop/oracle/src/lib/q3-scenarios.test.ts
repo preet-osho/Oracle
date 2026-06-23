@@ -23,7 +23,6 @@ import {
   getVernacularContentGuidance,
   getHumanPolishPipeline,
   getCommodityDifferentiation,
-  BSP_PROVIDERS,
 } from './q3-scenarios';
 
 // ═══════════════════════════════════════
@@ -88,15 +87,14 @@ describe('BSP Cost Comparison (Q3-W1)', () => {
   it('sorts providers by total cost ascending', () => {
     const results = compareBSPCosts(10000);
     for (let i = 1; i < results.length; i++) {
-      expect(results[i].totalCostINR).toBeGreaterThanOrEqual(results[i - 1].totalCostINR);
+      expect(results[i]!.totalCostINR).toBeGreaterThanOrEqual(results[i - 1]!.totalCostINR);
     }
   });
 
   it('Meta Direct has zero subscription and zero per-message fees', () => {
     const results = compareBSPCosts(10000);
-    const meta = results.find(r => r.provider === 'Meta Direct (no BSP)');
-    expect(meta).toBeDefined();
-    expect(meta!.subscriptionINR).toBe(0);
+    const meta = results.find(r => r.provider === 'Meta Direct (no BSP)')!;
+    expect(meta.subscriptionINR).toBe(0);
     expect(meta!.platformFeePerMsg).toBe(0);
     expect(meta!.markupPercent).toBe(0);
     expect(meta!.totalCostINR).toBe(meta!.metaCostINR);
@@ -104,24 +102,22 @@ describe('BSP Cost Comparison (Q3-W1)', () => {
 
   it('AiSensy total cost is 2.5-4x Meta base (higher with hidden reclassification costs)', () => {
     const results = compareBSPCosts(10000);
-    const aisensy = results.find(r => r.provider === 'AiSensy');
-    expect(aisensy).toBeDefined();
-    expect(aisensy!.totalMultiplier).toBeGreaterThanOrEqual(2.5);
-    expect(aisensy!.totalMultiplier).toBeLessThanOrEqual(4);
+    const aisensy = results.find(r => r.provider === 'AiSensy')!;
+    expect(aisensy.totalMultiplier).toBeGreaterThanOrEqual(2.5);
+    expect(aisensy.totalMultiplier).toBeLessThanOrEqual(4);
   });
 
   it('Wati total cost is 2.5-4x Meta base (higher with hidden reclassification costs)', () => {
     const results = compareBSPCosts(10000);
-    const wati = results.find(r => r.provider === 'Wati');
-    expect(wati).toBeDefined();
-    expect(wati!.totalMultiplier).toBeGreaterThanOrEqual(2.5);
-    expect(wati!.totalMultiplier).toBeLessThanOrEqual(4);
+    const wati = results.find(r => r.provider === 'Wati')!;
+    expect(wati.totalMultiplier).toBeGreaterThanOrEqual(2.5);
+    expect(wati.totalMultiplier).toBeLessThanOrEqual(4);
   });
 
   it('calculates correct meta base cost', () => {
     const results = compareBSPCosts(5000, 0.75);
     const metaCost = 5000 * 0.75;
-    expect(results[0].metaCostINR).toBeCloseTo(metaCost, 0);
+    expect(results[0]!.metaCostINR).toBeCloseTo(metaCost, 0);
   });
 
   it('cheaper providers (360dialog, WANotifier) have lower multipliers', () => {
@@ -137,14 +133,14 @@ describe('BSP Cost Comparison (Q3-W1)', () => {
 
   it('savings vs most expensive are positive for cheaper providers', () => {
     const results = compareBSPCosts(50000);
-    expect(results[0].savingsVsHighest).toBeGreaterThan(0);
+    expect(results[0]!.savingsVsHighest).toBeGreaterThan(0);
   });
 
   it('subscription fees are included in total cost', () => {
     const results = compareBSPCosts(100);
-    const aisensy = results.find(r => r.provider === 'AiSensy');
+    const aisensy = results.find(r => r.provider === 'AiSensy')!;
     // At low volume, subscription dominates
-    expect(aisensy!.totalCostINR).toBeGreaterThan(aisensy!.subscriptionINR);
+    expect(aisensy.totalCostINR).toBeGreaterThan(aisensy.subscriptionINR);
   });
 });
 
@@ -698,13 +694,13 @@ describe('Upfront Payment Policy (Q3-P2)', () => {
   it('100% upfront for small projects', () => {
     const result = getUpfrontPaymentPolicy(30000);
     expect(result.milestoneStructure).toHaveLength(1);
-    expect(result.milestoneStructure[0].percent).toBe(100);
+    expect(result.milestoneStructure[0]!.percent).toBe(100);
   });
 
   it('50/50 split for medium projects', () => {
     const result = getUpfrontPaymentPolicy(100000);
     expect(result.milestoneStructure).toHaveLength(2);
-    expect(result.milestoneStructure[0].percent).toBe(50);
+    expect(result.milestoneStructure[0]!.percent).toBe(50);
   });
 
   it('4-milestone structure for large projects', () => {

@@ -68,9 +68,11 @@ describe('generateCsrfToken', () => {
 
   it('produces deterministic output with mocked randomness', () => {
     const mockBytes = new Uint8Array(32).fill(0xab);
-    const spy = vi.spyOn(crypto, 'getRandomValues').mockImplementation((arr) => {
-      arr.set(mockBytes);
-      return arr;
+    const spy = vi.spyOn(crypto, 'getRandomValues').mockImplementation((arr: unknown) => {
+      if (arr instanceof Uint8Array) {
+        arr.set(mockBytes);
+      }
+      return arr as ReturnType<typeof crypto.getRandomValues>;
     });
 
     const token = generateCsrfToken();

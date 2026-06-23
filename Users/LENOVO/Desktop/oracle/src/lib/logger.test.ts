@@ -32,13 +32,13 @@ describe('createLogger', () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = originalEnv;
+    (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
     clearGlobalLogContext();
   });
 
   describe('development mode (human-readable)', () => {
     beforeEach(() => {
-      process.env.NODE_ENV = 'development';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
     });
 
     it('info includes module name and message', () => {
@@ -135,7 +135,7 @@ describe('createLogger', () => {
 
   describe('production mode (JSON structured)', () => {
     beforeEach(() => {
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     });
 
     it('outputs valid JSON', () => {
@@ -199,7 +199,7 @@ describe('createLogger', () => {
 
   describe('global context', () => {
     beforeEach(() => {
-      process.env.NODE_ENV = 'development';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
     });
 
     it('merges global context into log output', () => {
@@ -247,7 +247,7 @@ describe('createLogger', () => {
     });
 
     it('global context works in production mode too', () => {
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
       setGlobalLogContext({ orgId: 'org-1' });
       const c = captureConsole('info');
       const log = createLogger('Test');
@@ -260,7 +260,7 @@ describe('createLogger', () => {
 
   describe('multiple loggers', () => {
     beforeEach(() => {
-      process.env.NODE_ENV = 'development';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'development';
     });
 
     it('different modules log independently', () => {
@@ -277,7 +277,7 @@ describe('createLogger', () => {
 
   describe('context with various types', () => {
     beforeEach(() => {
-      process.env.NODE_ENV = 'production';
+      (process.env as Record<string, string | undefined>).NODE_ENV = 'production';
     });
 
     it('handles nested objects in context', () => {

@@ -561,6 +561,7 @@ export function recordLearning(entry: {
 export function getLearningEntries(): Array<{
   id: string;
   timestamp: number;
+  originalOutput: string;
   userVerdict: string;
   patternType: string;
   domain: string;

@@ -529,6 +529,7 @@ export function getTierBudgetRecommendation(city: string): TierBudgetRecommendat
     }
   }
   const tierData = TIER_BUDGETS[tier];
+  if (!tierData) return { city: normalizedCity, tier, averageBudgetRange: { min: 0, max: 0 }, recommendedPackage: '', packagePrice: 0, notes: 'Unknown tier' };
   const budgetRange = tierData.averageRange;
   const recommendedPrice = Math.round((budgetRange.min + budgetRange.max) / 2);
   const packages: Record<number, string> = {
@@ -538,7 +539,7 @@ export function getTierBudgetRecommendation(city: string): TierBudgetRecommendat
   };
   return {
     city: normalizedCity, tier, averageBudgetRange: budgetRange,
-    recommendedPackage: packages[tier], packagePrice: recommendedPrice,
+    recommendedPackage: packages[tier] ?? 'Custom package', packagePrice: recommendedPrice,
     notes: tier === 1 ? 'Tier-1 market — full-service packages viable'
       : tier === 2 ? 'Tier-2 market — focus on local SEO and WhatsApp-first strategies'
       : 'Tier-3 market — keep packages affordable, prioritize GMB and local listings',
