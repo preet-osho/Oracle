@@ -6,16 +6,30 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ─── Mocks ──────────────────────────────
+// Use vi.hoisted so mock references are accessible from both vi.mock factories and tests.
 
-vi.mock('@upstash/ratelimit', () => ({
-  Ratelimit: { slidingWindow: vi.fn() },
-}));
+const { mockRatelimitLimit, mockRatelimitSlidingWindow, MockRatelimit } = vi.hoisted(() => {
+  const mockSlidingWindow = vi.fn().mockReturnValue('10 m');
+  const mockLimit = vi.fn();
+  function MockRatelimit(_opts: unknown) {
+    return { limit: mockLimit };
+  }
+  (MockRatelimit as unknown as Record<string, unknown>).slidingWindow = mockSlidingWindow;
+  return { mockRatelimitLimit: mockLimit, mockRatelimitSlidingWindow: mockSlidingWindow, MockRatelimit };
+});
 
-vi.mock('@upstash/redis', () => ({
-  Redis: vi.fn(),
-}));
+const { mockRedisDel, MockRedis } = vi.hoisted(() => {
+  const mockDel = vi.fn().mockResolvedValue(1);
+  function MockRedis(_opts: unknown) {
+    return { del: mockDel };
+  }
+  return { mockRedisDel: mockDel, MockRedis };
+});
 
-// Mock env vars to force in-memory fallback
+vi.mock('@upstash/ratelimit', () => ({ Ratelimit: MockRatelimit }));
+vi.mock('@upstash/redis', () => ({ Redis: MockRedis }));
+
+// Mock env vars to force in-memory fallback (set to empty at module load time)
 process.env.UPSTASH_REDIS_REST_URL = '';
 process.env.UPSTASH_REDIS_REST_TOKEN = '';
 
@@ -385,3 +399,202 @@ describe('__resetRateLimitStoreForTests', () => {
     expect(result.remaining).toBe(0);
   });
 });
+
+// ─── getDbConfigForKey Tests ─────────────
+
+describe('getDbConfigForKey', () => {
+  it('returns null for unknown key prefix (no endpoint mapping)', async () => {
+    const { getDbConfigForKey } = await import('./rate-limit');
+    const result = await getDbConfigForKey('unknown:user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for ai prefix with no DB config', async () => {
+    const { getDbConfigForKey } = await import('./rate-limit');
+    const result = await getDbConfigForKey('ai:chat:user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for web-search prefix with no DB config', async () => {
+    const { getDbConfigForKey } = await import('./rate-limit');
+    const result = await getDbConfigForKey('web-search:user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for api prefix with no DB config', async () => {
+    const { getDbConfigForKey } = await import('./rate-limit');
+    const result = await getDbConfigForKey('api:user-1');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for unmapped prefix (login has no endpoint mapping)', async () => {
+    const { getDbConfigForKey } = await import('./rate-limit');
+    const result = await getDbConfigForKey('login:user-1');
+    expect(result).toBeNull();
+  });
+});
+
+// ─── checkRateLimit Key Prefix Logging Tests ──
+
+describe('checkRateLimit key prefix logging', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetRateLimitStoreForTests();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // getActionLabel splits on ':' and uses [0], so 'ai:chat:user-1' → prefix 'ai'
+  // (no ACTION_LABELS['ai']) → falls back to 'ai', and 'api:write:user-1' → 'api' → 'API Read'
+  it.each([
+    ['login:user-1', 'Login'],
+    ['signup:user-1', 'Signup'],
+    ['magic:user-1', 'Magic Link'],
+    ['reset:user-1', 'Password Reset'],
+    ['pw-update:user-1', 'Password Update'],
+    ['email-verify:user-1', 'Email Verification'],
+    ['ai:chat:user-1', 'ai'],
+    ['web-search:user-1', 'Web Search'],
+    ['api:write:user-1', 'API Read'],
+    ['api:user-1', 'API Read'],
+  ])('logs correct action label for key %s', async (key, expectedLabel) => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await checkRateLimit(key, config);
+    const blocked = await checkRateLimit(key, config);
+
+    expect(blocked.allowed).toBe(false);
+    expect(warnSpy).toHaveBeenCalled();
+    const logMessage = warnSpy.mock.calls[0]?.[0] as string;
+    expect(logMessage).toContain(expectedLabel);
+    warnSpy.mockRestore();
+  });
+
+  it('uses raw prefix for unknown action types', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const config = { maxRequests: 1, windowMs: 60000 };
+
+    await checkRateLimit('custom:user-1', config);
+    await checkRateLimit('custom:user-1', config);
+
+    expect(warnSpy).toHaveBeenCalled();
+    const logMessage = warnSpy.mock.calls[0]?.[0] as string;
+    expect(logMessage).toContain('custom');
+    warnSpy.mockRestore();
+  });
+});
+
+// ─── Redis Path Tests (fresh module instance) ──
+// These tests use vi.resetModules() to get a fresh module with Redis defined,
+// enabling coverage of the Redis-based rate limiting paths.
+
+describe('checkRateLimit (Redis path)', () => {
+  beforeAll(async () => {
+    vi.useFakeTimers();
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake-redis.upstash.io';
+    process.env.UPSTASH_REDIS_REST_TOKEN = 'fake-token';
+    await vi.resetModules();
+  });
+
+  afterAll(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+    vi.useRealTimers();
+  });
+
+  it('uses Redis-based rate limiting when Redis is configured', async () => {
+    mockRatelimitLimit.mockResolvedValue({ success: true, remaining: 9, reset: Date.now() + 60000 });
+    const { checkRateLimit } = await import('./rate-limit');
+
+    const result = await checkRateLimit('redis-test:user-1', { maxRequests: 10, windowMs: 60000 });
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBe(9);
+  });
+
+  it('blocks via Redis when limit exceeded', async () => {
+    mockRatelimitLimit.mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 60000 });
+    const { checkRateLimit } = await import('./rate-limit');
+
+    const result = await checkRateLimit('redis-block:user-1', { maxRequests: 1, windowMs: 60000 });
+    expect(result.allowed).toBe(false);
+    expect(result.remaining).toBe(0);
+  });
+
+  it('windowMsToString converts hours correctly', async () => {
+    mockRatelimitSlidingWindow.mockReturnValue('2 h');
+    mockRatelimitLimit.mockResolvedValue({ success: true, remaining: 5, reset: Date.now() + 7200000 });
+    const { checkRateLimit } = await import('./rate-limit');
+    const result = await checkRateLimit('redis-hours:user-1', { maxRequests: 5, windowMs: 7200000 });
+    expect(result.allowed).toBe(true);
+    expect(mockRatelimitSlidingWindow).toHaveBeenCalledWith(5, '2 h');
+  });
+
+  it('windowMsToString converts minutes correctly', async () => {
+    mockRatelimitSlidingWindow.mockReturnValue('2 m');
+    mockRatelimitLimit.mockResolvedValue({ success: true, remaining: 5, reset: Date.now() + 120000 });
+    const { checkRateLimit } = await import('./rate-limit');
+    const result = await checkRateLimit('redis-min:user-1', { maxRequests: 5, windowMs: 120000 });
+    expect(result.allowed).toBe(true);
+    expect(mockRatelimitSlidingWindow).toHaveBeenCalledWith(5, '2 m');
+  });
+
+  it('windowMsToString converts seconds correctly', async () => {
+    mockRatelimitSlidingWindow.mockReturnValue('5 s');
+    mockRatelimitLimit.mockResolvedValue({ success: true, remaining: 5, reset: Date.now() + 5000 });
+    const { checkRateLimit } = await import('./rate-limit');
+    const result = await checkRateLimit('redis-sec:user-1', { maxRequests: 5, windowMs: 5000 });
+    expect(result.allowed).toBe(true);
+    expect(mockRatelimitSlidingWindow).toHaveBeenCalledWith(5, '5 s');
+  });
+
+  it('windowMsToString converts milliseconds correctly', async () => {
+    mockRatelimitSlidingWindow.mockReturnValue('500 ms');
+    mockRatelimitLimit.mockResolvedValue({ success: true, remaining: 5, reset: Date.now() + 500 });
+    const { checkRateLimit } = await import('./rate-limit');
+    const result = await checkRateLimit('redis-ms:user-1', { maxRequests: 5, windowMs: 500 });
+    expect(result.allowed).toBe(true);
+    expect(mockRatelimitSlidingWindow).toHaveBeenCalledWith(5, '500 ms');
+  });
+
+  it('logs blocked events via Redis path', async () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockRatelimitLimit.mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 60000 });
+    const { checkRateLimit } = await import('./rate-limit');
+
+    await checkRateLimit('redis-log:user-1', { maxRequests: 1, windowMs: 60000 });
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('resetUserRateLimits deletes Redis keys', async () => {
+    mockRedisDel.mockResolvedValue(1);
+    const { resetUserRateLimits } = await import('./rate-limit');
+
+    const deleted = await resetUserRateLimits('redis-reset-user');
+    expect(deleted).toBe(4);
+    expect(mockRedisDel).toHaveBeenCalledTimes(4);
+  });
+
+  it('resetUserRateLimits handles individual key delete failures', async () => {
+    mockRedisDel.mockReset();
+    mockRedisDel.mockRejectedValueOnce(new Error('del failed'));
+    mockRedisDel.mockResolvedValue(1);
+    const { resetUserRateLimits } = await import('./rate-limit');
+
+    const deleted = await resetUserRateLimits('redis-partial-user');
+    expect(deleted).toBe(3);
+  });
+
+  it('resetUserRateLimits returns 0 when no keys deleted', async () => {
+    mockRedisDel.mockResolvedValue(0);
+    const { resetUserRateLimits } = await import('./rate-limit');
+
+    const deleted = await resetUserRateLimits('redis-none-user');
+    expect(deleted).toBe(0);
+  });
+});
+
+
