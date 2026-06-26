@@ -1,0 +1,33 @@
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m214[0m:[93m46[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m214[0m     loadGuardConfig: (...args: unknown[]) => mockLoadGuardConfig(...args),
+[7m   [0m [91m                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m215[0m:[93m52[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m215[0m     runHallucinationGuard: (...args: unknown[]) => mockRunHallucinationGuard(...args),
+[7m   [0m [91m                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m216[0m:[93m45[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m216[0m     recordLearning: (...args: unknown[]) => mockRecordLearning(...args),
+[7m   [0m [91m                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m225[0m:[93m48[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m225[0m       runQualityGates: (...args: unknown[]) => mockFn(...args),
+[7m   [0m [91m                                               ~~~~~~~~~~~~~~~[0m
+
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m253[0m:[93m31[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m253[0m       (...args: unknown[]) => mockToast(...args),
+[7m   [0m [91m                              ~~~~~~~~~~~~~~~~~~[0m
+
+[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m254[0m:[93m40[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
+
+[7m254[0m       { error: (...args: unknown[]) => mockToastError(...args) },
+[7m   [0m [91m                                       ~~~~~~~~~~~~~~~~~~~~~~~[0m
+
+
+Found 6 errors in the same file, starting at: src/components/oracle/test-utils.mocks.ts[90m:214[0m
+
