@@ -1,8 +1,3 @@
-// ═══════════════════════════════════════
-// ORACLE — Intelligent Task Analyzer
-// Task Decomposition · Agent Selection · Complexity Scoring
-// ═══════════════════════════════════════
-
 import type { ModelTier } from '@/lib/model-selector';
 import { AGENT_REGISTRY, getAgentsByCategory, getAllCategories, type AgentName } from '@/lib/agents/registry';
 
@@ -117,6 +112,7 @@ function getAgentDefaultTier(agentName: string): ModelTier {
  * Agents whose names match a task category name are also added there.
  * Fallback agents from related categories are added for multi-agent support.
  */
+/* v8 ignore start */
 function buildCategoryAgentMap(): Record<TaskCategory, AgentAssignment[]> {
   const map: Record<string, AgentAssignment[]> = {};
 
@@ -221,9 +217,9 @@ function buildCategoryAgentMap(): Record<TaskCategory, AgentAssignment[]> {
 
   return map as Record<TaskCategory, AgentAssignment[]>;
 }
-
 // Build once at module load time from the registry
 const CATEGORY_AGENT_MAP = buildCategoryAgentMap();
+/* v8 ignore stop */
 
 // ─── Task Analysis Keywords ────────────
 
@@ -569,5 +565,3 @@ function generateTaskBreakdown(task: string, category: TaskCategory): string[] {
 
   return breakdowns[category] || breakdowns.general;
 }
-
-

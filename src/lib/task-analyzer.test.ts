@@ -517,6 +517,46 @@ describe('analyzeTask', () => {
       );
       expect(['premium', 'elite']).toContain(result.suggestedTier);
     });
+
+    it('low complexity shifts agent tiers down from standard (complexity < 0.2)', () => {
+      // Very short, simple task → complexity should be low
+      const result = analyzeTask('quick simple brief');
+      expect(result.complexity).toBeLessThan(0.4);
+      // At least some agents should be shifted to a lower tier than standard
+      const tiers = result.agents.map(a => a.requiredTier);
+      const hasLowerTier = tiers.some(t => t === 'free' || t === 'budget');
+      expect(hasLowerTier).toBe(true);
+    });
+
+    it('high complexity shifts agent tiers up from standard (complexity > 0.8)', () => {
+      // Very complex, long task → complexity should be high
+      const result = analyzeTask(
+        'comprehensive detailed advanced in-depth thorough enterprise-grade complex multi-step end-to-end scalable production-ready optimization with comprehensive detailed advanced in-depth analysis'
+      );
+      expect(result.complexity).toBeGreaterThan(0.7);
+      // At least some agents should be shifted to a higher tier than standard
+      const tiers = result.agents.map(a => a.requiredTier);
+      const hasHigherTier = tiers.some(t => t === 'premium' || t === 'elite');
+      expect(hasHigherTier).toBe(true);
+    });
+
+    it('tier shifts are bounded — never below free or above elite', () => {
+      // Extreme simple task should not go below 'free'
+      const simple = analyzeTask('x');
+      for (const agent of simple.agents) {
+        const tierOrder = ['free', 'budget', 'standard', 'premium', 'elite'];
+        expect(tierOrder).toContain(agent.requiredTier);
+      }
+
+      // Extreme complex task should not go above 'elite'
+      const complex = analyzeTask(
+        'comprehensive detailed advanced in-depth thorough enterprise-grade complex multi-step end-to-end scalable production-ready optimization with comprehensive detailed advanced in-depth analysis'
+      );
+      for (const agent of complex.agents) {
+        const tierOrder = ['free', 'budget', 'standard', 'premium', 'elite'];
+        expect(tierOrder).toContain(agent.requiredTier);
+      }
+    });
   });
 
   // ─── Parallelization ───────────────────

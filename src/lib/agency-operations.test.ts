@@ -681,6 +681,14 @@ describe('routeAgencyTask', () => {
     expect(result.workflow).toBe('design');
   });
 
+  it('routes graphic design as primary trigger to designer with correct support', () => {
+    const result = routeAgencyTask('create a graphic design for the campaign');
+    expect(result.primary).toBe('designer');
+    expect(result.workflow).toBe('design');
+    expect(result.support).toContain('developer');
+    expect(result.support).toContain('conversion-optimizer');
+  });
+
   it('routes automation tasks to workflow with compound keywords', () => {
     const result = routeAgencyTask('build a CRM automation with n8n');
     expect(result.primary).toBe('workflow');
@@ -939,6 +947,18 @@ describe('runSelfCheck', () => {
 
   it('marks gaveNextStep when next step present', () => {
     const output = '**Next Step**: Book a call with the team. ' + 'A'.repeat(50);
+    const result = runSelfCheck('task', output);
+    expect(result.gaveNextStep).toBe(true);
+  });
+
+  it('marks gaveNextStep when Action: marker present', () => {
+    const output = 'Action: Send proposal to client by Friday. ' + 'A'.repeat(50);
+    const result = runSelfCheck('task', output);
+    expect(result.gaveNextStep).toBe(true);
+  });
+
+  it('marks gaveNextStep with Next step (no bold)', () => {
+    const output = 'Next step: Schedule the follow-up meeting. ' + 'A'.repeat(50);
     const result = runSelfCheck('task', output);
     expect(result.gaveNextStep).toBe(true);
   });

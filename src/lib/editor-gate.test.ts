@@ -68,6 +68,20 @@ describe('loadEditorConfig / saveEditorConfig', () => {
     expect(loaded.skipAgentTypes).toEqual(DEFAULT_EDITOR_CONFIG.skipAgentTypes);
   });
 
+  it('handles localStorage.setItem throwing (e.g. quota exceeded)', () => {
+    const original = localStorage.setItem;
+    localStorage.setItem = vi.fn().mockImplementation(() => {
+      throw new DOMException('QuotaExceededError', 'QuotaExceededError');
+    });
+
+    // Should not throw — the catch block logs a warning
+    expect(() => {
+      saveEditorConfig({ enabled: false, minLength: 200, skipAgentTypes: [] });
+    }).not.toThrow();
+
+    localStorage.setItem = original;
+  });
+
   it('returns default config structure', () => {
     expect(DEFAULT_EDITOR_CONFIG.enabled).toBe(true);
     expect(DEFAULT_EDITOR_CONFIG.minLength).toBe(100);
@@ -375,6 +389,290 @@ describe('Successful response with issues', () => {
     const after = Date.now();
     expect(result.checkedAt).toBeGreaterThanOrEqual(before);
     expect(result.checkedAt).toBeLessThanOrEqual(after);
+  });
+});
+
+// ─── Branch Coverage Edge Cases ─────────
+
+describe('JSON parsing branch coverage edge cases', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('parses JSON with multiple code fences (strips all fence markers)', async () => {
+    const aiResponse = {
+      passed: true,
+      issues: [],
+      confidence: 85,
+      assessment: 'Clean output',
+    };
+    // Response has multiple ``` markers — the replace /```json|```/g strips all
+    const textWithMultipleFences = '```json\n```json\n' + JSON.stringify(aiResponse) + '\n```\n```';
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: textWithMultipleFences }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.confidence).toBe(85);
+  });
+
+  it('parses JSON with nested objects (greedy regex captures outermost braces)', async () => {
+    const aiResponse = {
+      passed: false,
+      issues: [
+        {
+          severity: 'medium',
+          category: 'grammar',
+          description: 'Issue with nested: {"inner": "value"} text',
+          location: 'paragraph 2, sentence 3',
+        },
+      ],
+      correctedText: 'Fixed text with {proper} formatting',
+      confidence: 72,
+      assessment: 'Found grammar issues in nested content',
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: 'Review result:\n' + JSON.stringify(aiResponse) + '\nDone.' }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(false);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].location).toBe('paragraph 2, sentence 3');
+    expect(result.correctedText).toBe('Fixed text with {proper} formatting');
+  });
+
+  it('handles unicode content in AI response correctly', async () => {
+    const aiResponse = {
+      passed: false,
+      issues: [
+        { severity: 'high', category: 'formatting', description: 'Price should use ₹ symbol, not dollar sign — found "$50,000"' },
+      ],
+      correctedText: 'The package costs ₹3,50,000 for enterprise clients in मुंबई. यह Hindi content is properly formatted. 🎯',
+      confidence: 60,
+      assessment: 'INR pricing issue and Hindi content review — कृपया ध्यान दें',
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: JSON.stringify(aiResponse) }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(false);
+    expect(result.issues[0].description).toContain('₹');
+    expect(result.correctedText).toContain('₹3,50,000');
+    expect(result.correctedText).toContain('मुंबई');
+    expect(result.correctedText).toContain('🎯');
+    expect(result.assessment).toContain('कृपया');
+  });
+
+  it('handles issues field as non-array (string) — falls back to empty array', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({ passed: true, issues: 'no issues found', confidence: 90, assessment: 'Clean' }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('handles issues field as non-array (object) — falls back to empty array', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({ passed: true, issues: { count: 0 }, confidence: 90, assessment: 'Clean' }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.issues).toEqual([]);
+  });
+
+  it('handles issues with location field present', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({
+          passed: false,
+          issues: [
+            { severity: 'low', category: 'polish', description: 'Minor style issue', location: 'line 3, paragraph 2' },
+          ],
+          confidence: 78,
+          assessment: 'Minor polish needed',
+        }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(false);
+    expect(result.issues[0].location).toBe('line 3, paragraph 2');
+  });
+
+  it('handles issues with missing severity — defaults to low', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({
+          passed: false,
+          issues: [{ category: 'grammar', description: 'Missing severity field' }],
+          confidence: 70,
+          assessment: 'Issue found',
+        }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.issues[0].severity).toBe('low');
+  });
+
+  it('handles issues with missing category — defaults to unknown', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({
+          passed: false,
+          issues: [{ severity: 'high', description: 'Missing category field' }],
+          confidence: 70,
+          assessment: 'Issue found',
+        }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.issues[0].category).toBe('unknown');
+  });
+
+  it('handles issues with missing description — defaults to empty string', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({
+          passed: false,
+          issues: [{ severity: 'medium', category: 'grammar' }],
+          confidence: 70,
+          assessment: 'Issue found',
+        }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.issues[0].description).toBe('');
+  });
+
+  it('handles correctedText as number — treated as non-string, defaults to undefined', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({ passed: false, issues: [{ severity: 'low', category: 'test', description: 'test' }], correctedText: 42, confidence: 70, assessment: 'test' }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.correctedText).toBeUndefined();
+  });
+
+  it('handles confidence as string — defaults to 80', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({ passed: true, issues: [], confidence: 'high', assessment: 'Clean' }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.confidence).toBe(80);
+  });
+
+  it('handles assessment as number — defaults to empty string', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        text: JSON.stringify({ passed: true, issues: [], confidence: 90, assessment: 123 }),
+      }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.assessment).toBe('');
+  });
+
+  it('returns parse-fail when text has braces but JSON parse fails at all levels', async () => {
+    // Text contains {..} but the content is not valid JSON
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: 'Result: {not valid json at all} done.' }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.assessment).toContain('parse failed');
+  });
+
+  it('handles proxy response.json() rejection', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.reject(new Error('Invalid JSON response')),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.assessment).toContain('error');
+  });
+
+  it('handles non-ok status 429 (rate limit)', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.assessment).toContain('API call failed');
+  });
+
+  it('parses JSON with only ``` (no json marker) in code fence', async () => {
+    const aiResponse = {
+      passed: true,
+      issues: [],
+      confidence: 88,
+      assessment: 'Looks good',
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: '```\n' + JSON.stringify(aiResponse) + '\n```' }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(true);
+    expect(result.confidence).toBe(88);
+  });
+
+  it('parses deeply nested JSON (3 levels) via regex extract', async () => {
+    const aiResponse = {
+      passed: false,
+      issues: [{
+        severity: 'high',
+        category: 'formatting',
+        description: 'Deep: {level1: {level2: {level3: "nested"}}}',
+      }],
+      confidence: 65,
+      assessment: 'Nested issues found',
+    };
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: 'Here is my analysis:\n' + JSON.stringify(aiResponse) + '\nEnd.' }),
+    });
+
+    const result = await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+    expect(result.passed).toBe(false);
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].severity).toBe('high');
   });
 });
 
