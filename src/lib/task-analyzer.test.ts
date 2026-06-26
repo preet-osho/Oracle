@@ -557,6 +557,35 @@ describe('analyzeTask', () => {
         expect(tierOrder).toContain(agent.requiredTier);
       }
     });
+
+    it('premium agents clamped to elite (not beyond) at high complexity (>= 0.8)', () => {
+      // Finance agents have 'premium' defaultTier (baseIndex=3).
+      // At complexity >= 0.8: Math.min(4, 3+2) = Math.min(4, 5) = 4 → 'elite'
+      // This exercises the Math.min clamping branch.
+      const result = analyzeTask(
+        'comprehensive detailed advanced in-depth thorough enterprise-grade financial budget pricing model ROI revenue profit cost analysis with complex multi-step end-to-end scalable optimization'
+      );
+      expect(result.complexity).toBeGreaterThanOrEqual(0.8);
+      expect(result.category).toBe('finance');
+      const financeAgent = result.agents.find(a => a.role === 'finance');
+      expect(financeAgent).toBeDefined();
+      // premium (index 3) + complexity >= 0.8 → Math.min(4, 5) = 4 → 'elite'
+      expect(financeAgent!.requiredTier).toBe('elite');
+    });
+
+    it('premium agents shifted to elite (not standard) at moderate-high complexity (0.6-0.8)', () => {
+      // At complexity 0.6-0.8: Math.min(4, 3+1) = Math.min(4, 4) = 4 → 'elite'
+      // Use only 'comprehensive' (×1.5) to land in [0.6, 0.8)
+      const result = analyzeTask(
+        'comprehensive financial budget pricing and ROI analysis'
+      );
+      expect(result.complexity).toBeGreaterThanOrEqual(0.6);
+      expect(result.complexity).toBeLessThan(0.8);
+      expect(result.category).toBe('finance');
+      const financeAgent = result.agents.find(a => a.role === 'finance');
+      expect(financeAgent).toBeDefined();
+      expect(financeAgent!.requiredTier).toBe('elite');
+    });
   });
 
   // ─── Parallelization ───────────────────
@@ -836,6 +865,21 @@ describe('analyzeTask', () => {
         const allText = result.breakdown.join(' ').toLowerCase();
         expect(allText).toContain('draft');
       }
+    });
+
+    it('general tasks with high complexity get the general breakdown', () => {
+      // A long task (>100 words) with complexity multipliers but NO category keywords → 'general'
+      // Uses filler words that don't match any CATEGORY_KEYWORDS entry.
+      // This exercises the breakdowns.general path via analyzeTask.
+      const word = 'comprehensive detailed advanced in-depth thorough enterprise scalable optimization production-ready multi-step end-to-end';
+      const task = Array(15).fill(word).join(' ');
+      const result = analyzeTask(task);
+      expect(result.category).toBe('general');
+      expect(result.complexity).toBeGreaterThan(0.6);
+      expect(result.breakdown).toBeDefined();
+      expect(result.breakdown!).toContain('Understand the request');
+      expect(result.breakdown!).toContain('Gather necessary information');
+      expect(result.breakdown!).toContain('Provide response');
     });
   });
 

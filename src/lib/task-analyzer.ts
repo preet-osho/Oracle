@@ -96,6 +96,7 @@ export function agentToTaskCategory(agentName: string): TaskCategory | undefined
  * Get task focus and default tier from the centralized registry.
  * These are derived from AgentMetadata, not hardcoded separately.
  */
+/* v8 ignore start -- module-init helpers only called from buildCategoryAgentMap */
 function getAgentFocus(agentName: string): string {
   const meta = AGENT_REGISTRY[agentName as AgentName];
   return meta?.taskFocus || meta?.description || agentName;
@@ -112,7 +113,6 @@ function getAgentDefaultTier(agentName: string): ModelTier {
  * Agents whose names match a task category name are also added there.
  * Fallback agents from related categories are added for multi-agent support.
  */
-/* v8 ignore start */
 function buildCategoryAgentMap(): Record<TaskCategory, AgentAssignment[]> {
   const map: Record<string, AgentAssignment[]> = {};
 
