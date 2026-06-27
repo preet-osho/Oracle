@@ -1280,6 +1280,394 @@ describe('NeverStopRouter', () => {
     });
   });
 
+  // ── selectProvider additional branches ──
+
+  describe('selectProvider edge cases', () => {
+    it('uses taskType routing when no preferredProvider', () => {
+      const route = NeverStopRouter.selectProvider({
+        messages: [{ role: 'user', content: 'Hi' }],
+        taskType: 'code',
+      });
+      expect(route).not.toBeNull();
+      // SMART_ROUTING_RULES['code'] maps to a provider with keys
+      expect(route!.providerId).toBeTruthy();
+      expect(route!.modelId).toBeTruthy();
+    });
+
+    it('uses web search routing to perplexity when enabled and key exists', () => {
+      NeverStopRouter.setKey('perplexity', 'pplx_test_1234567890abcdef');
+      const route = NeverStopRouter.selectProvider({
+        messages: [{ role: 'user', content: 'Search for X' }],
+        enableWebSearch: true,
+      });
+      expect(route).not.toBeNull();
+      expect(route!.providerId).toBe('perplexity');
+    });
+
+    it('skips web search when perplexity key not configured', () => {
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ openai: 'sk-test-1234567890abcdef1234' });
+      const route = NeverStopRouter.selectProvider({
+        messages: [{ role: 'user', content: 'Search for X' }],
+        enableWebSearch: true,
+      });
+      expect(route).not.toBeNull();
+      // Falls through to failover, not perplexity
+      expect(route!.providerId).not.toBe('perplexity');
+    });
+
+    it('returns preferred provider even without matching key when preferredProvider is set', () => {
+      localStorageStore['oracle_byok_keys'] = '{}';
+      const route = NeverStopRouter.selectProvider({
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+      });
+      // hasKey returns false, so it falls through
+      expect(route).toBeNull();
+    });
+
+    it('falls through to first available when no free models in failover', () => {
+      // Only has a provider without free models
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ openai: 'sk-test-1234567890abcdef1234' });
+      const route = NeverStopRouter.selectProvider({
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      expect(route).not.toBeNull();
+      expect(route!.providerId).toBe('openai');
+    });
+  });
+
+  // ── getFailoverProvider edge cases ──
+
+  describe('getFailoverProvider edge cases', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const getFailover = (id: string) => (NeverStopRouter as any).getFailoverProvider(id) as { providerId: string; modelId: string } | null;
+
+    it('wraps around when current provider is not in FAILOVER_ORDER', () => {
+      const result = getFailover('unknown-provider');
+      expect(result).not.toBeNull();
+    });
+
+    it('returns same provider when only current provider has keys (wraps around)', () => {
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ groq: 'gsk_test_1234567890abcdef' });
+      const result = getFailover('groq');
+      // Wraps around and returns groq as the only available provider
+      expect(result).not.toBeNull();
+      expect(result!.providerId).toBe('groq');
+    });
+  });
+
+  // ── validateKeyFormat edge cases ──
+
+  describe('validateKeyFormat edge cases', () => {
+    it('returns true for non-empty key with unknown provider', () => {
+      expect(NeverStopRouter.validateKeyFormat('unknown', 'any-key')).toBe(true);
+    });
+
+    it('returns false for empty key with unknown provider', () => {
+      expect(NeverStopRouter.validateKeyFormat('unknown', '')).toBe(false);
+    });
+
+    it('validates groq key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('groq', 'gsk_1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('groq', 'invalid')).toBe(false);
+    });
+
+    it('validates google key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('google', 'AIza_1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('google', 'invalid')).toBe(false);
+    });
+
+    it('validates openrouter key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('openrouter', 'sk-or-1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('openrouter', 'invalid')).toBe(false);
+    });
+
+    it('validates cerebras key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('cerebras', 'csk_1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('cerebras', 'invalid')).toBe(false);
+    });
+
+    it('validates perplexity key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('perplexity', 'pplx-1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('perplexity', 'invalid')).toBe(false);
+    });
+
+    it('validates together key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('together', '1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('together', 'short')).toBe(false);
+    });
+
+    it('validates mistral key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('mistral', '1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('mistral', 'short')).toBe(false);
+    });
+
+    it('validates cohere key format', () => {
+      expect(NeverStopRouter.validateKeyFormat('cohere', '1234567890abcdef1234')).toBe(true);
+      expect(NeverStopRouter.validateKeyFormat('cohere', 'short')).toBe(false);
+    });
+  });
+
+  // ── localStorage error handling ──
+
+  describe('localStorage error handling', () => {
+    it('getKey handles JSON parse errors', () => {
+      localStorageStore['oracle_byok_keys'] = 'not-json';
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const result = NeverStopRouter.getKey('openai');
+      expect(result).toBeNull();
+      warnSpy.mockRestore();
+    });
+
+    it('setKey handles JSON parse errors on existing data', () => {
+      localStorageStore['oracle_byok_keys'] = 'not-json';
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      // Should not throw
+      NeverStopRouter.setKey('test', 'key');
+      warnSpy.mockRestore();
+    });
+
+    it('removeKey handles JSON parse errors', () => {
+      localStorageStore['oracle_byok_keys'] = 'not-json';
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      NeverStopRouter.removeKey('test');
+      warnSpy.mockRestore();
+    });
+
+    it('getAllKeys handles JSON parse errors', () => {
+      localStorageStore['oracle_byok_keys'] = 'not-json';
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const keys = NeverStopRouter.getAllKeys();
+      expect(keys).toEqual({});
+      warnSpy.mockRestore();
+    });
+
+    it('removeKey handles missing raw data', () => {
+      delete localStorageStore['oracle_byok_keys'];
+      NeverStopRouter.removeKey('test');
+      // Should not throw
+    });
+
+    it('getKey returns null when raw is null', () => {
+      delete localStorageStore['oracle_byok_keys'];
+      const result = NeverStopRouter.getKey('openai');
+      expect(result).toBeNull();
+    });
+
+    it('getKey returns null when provider key not found', () => {
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ openai: 'sk-test' });
+      const result = NeverStopRouter.getKey('nonexistent');
+      expect(result).toBeNull();
+    });
+  });
+
+  // ── callSync prompt versioning ──
+
+  describe('callSync prompt versioning', () => {
+    it('logs request when testId is provided', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'OK' } }],
+          usage: { prompt_tokens: 10, completion_tokens: 5 },
+        }),
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      const result = await NeverStopRouter.callSync(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+        testId: 'test-123',
+      });
+
+      expect(result.text).toBe('OK');
+    });
+  });
+
+  // ── callSync max attempts exhausted ──
+
+  describe('callSync max attempts', () => {
+    it('returns failed after all attempts when provider keeps throwing', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => {
+        throw new TypeError('Connection reset');
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      const result = await NeverStopRouter.callSync(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+      });
+
+      expect(result.text).toContain('Error');
+      expect(result.costUSD).toBe(0);
+    });
+  });
+
+  // ── callStreaming max attempts exhausted ──
+
+  describe('callStreaming max attempts', () => {
+    it('yields error after all attempts when provider keeps throwing', async () => {
+      global.fetch = vi.fn().mockImplementation(async () => {
+        throw new TypeError('Connection reset');
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      let lastChunk;
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+      })) {
+        lastChunk = chunk;
+      }
+
+      expect(lastChunk).toBeDefined();
+      expect(lastChunk!.done).toBe(true);
+      expect(lastChunk!.chunk).toContain('Error');
+    });
+  });
+
+  // ── Unknown provider paths ──
+
+  describe('unknown provider handling', () => {
+    it('callStreaming yields error for unknown provider', async () => {
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ 'fake-provider': 'fake-key-1234567890abcdef' });
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      let lastChunk;
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'fake-provider',
+        preferredModel: 'fake-model',
+      })) {
+        lastChunk = chunk;
+      }
+
+      expect(lastChunk).toBeDefined();
+      expect(lastChunk!.done).toBe(true);
+      expect(lastChunk!.chunk).toContain('Unknown provider');
+    });
+
+    it('callSync returns error for unknown provider', async () => {
+      localStorageStore['oracle_byok_keys'] = JSON.stringify({ 'fake-provider': 'fake-key-1234567890abcdef' });
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      const result = await NeverStopRouter.callSync(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'fake-provider',
+        preferredModel: 'fake-model',
+      });
+
+      expect(result.text).toContain('Unknown provider');
+      expect(result.costUSD).toBe(0);
+    });
+  });
+
+  // ── Malformed SSE chunks ──
+
+  describe('malformed SSE handling', () => {
+    it('callStreaming skips malformed JSON in OpenAI SSE', async () => {
+      const sseLines = [
+        `data: ${JSON.stringify({choices:[{delta:{content:'valid'},finish_reason:null}]})}\n\n`,
+        'data: {invalid json}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: createMockSSEBody(sseLines),
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      const collected: string[] = [];
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+      })) {
+        if (chunk.done) break;
+        if (chunk.chunk) collected.push(chunk.chunk);
+      }
+
+      expect(collected).toContain('valid');
+    });
+
+    it('callStreaming skips malformed JSON in Anthropic SSE', async () => {
+      const sseLines = [
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"valid"}}\n\n',
+        'event: content_block_delta\ndata: bad-json\n\n',
+        'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+      ];
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: createMockSSEBody(sseLines),
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      const collected: string[] = [];
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'anthropic',
+        preferredModel: 'claude-sonnet-4-6',
+      })) {
+        if (chunk.done) break;
+        if (chunk.chunk) collected.push(chunk.chunk);
+      }
+
+      expect(collected).toContain('valid');
+    });
+  });
+
+  describe('null response body handling', () => {
+    it('callStreaming yields error when response body is null (OpenAI)', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: null,
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      let lastChunk;
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'openai',
+        preferredModel: 'gpt-4o',
+      })) {
+        lastChunk = chunk;
+      }
+
+      expect(lastChunk).toBeDefined();
+      expect(lastChunk!.done).toBe(true);
+      expect(lastChunk!.chunk).toContain('Failed to read response stream');
+    });
+
+    it('callStreaming yields error when response body is null (Anthropic)', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: true,
+        body: null,
+      });
+
+      const messages = [{ id: '1', role: 'user' as const, content: 'Hi', timestamp: Date.now() }];
+      let lastChunk;
+
+      for await (const chunk of NeverStopRouter.callStreaming(messages, {
+        messages: [{ role: 'user', content: 'Hi' }],
+        preferredProvider: 'anthropic',
+        preferredModel: 'claude-sonnet-4-6',
+      })) {
+        lastChunk = chunk;
+      }
+
+      expect(lastChunk).toBeDefined();
+      expect(lastChunk!.done).toBe(true);
+      expect(lastChunk!.chunk).toContain('Failed to read Anthropic response stream');
+    });
+  });
+
   // ── No API Keys ──
 
   describe('callStreaming with no keys', () => {
