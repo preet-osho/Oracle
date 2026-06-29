@@ -24,7 +24,9 @@ export function BrandAssetsPanel() {
   const [showForm, setShowForm] = useState(false);
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshKey intentionally triggers recomputation after localStorage mutations
   const allAssets = useMemo(() => getBrandAssets(), [refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const byClient = useMemo(() => getAssetsByClient(), [refreshKey]);
   const clientNames = Object.keys(byClient);
 
@@ -203,7 +205,7 @@ export function BrandAssetsPanel() {
               </div>
               <h3 className="mb-2 text-[18px] font-bold text-[var(--oracle-text-1)]">No Brand Assets Yet</h3>
               <p className="max-w-md mx-auto text-[14px] text-[var(--oracle-text-3)]">
-                Click "Add Asset" to store client logos, colors, fonts, and other brand guidelines.
+                Click &quot;Add Asset&quot; to store client logos, colors, fonts, and other brand guidelines.
               </p>
             </motion.div>
           )}

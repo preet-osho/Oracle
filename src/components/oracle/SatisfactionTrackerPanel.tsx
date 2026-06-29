@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
 import {
   addSatisfactionEntry,
   getSatisfactionEntries,
-  calculateNPS,
-  getNPSCategoryLabel,
   getNPSCategoryColor,
   getOverallSatisfaction,
   getDimensionLabel,
@@ -19,20 +17,22 @@ import type { SatisfactionDimension } from '@/lib/satisfaction-tracker';
 // ─── SatisfactionTrackerPanel ─────────
 
 export function SatisfactionTrackerPanel() {
-  const [refreshKey, setRefreshKey] = useState(0);
+  const [refreshKey, forceUpdate] = useState(0);
   const [showForm, setShowForm] = useState(false);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshKey intentionally triggers recomputation after localStorage mutations
   const overall = useMemo(() => getOverallSatisfaction(), [refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const entries = useMemo(() => getSatisfactionEntries(), [refreshKey]);
 
-  const handleSubmit = useCallback((data: { projectId: string; clientName: string; nps: number; dimension: SatisfactionDimension; rating: number; feedback: string }) => {
+  const handleSubmit = (data: { projectId: string; clientName: string; nps: number; dimension: SatisfactionDimension; rating: number; feedback: string }) => {
     addSatisfactionEntry({
       ...data,
       surveySentAt: Date.now(),
     });
     setShowForm(false);
-    setRefreshKey((k) => k + 1);
-  }, []);
+    forceUpdate((k) => k + 1);
+  };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -162,7 +162,7 @@ export function SatisfactionTrackerPanel() {
               </div>
               <h3 className="mb-2 text-[18px] font-bold text-[var(--oracle-text-1)]">No Satisfaction Data</h3>
               <p className="max-w-md mx-auto text-[14px] text-[var(--oracle-text-3)]">
-                Click "Add Entry" to record your first client satisfaction survey response.
+                Click &quot;Add Entry&quot; to record your first client satisfaction survey response.
               </p>
             </motion.div>
           )}

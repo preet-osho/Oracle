@@ -253,8 +253,8 @@ export function recordFailure(providerId: string): void {
   if (circuit.consecutiveFailures >= FAILURE_THRESHOLD) {
     // Count currently open circuits
     let openCount = 0;
-    for (const c of circuits.values()) {
-      if (c.state === 'open') openCount++;
+    for (const entry of circuits.values()) {
+      if (entry.state === 'open') openCount++;
     }
 
     // Don't open if we'd exceed the max — we need some providers available
@@ -365,7 +365,7 @@ export function resetCircuit(providerId: string): void {
  */
 export function getUnavailableProviders(): string[] {
   const unavailable: string[] = [];
-  for (const [providerId, circuit] of circuits) {
+  for (const [providerId] of circuits) {
     if (!isAvailable(providerId)) {
       unavailable.push(providerId);
     }

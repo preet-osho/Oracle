@@ -7,7 +7,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // ─── Hoisted mocks ─────────────────────
 
 const { handlers, mockFrom, mockCallSync, mockScoreResponse, mockExtractAndSaveMemories } = vi.hoisted(() => ({
-  handlers: {} as Record<string, Function>,
+  handlers: {} as Record<string, (...args: any[]) => any>,
   mockFrom: vi.fn(),
   mockCallSync: vi.fn(),
   mockScoreResponse: vi.fn(),
@@ -20,8 +20,8 @@ vi.mock('@/lib/inngest/client', () => ({
   inngest: {
     id: 'test',
     name: 'Test',
-    createFunction: (opts: any, handler: Function) => {
-      handlers[opts.id] = handler;
+    createFunction: (opts: Record<string, unknown>, handler: (...args: unknown[]) => unknown) => {
+      handlers[String(opts.id)] = handler;
       return handler;
     },
   },

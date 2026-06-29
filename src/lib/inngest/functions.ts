@@ -476,10 +476,8 @@ export const automationTick = inngest.createFunction(
           const payload = buildEventPayload(schedule.type, schedule.org_id, schedule.config);
 
           // Dispatch via Inngest
-          await inngest.send({
-            name: eventType as any,
-            data: payload,
-          });
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Inngest event name type is generic string
+        await inngest.send({ name: eventType as any, data: payload });
 
       // Update next_run_at based on cron expression
       const { estimateNextRun } = await import('@/lib/automation/scheduler');
@@ -681,7 +679,9 @@ export const batchQualityReview = inngest.createFunction(
             // Extract the last assistant message from the messages JSONB array
             const messages = Array.isArray(c.messages) ? c.messages : [];
             const assistantMsgs = messages
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase message array contains arbitrary role/content objects
               .filter((m: any) => m?.role === 'assistant' && typeof m.content === 'string')
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .map((m: any) => m.content || '');
             const responseText = assistantMsgs.length > 0
               ? assistantMsgs[assistantMsgs.length - 1]
@@ -804,7 +804,9 @@ export const batchMemoryExtraction = inngest.createFunction(
             // Concatenate all user and assistant messages into a conversation transcript
             const messages = convo && Array.isArray(convo.messages) ? convo.messages : [];
             const transcript = messages
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase message array contains arbitrary role/content objects
               .filter((m: any) => m?.role && typeof m.content === 'string')
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
               .map((m: any) => `[${m.role}]: ${m.content}`)
               .join('\n---\n');
             const conversationText = transcript.length >= 50 ? transcript : convo?.title || '';

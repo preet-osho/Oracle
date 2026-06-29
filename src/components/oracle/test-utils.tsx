@@ -66,7 +66,7 @@ export interface SSEChunk {
  * - For **other** URLs (e.g. `/api/web-search`): returns `{ ok: true, json: () => ({ results: [] }) }`.
  */
 export function createSSEFetchMock(chunks: SSEChunk[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return vi.fn(async (url: URL | Request | string, init?: RequestInit): Promise<any> => {
     if (typeof url === 'string' && url.includes('/api/ai/chat')) {
       const body = JSON.parse((init?.body as string) || '{}');
@@ -128,7 +128,7 @@ export function defaultFetchMock() {
  * 3. Returns an SSE stream for `stream: true` (main response path)
  */
 export function createSignalCapturingFetch(capturedSignals: AbortSignal[]) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   return vi.fn(async (url: URL | Request | string, init?: RequestInit): Promise<any> => {
     if (typeof url === 'string' && url.includes('/api/ai/chat')) {
       if (init?.signal) capturedSignals.push(init.signal);
@@ -206,7 +206,7 @@ export async function renderAndStartLoop(
 ): Promise<{
   unmount: () => void;
   callback: ((...args: unknown[]) => void) | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   user: any;
   prompt: string;
 }> {
@@ -232,7 +232,7 @@ export async function renderAndStartLoopWithFetch(
   message?: string,
 ): Promise<{
   unmount: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   user: any;
   prompt: string;
 }> {
@@ -274,12 +274,12 @@ export async function renderAndType(
     /** Custom fetch mock to install as global.fetch before rendering */
     fetchMock?: typeof global.fetch;
     /** Async callback run after render but before typing */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     beforeType?: (user: any) => Promise<void>;
   },
 ): Promise<{
   unmount: () => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   user: any;
   prompt: string;
 }> {

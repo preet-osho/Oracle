@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
+import {motionVariants, transitions} from '@/styles/design-tokens';
 import { getProviderHealthStats, getOverallHealth, getProviderHealthRecords, type ProviderHealthStats } from '@/lib/provider-health';
 import { PROVIDERS } from '@/data/providers';
 

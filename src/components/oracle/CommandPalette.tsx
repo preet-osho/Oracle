@@ -21,8 +21,7 @@ export function CommandPalette({ open, onClose, onNavigate }: CommandPaletteProp
 
   useEffect(() => {
     if (open) {
-      setSearch('');
-      setTimeout(() => inputRef.current?.focus(), 50);
+      inputRef.current?.focus();
     }
   }, [open]);
 

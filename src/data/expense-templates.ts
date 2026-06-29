@@ -1,15 +1,11 @@
-import type { Expense, ExpenseCategory } from '@/lib/expense-tracker';
+import type { Expense } from '@/lib/expense-tracker';
 
 // ─── Seed Data ──────────────────────────
 // Realistic Indian agency expenses spread across the current year
 
-const DAY = 24 * 60 * 60 * 1000;
-const now = Date.now();
-const year = new Date().getFullYear();
-
 /** Helper: date N months ago from now */
 function monthsAgo(n: number, day = 15): number {
-  return new Date(year, new Date().getMonth() - n, day).getTime();
+  return new Date(new Date().getFullYear(), new Date().getMonth() - n, day).getTime();
 }
 
 export const DEFAULT_EXPENSE_TEMPLATES: Omit<Expense, 'id' | 'createdAt'>[] = [

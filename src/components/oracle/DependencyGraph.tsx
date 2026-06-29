@@ -172,7 +172,7 @@ export function DependencyGraph({ plan, cycleEdges, parallelGroups, sequentialMo
       }
     });
     return result;
-  }, [plan, positions.nodes, cycleEdges]);
+  }, [plan, positions.nodes, cycleEdges, sequentialMode]);
 
   const svgWidth = Math.max(positions.totalWidth, 400);
   const svgHeight = Math.max(positions.totalHeight, 120);

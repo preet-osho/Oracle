@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
+import {motionVariants, transitions} from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { nanoid } from 'nanoid';

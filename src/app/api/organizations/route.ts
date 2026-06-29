@@ -77,6 +77,7 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Supabase join result type is dynamic
     const organizations = (data ?? []).map((m: any) => ({
       orgId: m.organizations?.id,
       name: m.organizations?.name,
@@ -84,6 +85,7 @@ export async function GET() {
       role: m.role,
       joinedAt: m.joined_at,
       createdAt: m.organizations?.created_at,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     })).filter((o: any) => o.orgId);
 
     return NextResponse.json({ organizations });

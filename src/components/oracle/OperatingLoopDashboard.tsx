@@ -92,7 +92,6 @@ export function OperatingLoopDashboard({ results, totalSteps = 6, isActive = fal
           const isCompleted = !!result;
           const isFailed = !!result && result.output.startsWith('[Failed');
           const isCurrent = isActive && !isCompleted && index === completedCount;
-          const isPending = !isCompleted && !isCurrent;
           const isExpanded = expandedStep === stepKey;
 
           return (

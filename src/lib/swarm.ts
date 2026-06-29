@@ -4,9 +4,9 @@
 // ═══════════════════════════════════════
 
 import { ORCHESTRATOR_PROMPT } from '@/lib/system-prompt';
-import { AGENT_REGISTRY, ALL_AGENT_NAMES, type AgentName, getAgentPrompt, getAgentMetadata } from '@/lib/agents/registry';
+import { ALL_AGENT_NAMES, getAgentPrompt, getAgentMetadata } from '@/lib/agents/registry';
 import { analyzeTask, type TaskAnalysis } from '@/lib/task-analyzer';
-import { routeAgencyTask, runQualityGates, detectMistakes, runOperatingLoop } from '@/lib/agency-operations';
+import { routeAgencyTask, runQualityGates, detectMistakes } from '@/lib/agency-operations';
 import {
   selectModel,
   logAgentPerformance,
@@ -33,7 +33,7 @@ const AGENT_PROMPTS: Record<string, string> = Object.fromEntries(
 export async function shouldUseSwarm(
   task: string,
   callAI: (prompt: string) => Promise<string>,
-  availableProviders: string[] = []
+  _availableProviders: string[] = []
 ): Promise<{ needs: boolean; agents: string[]; parallel: boolean; analysis?: TaskAnalysis }> {
   // Use intelligent task analysis
   const analysis = analyzeTask(task);

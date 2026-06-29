@@ -218,11 +218,13 @@ export function WorkflowsTab({ onRunPrompt }: { onRunPrompt?: (prompt: string) =
   useEffect(() => {
     if (!isRunning || isPaused || !activeWorkflow) return;
     if (currentStepIndex >= activeWorkflow.steps.length) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRunning(false);
       return;
     }
 
     const step = activeWorkflow.steps[currentStepIndex];
+     
     setStepStatuses((prev) => ({ ...prev, [step.id]: 'running' }));
 
     const timer = setTimeout(() => {

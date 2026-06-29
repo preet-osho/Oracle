@@ -1,24 +1,23 @@
 'use client';
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {motion} from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
 import { generateMonthlyReport, saveReport, getReports } from '@/lib/monthly-intelligence-report';
-import { getKnownTools, getFreeTools, getEmergingTrends, getDiscoveryStats } from '@/lib/weekly-web-scan';
+import {getFreeTools, getEmergingTrends, getDiscoveryStats} from '@/lib/weekly-web-scan';
 import { getPatternStats } from '@/lib/pattern-recognition';
 import { getUpsellStats } from '@/lib/upsell-detection';
 
 // ─── IntelligenceReportsPanel ─────────
 
 export function IntelligenceReportsPanel() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [activeSection, setActiveSection] = useState<'reports' | 'tools' | 'trends'>('reports');
   const [generating, setGenerating] = useState(false);
 
-  const reports = useMemo(() => getReports(), [refreshKey]);
-  const toolStats = useMemo(() => getDiscoveryStats(), [refreshKey]);
-  const patternStats = useMemo(() => getPatternStats(), [refreshKey]);
-  const upsellStats = useMemo(() => getUpsellStats(), [refreshKey]);
+  const reports = useMemo(() => getReports(), []);
+  const toolStats = useMemo(() => getDiscoveryStats(), []);
+  const patternStats = useMemo(() => getPatternStats(), []);
+  const upsellStats = useMemo(() => getUpsellStats(), []);
   const freeTools = useMemo(() => getFreeTools(), []);
   const trends = useMemo(() => getEmergingTrends(70), []);
 
@@ -30,7 +29,6 @@ export function IntelligenceReportsPanel() {
       const report = generateMonthlyReport(currentMonth);
       saveReport(report);
       setGenerating(false);
-      setRefreshKey((k) => k + 1);
     }, 1000);
   }, [currentMonth]);
 

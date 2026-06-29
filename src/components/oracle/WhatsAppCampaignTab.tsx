@@ -84,8 +84,6 @@ export function WhatsAppCampaignTab() {
   const [flows, setFlows] = useState<ChatbotFlow[]>(SAMPLE_FLOWS);
   const [showNewCampaign, setShowNewCampaign] = useState(false);
   const [showNewTemplate, setShowNewTemplate] = useState(false);
-  const [showNewFlow, setShowNewFlow] = useState(false);
-
   // New campaign form
   const [newCampaign, setNewCampaign] = useState({ name: '', type: 'broadcast' as const, audience: '', message: '' });
   // New template form

@@ -263,6 +263,7 @@ Examples:
                     animate={{ opacity: 1, scale: 1 }}
                     className="group relative overflow-hidden rounded-xl border border-[var(--oracle-border)] bg-[var(--oracle-surface-2)]"
                   >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={image.url}
                       alt={image.prompt}
@@ -328,6 +329,7 @@ Examples:
             className="relative max-h-[85vh] max-w-[90vw] overflow-hidden rounded-2xl border border-[var(--oracle-border)] bg-[var(--oracle-bg)] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={selectedImage.url} alt={selectedImage.prompt} className="max-h-[70vh] w-full object-contain" />
             <div className="p-4">
               <p className="mb-2 text-[13px] text-[var(--oracle-text-2)]">{selectedImage.prompt}</p>

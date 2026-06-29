@@ -119,7 +119,7 @@ export function generateAnnualReport(
     serviceProfit[inv.service] = existing;
   }
   // Distribute expenses proportionally
-  for (const [service, data] of Object.entries(serviceProfit)) {
+  for (const [, data] of Object.entries(serviceProfit)) {
     data.estimatedCost = totalRevenue > 0 ? (data.revenue / totalRevenue) * totalExpenses : 0;
   }
 

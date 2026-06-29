@@ -379,12 +379,6 @@ const INDIAN_FESTIVALS = [
 
 // ─── Tier-1/2/3 City Classification ────
 
-const TIER_CITIES: Record<number, string[]> = {
-  1: ['Mumbai', 'Delhi', 'Bangalore', 'Bengaluru', 'Chennai', 'Kolkata', 'Hyderabad', 'Pune', 'Ahmedabad'],
-  2: ['Lucknow', 'Jaipur', 'Bhopal', 'Indore', 'Nagpur', 'Surat', 'Chandigarh', 'Kochi', 'Coimbatore', 'Noida', 'Gurgaon', 'Gurugram', 'Thane', 'Navi Mumbai', 'Visakhapatnam', 'Patna'],
-  3: ['Varanasi', 'Ranchi', 'Raipur', 'Guwahati', 'Jodhpur', 'Udaipur', 'Mysore', 'Madurai', 'Vijayawada', 'Agra', 'Meerut', 'Dehradun', 'Roorkee', 'Siliguri', 'Dhanbad', 'Bokaro'],
-};
-
 const TIER1_BUDGETS = { min: 50000, max: 200000 };
 const TIER2_BUDGETS = { min: 10000, max: 30000 };
 const TIER3_BUDGETS = { min: 5000, max: 15000 };
@@ -653,7 +647,7 @@ function checkCityTierAwareness(output: string, context: EvalContext): EvalCheck
  * Checks if output references Indian festivals when discussing campaigns/calendars
  * Covers: 5.4 (Missing Festival Calendar)
  */
-function checkFestivalCalendar(output: string, context: EvalContext): EvalCheck {
+function checkFestivalCalendar(output: string, _context: EvalContext): EvalCheck {
   const isCampaignContext = /(?:campaign|calendar|content plan|marketing plan|strategy|schedule|monthly|quarterly)/i.test(output);
   if (!isCampaignContext) {
     return {
@@ -695,7 +689,7 @@ function checkFestivalCalendar(output: string, context: EvalContext): EvalCheck 
  * Checks if output assumes WhatsApp over email for Indian audiences
  * Covers: 5.1 (WhatsApp > Email Assumption), 1.4 (WhatsApp Sounds Like Email)
  */
-function checkWhatsAppFirst(output: string, context: EvalContext): EvalCheck {
+function checkWhatsAppFirst(output: string, _context: EvalContext): EvalCheck {
   const isOutreachContext = /(?:outreach|communication|follow[- ]?up|contact|connect|message|campaign)/i.test(output);
   if (!isOutreachContext) {
     return {
@@ -763,8 +757,8 @@ function checkGenericContent(output: string, _context: EvalContext): EvalCheck {
  * Checks B2B vs B2C tone appropriateness
  * Covers: 1.3 (B2B Gets Consumer-Style Copy)
  */
-function checkBToneAppropriateness(output: string, context: EvalContext): EvalCheck {
-  if (context.audience !== 'b2b' && context.audience !== 'enterprise') {
+function checkBToneAppropriateness(output: string, _context: EvalContext): EvalCheck {
+  if (_context.audience !== 'b2b' && _context.audience !== 'enterprise') {
     return {
       name: 'b2b_tone',
       passed: true,

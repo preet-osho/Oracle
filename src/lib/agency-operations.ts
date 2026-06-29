@@ -319,7 +319,7 @@ export interface QualityGateResult {
 /** Run the standard quality gate checks on any output. */
 export function runQualityGates(
   output: string,
-  originalTask: string,
+  _originalTask: string,
 ): QualityGateResult {
   const checks: QualityGateCheck[] = [];
 
@@ -665,8 +665,6 @@ export function runSelfCheck(
   task: string,
   output: string,
 ): SelfCheckResult {
-  const lower = `${task} ${output}`.toLowerCase();
-
   const understood = output.length > 100 && (output.includes('##') || output.includes('Goal') || output.includes('Objective'));
   const avoidedGeneric = !output.includes('in today\'s digital world') && !output.includes('leverage') && !output.includes('synergy');
   const coveredChannels = output.includes('channel') || output.includes('Channel') || output.includes('platform') || output.includes('Platform') || output.length < 300;

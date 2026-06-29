@@ -3,7 +3,7 @@
 // Auto-update learnings after tasks · Pattern recognition · Knowledge accumulation
 // ═══════════════════════════════════════
 
-import type { QualityScore, HallucinationCheckResult } from '@/types';
+import type { QualityScore } from '@/types';
 
 // ─── Types ─────────────────────────────
 

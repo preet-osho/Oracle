@@ -3,7 +3,7 @@
 // Background job queue for long-running AI tasks
 // ═══════════════════════════════════════
 
-import { Inngest, type EventPayload } from 'inngest';
+import { Inngest } from 'inngest';
 
 /**
  * Inngest client — the entry point for all background job operations.

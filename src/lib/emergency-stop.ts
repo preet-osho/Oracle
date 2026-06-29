@@ -89,7 +89,7 @@ export function getEmergencyStopStatus(): {
  * Check if a new swarm execution is allowed.
  * Returns null if allowed, or an error message if blocked.
  */
-export function canStartSwarm(userId?: string): string | null {
+export function canStartSwarm(_userId?: string): string | null {
   if (emergencyStopActive) {
     return `Emergency stop is active: ${stopReason || 'No reason provided'}. All executions are paused.`;
   }

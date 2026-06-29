@@ -69,8 +69,8 @@ async function generateNotifications(): Promise<Notification[]> {
           });
         }
       }
-    }   } catch (err) {
-     toast('⚠️ Failed to load project notifications', TOAST_DEFAULTS);
+    }   } catch {
+    toast('⚠️ Failed to load project notifications', TOAST_DEFAULTS);
   }
 
   // 2. Invoice overdue notifications (from API)
@@ -93,8 +93,8 @@ async function generateNotifications(): Promise<Notification[]> {
           });
         }
       }
-    }   } catch (err) {
-     toast('⚠️ Failed to load invoice notifications', TOAST_DEFAULTS);
+    }   } catch {
+    toast('⚠️ Failed to load invoice notifications', TOAST_DEFAULTS);
   }
 
   // 3. Low quality score notifications (from localStorage — already wired)
@@ -113,8 +113,8 @@ async function generateNotifications(): Promise<Notification[]> {
         read: false,
         dismissible: true,
       });
-    }   } catch (err) {
-     toast('⚠️ Failed to load notification data', TOAST_DEFAULTS);
+    }   } catch {
+    toast('⚠️ Failed to load notification data', TOAST_DEFAULTS);
   }
 
   // 4. Welcome system notification if nothing else
@@ -143,10 +143,17 @@ export function NotificationPanel({ isOpen, onClose }: { isOpen: boolean; onClos
 
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       generateNotifications()
-        .then(setNotifications)
-        .catch(() => setNotifications([]))
+        .then((n) => {
+           
+          setNotifications(n);
+        })
+        .catch(() => {
+           
+          setNotifications([]);
+        })
         .finally(() => setLoading(false));
     }
   }, [isOpen]);

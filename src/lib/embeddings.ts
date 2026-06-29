@@ -11,7 +11,6 @@ const log = createLogger('Embeddings');
 // ─── Constants ────────────────────────
 
 const EMBEDDING_MODEL = 'text-embedding-3-small';
-const EMBEDDING_DIMENSIONS = 1536;
 const MAX_CHUNK_LENGTH = 8000; // Safe limit per embedding request (OpenAI allows 8191 tokens)
 const BATCH_SIZE = 100; // Max embeddings per API call (OpenAI supports up to 2048)
 const DEFAULT_MATCH_THRESHOLD = 0.3;

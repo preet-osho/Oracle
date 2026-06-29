@@ -161,9 +161,12 @@ export function ConfigTab() {
 
   useEffect(() => {
     knowledgeDocsApi.list().then((docs) => {
+       
       setKnowledgeDocs(docs.map((d) => ({ id: d.id, name: d.name, content: d.content })));
     }).catch(() => {});
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchIndexedIds();
+     
     setAgencyProfile(getAgencyProfile());
   }, [fetchIndexedIds]);
 
@@ -202,7 +205,7 @@ export function ConfigTab() {
     } finally {
       setTestingProvider(null);
     }
-  }, [keyInputs, setByokKey, removeByokKey]);
+  }, [keyInputs, byokKeys, setByokKey, removeByokKey]);
 
   const saveProfile = useCallback(() => {
     saveAgencyProfile(agencyProfile);
@@ -305,7 +308,7 @@ export function ConfigTab() {
     }
   }, [knowledgeDocs]);
 
-  const handleReindexDoc = useCallback(async (docId: string, docName: string) => {
+  const handleReindexDoc = useCallback(async (docId: string, _docName: string) => {
     if (reindexingDocId) return;
     setReindexingDocId(docId);
     try {
@@ -774,7 +777,7 @@ export function ConfigTab() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[11px] text-[var(--oracle-text-muted)] italic">No custom presets saved yet. Adjust settings above and click "Save Current as Preset".</p>
+                  <p className="text-[11px] text-[var(--oracle-text-muted)] italic">No custom presets saved yet. Adjust settings above and click &quot;Save Current as Preset&quot;.</p>
                 )}
               </div>
 

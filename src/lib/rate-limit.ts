@@ -95,18 +95,6 @@ function getOrCreateRatelimit(maxRequests: number, windowMs: number): Ratelimit 
 }
 
 // ─── Hardcoded defaults (used when DB has no override) ───
-const DEFAULT_LIMITS: Record<string, { maxRequests: number; windowMs: number }> = {
-  login:       { maxRequests: 5,  windowMs: 15 * 60 * 1000 },
-  signup:      { maxRequests: 3,  windowMs: 60 * 60 * 1000 },
-  magic:       { maxRequests: 3,  windowMs: 10 * 60 * 1000 },
-  'pw-update': { maxRequests: 5,  windowMs: 15 * 60 * 1000 },
-  'email-verify': { maxRequests: 10, windowMs: 15 * 60 * 1000 },
-  'ai:chat':   { maxRequests: 10, windowMs: 60 * 1000 },
-  'web-search':{ maxRequests: 15, windowMs: 60 * 1000 },
-  'api:write': { maxRequests: 30, windowMs: 60 * 1000 },
-  'api':       { maxRequests: 100, windowMs: 60 * 1000 },
-};
-
 // ─── In-Memory Fallback (development) ──
 
 interface RateLimitEntry {
@@ -178,24 +166,6 @@ function checkInMemoryRateLimit(
 }
 
 // ─── Unified Check Function ────────────
-
-/**
- * Get the best matching default limits for a key prefix.
- */
-function getDefaultLimitsForKey(key: string): { maxRequests: number; windowMs: number } {
-  // Order matters: more specific prefixes first
-  if (key.startsWith('pw-update:')) return DEFAULT_LIMITS['pw-update'];
-  if (key.startsWith('email-verify:')) return DEFAULT_LIMITS['email-verify'];
-  if (key.startsWith('ai:chat:')) return DEFAULT_LIMITS['ai:chat'];
-  if (key.startsWith('web-search:')) return DEFAULT_LIMITS['web-search'];
-  if (key.startsWith('api:write:')) return DEFAULT_LIMITS['api:write'];
-  if (key.startsWith('api:')) return DEFAULT_LIMITS['api'];
-  if (key.startsWith('magic:')) return DEFAULT_LIMITS['magic'];
-  if (key.startsWith('reset:')) return DEFAULT_LIMITS['magic'];
-  if (key.startsWith('login:')) return DEFAULT_LIMITS['login'];
-  if (key.startsWith('signup:')) return DEFAULT_LIMITS['signup'];
-  return DEFAULT_LIMITS['api']; // Default fallback
-}
 
 /**
  * Check rate limit for a given key.

@@ -377,8 +377,6 @@ export function autoCreateSkillsFromTask(task: ClientTask): SkillTemplate[] {
 
   // If we have 3+ completed tasks in the same category, create a skill
   if (existingForCategory.length < 2) {
-    const avgQuality = task.results.reduce((s, r) => s + (r.qualityScore || 0), 0) / task.results.length;
-
     const skill = createSkillTemplate({
       name: `Auto: ${task.category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`,
       category: task.category,

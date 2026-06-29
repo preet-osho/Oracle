@@ -16,7 +16,7 @@ import { motionVariants, transitions, TAB_METADATA } from '@/styles/design-token
 import { useRouterStore } from '@/stores/router.store';
 import { isKeyMigrationComplete, countLegacyKeys, migrateKeysToServer } from '@/lib/migrate-localstorage';
 import toast from 'react-hot-toast';
-import { ORACLE_TABS, isValidTab, type OracleTab } from '@/styles/design-tokens';
+import {isValidTab, type OracleTab} from '@/styles/design-tokens';
 import { OnboardingWizard } from './OnboardingWizard';
 import { SkipNav } from './SkipNav';
 import { OfflineBanner } from './OfflineBanner';

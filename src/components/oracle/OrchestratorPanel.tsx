@@ -180,7 +180,40 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
   const [dragOverPresetId, setDragOverPresetId] = useState<string | null>(null);
   const justDraggedRef = useRef(false);
 
-  // Reorder custom presets via drag-and-drop
+  // Undo buffer for deleted presets (5-second window)
+  const deletedPresetsRef = useRef<Map<string, { preset: WorkflowPreset; timeoutId: ReturnType<typeof setTimeout> }>>(new Map());
+
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [result, setResult] = useState<OrchestratorResult | null>(null);
+  const [error, setError] = useState('');
+  const [detectedPatterns, setDetectedPatterns] = useState<Array<{ category: string; confidence: number; matchedKeywords: string[]; knowledgeHints: string[]; complexity: string; tools: string[]; estimatedTime: string }>>([]);
+  const [cycleWarnings, setCycleWarnings] = useState<string[]>([]);
+  const [executionOrder, setExecutionOrder] = useState<number[] | null>(null);
+  const [parallelGroups, setParallelGroups] = useState<number[][] | null>(null);
+
+  // Workflow execution progress state
+  const [executingPlan, setExecutingPlan] = useState(false);
+  const [completedPhaseCount, setCompletedPhaseCount] = useState(0);
+  const [currentWave, setCurrentWave] = useState(0);
+  const [completedWaves, setCompletedWaves] = useState<number[]>([]);
+  const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
+  const pendingModeValue = useRef(false);
+
+  const [sequentialMode, setSequentialMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('orchestrator-sequential-mode') === 'true';
+    }
+    return false;
+  });
+  const [customPresets, setCustomPresets] = useState<WorkflowPreset[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('orchestrator-custom-presets') || '[]');
+      } catch { return []; }
+    }
+    return [];
+  });
+
   const reorderCustomPresets = useCallback((fromId: string, toId: string) => {
     setCustomPresets((prev) => {
       const fromIdx = prev.findIndex((p) => p.id === fromId);
@@ -192,9 +225,6 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
       return next;
     });
   }, []);
-
-  // Undo buffer for deleted presets (5-second window)
-  const deletedPresetsRef = useRef<Map<string, { preset: WorkflowPreset; timeoutId: ReturnType<typeof setTimeout> }>>(new Map());
 
   const deletePreset = useCallback((preset: WorkflowPreset) => {
     setCustomPresets((prev) => prev.filter((p) => p.id !== preset.id));
@@ -234,36 +264,6 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     );
   }, [selectedPresetId]);
 
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<OrchestratorResult | null>(null);
-  const [error, setError] = useState('');
-  const [detectedPatterns, setDetectedPatterns] = useState<Array<{ category: string; confidence: number; matchedKeywords: string[]; knowledgeHints: string[]; complexity: string; tools: string[]; estimatedTime: string }>>([]);
-  const [cycleWarnings, setCycleWarnings] = useState<string[]>([]);
-  const [executionOrder, setExecutionOrder] = useState<number[] | null>(null);
-  const [parallelGroups, setParallelGroups] = useState<number[][] | null>(null);
-
-  // Workflow execution progress state
-  const [executingPlan, setExecutingPlan] = useState(false);
-  const [completedPhaseCount, setCompletedPhaseCount] = useState(0);
-  const [currentWave, setCurrentWave] = useState(0);
-  const [completedWaves, setCompletedWaves] = useState<number[]>([]);
-  const [showModeChangeDialog, setShowModeChangeDialog] = useState(false);
-  const pendingModeValue = useRef(false);
-
-  const [sequentialMode, setSequentialMode] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('orchestrator-sequential-mode') === 'true';
-    }
-    return false;
-  });
-  const [customPresets, setCustomPresets] = useState<WorkflowPreset[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        return JSON.parse(localStorage.getItem('orchestrator-custom-presets') || '[]');
-      } catch { return []; }
-    }
-    return [];
-  });
   const importFileRef = useRef<HTMLInputElement>(null);
   const presetSearchRef = useRef<HTMLInputElement>(null);
 
@@ -339,9 +339,10 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
 
   // Clean up undo buffer timeouts on unmount
   useEffect(() => {
+    const currentPresets = deletedPresetsRef.current;
     return () => {
-      deletedPresetsRef.current.forEach(({ timeoutId }) => clearTimeout(timeoutId));
-      deletedPresetsRef.current.clear();
+      currentPresets.forEach(({ timeoutId }) => clearTimeout(timeoutId));
+      currentPresets.clear();
     };
   }, []);
 
@@ -418,7 +419,7 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     setShowImportDialog(false);
     setImportPreviewPresets([]);
     setImportCheckedIds(new Set());
-  }, [importPreviewPresets, importCheckedIds]);
+  }, [importPreviewPresets, importCheckedIds, setCustomPresets]);
 
   // Persist sequential mode preference
   useEffect(() => {
@@ -456,6 +457,7 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
   // Pattern recognition on input change
   useEffect(() => {
     if (!task.trim() || task.length < 10) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear patterns when input is short
       setDetectedPatterns([]);
       return;
     }
@@ -562,7 +564,7 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     } finally {
       setIsAnalyzing(false);
     }
-  }, [task]);
+  }, [task, detectedPatterns]);
 
   // Cache for completed wave outputs — keyed by wave index
   const waveOutputsRef = useRef<Map<number, { agent: string; phaseIdx: number; output: string }[]>>(new Map());
@@ -606,8 +608,11 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     const totalPhases = result.plan.length;
     const totalWaves = groups.length;
     const intervalMs = Math.max(1200, 5000 / totalWaves);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initialize wave execution progress
     setCompletedPhaseCount(0);
+     
     setCurrentWave(0);
+     
     setCompletedWaves([]);
     let waveIdx = 0;
     let stopped = false;
@@ -686,7 +691,7 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     }, intervalMs);
 
     return () => { stopped = true; clearInterval(timer); };
-  }, [executingPlan, result, parallelGroups, onAskOracle, task]);
+  }, [executingPlan, result, parallelGroups, onAskOracle, task, sequentialMode]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -1050,7 +1055,6 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
                       {groups.map((waveGroup, waveIdx) => {
                         const isCompleted = completedWaves.includes(waveIdx) || waveIdx < currentWave;
                         const isActive = waveIdx === currentWave && executingPlan && !isCompleted;
-                        const isUpcoming = waveIdx > currentWave;
 
                         return (
                           <motion.div
@@ -1242,12 +1246,12 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
                               }}
                               aria-label="Toggle sequential execution mode"
                             />
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" sideOffset={6} className="max-w-[260px]">
-                            {sequentialMode
-                              ? 'Sequential mode: phases run strictly one at a time, waiting for each to finish before starting the next. Useful when every phase depends on the previous output.'
-                              : 'Parallel mode: independent phases run simultaneously in waves. Faster when phases don\'t depend on each other.'
-                            }
+                          </TooltipTrigger>                           <TooltipContent side="bottom" sideOffset={6} className="max-w-[260px]">
+                          {/* eslint-disable-next-line react-hooks/refs */}
+                          {pendingModeValue.current
+                            ? 'Switching to sequential mode will restart the plan from the beginning, running one phase at a time. This will be slower than parallel execution.'
+                            : 'Switching to parallel mode will restart the plan from the beginning, running independent phases simultaneously. This is faster but changes the execution order.'
+                          }
                           </TooltipContent>
                         </Tooltip>
                       </div>
@@ -1476,8 +1480,8 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
           <Dialog open={showModeChangeDialog} onOpenChange={setShowModeChangeDialog}>
             <DialogContent showCloseButton={false}>
               <DialogHeader>
-                <DialogTitle>⚠️ Switch Execution Mode?</DialogTitle>
-                <DialogDescription>
+                <DialogTitle>⚠️ Switch Execution Mode?</DialogTitle>                 <DialogDescription>
+                  {/* eslint-disable-next-line react-hooks/refs */}
                   {pendingModeValue.current
                     ? 'Switching to sequential mode will restart the plan from the beginning, running one phase at a time. This will be slower than parallel execution.'
                     : 'Switching to parallel mode will restart the plan from the beginning, running independent phases simultaneously. This is faster but changes the execution order.'

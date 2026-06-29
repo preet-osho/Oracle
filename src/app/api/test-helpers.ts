@@ -71,15 +71,18 @@ export function createPutRequest(body: unknown, url = 'http://localhost/api/test
  * const setupChain = makeSetupChain(from, authMock);
  * ```
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- test utility intentionally uses any for flexible mocking
 export function makeSetupChain(from: any, authMock: any) {
   return function setupChain(res?: { data?: unknown; error?: unknown }) {
     const result = { data: res?.data ?? [], error: res?.error ?? null };
     const spy = () => c;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock chain object for flexible test setup
     const c: any = {
       select: vi.fn(spy), insert: vi.fn(spy), update: vi.fn(spy), delete: vi.fn(spy),
       order: vi.fn(spy), eq: vi.fn(spy), limit: vi.fn(spy),
       single: vi.fn().mockResolvedValue(result),
-      then: (ok: any, fail?: any) => { if (result.error) fail?.(result.error); else ok(result); },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock thenable for tests
+        then: (ok: any, fail?: any) => { if (result.error) fail?.(result.error); else ok(result); },
     };
     from.mockReturnValue(c);
     authMock.mockResolvedValue({ user: { id: 'u1' }, supabase: { from, auth: { getUser: vi.fn() }, _chain: c }, org: { orgId: 'org-test-001', role: 'owner' } });

@@ -91,7 +91,7 @@ export async function runEditorGate(
   userRequest: string,
   aiResponse: string,
   agentType: string,
-  configuredProviders: string[]
+  _configuredProviders: string[]
 ): Promise<EditorGateResult> {
   const config = loadEditorConfig();
 
@@ -109,8 +109,6 @@ export async function runEditorGate(
   const startTime = Date.now();
 
   try {
-    const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
-
     const editorPrompt = `${EDITOR_AGENT_PROMPT}
 
 ---

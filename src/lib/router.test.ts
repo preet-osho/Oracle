@@ -496,7 +496,7 @@ describe('NeverStopRouter', () => {
   // ── getFailoverProvider ──
 
   describe('getFailoverProvider', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const getFailover = (id: string) => (NeverStopRouter as any).getFailoverProvider(id) as { providerId: string; modelId: string } | null;
 
     it('returns the next available provider after the current one', () => {
@@ -1340,7 +1340,7 @@ describe('NeverStopRouter', () => {
   // ── getFailoverProvider edge cases ──
 
   describe('getFailoverProvider edge cases', () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     const getFailover = (id: string) => (NeverStopRouter as any).getFailoverProvider(id) as { providerId: string; modelId: string } | null;
 
     it('wraps around when current provider is not in FAILOVER_ORDER', () => {

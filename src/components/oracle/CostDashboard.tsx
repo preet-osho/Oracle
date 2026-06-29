@@ -91,13 +91,16 @@ export default function CostDashboard() {
         fetch('/api/analytics/costs?view=by-provider&days=30'),
       ]);
 
+       
       if (overviewRes.ok) setOverview(await overviewRes.json());
       if (dailyRes.ok) {
         const data = await dailyRes.json();
+         
         setDaily(data.daily || []);
       }
       if (providerRes.ok) {
         const data = await providerRes.json();
+         
         setByProvider(data.byProvider || []);
       }
     } catch {
@@ -108,6 +111,7 @@ export default function CostDashboard() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     const interval = setInterval(fetchData, 60_000); // Refresh every 60s
     return () => clearInterval(interval);
@@ -295,8 +299,6 @@ function DailyCostChart({ data }: { data: DailyCost[] }) {
     <div className="flex items-end gap-0.5" style={{ height: 140 }}>
       {days.map(([day, cost]) => {
         const height = (cost / maxCost) * 100;
-        const dateLabel = day.slice(5); // "MM-DD"
-
         return (
           <div key={day} className="group relative flex-1" style={{ height: '100%' }}>
             <div

@@ -1,9 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {AnimatePresence} from 'framer-motion';
 import { NeverStopRouter } from '@/lib/router';
-import { transitions } from '@/styles/design-tokens';
 import { useRouterStore } from '@/stores/router.store';
 import { conversationsApi, knowledgeDocsApi, projectsApi, memoriesApi } from '@/lib/api';
 import { processDocument, retrieveRelevant, chunkText, indexDocument } from '@/lib/rag';
@@ -11,7 +10,7 @@ import { sanitizeDocumentContent, sanitizeSearchResults, sanitizeExternalContext
 import { getMemories, formatMemoryForContext } from '@/lib/memory';
 import { QUALITY_SCORING_PROMPT } from '@/lib/system-prompt';
 import { saveQualityScore } from '@/lib/quality';
-import { runHallucinationGuard, recordLearning, loadGuardConfig } from '@/lib/hallucination-guard';
+import {runHallucinationGuard, loadGuardConfig} from '@/lib/hallucination-guard';
 import { evaluateOutput, type EvalResult, type ThresholdConfig } from '@/lib/output-quality-evaluator';
 import { runEditorGate, type EditorGateResult } from '@/lib/editor-gate';
 import { calculateAllCosts } from '@/lib/token-budget';
@@ -31,7 +30,7 @@ import { OperatingLoopStepDots, OperatingLoopFloatingProgress } from '@/componen
 
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
-import { DailyUsageIndicator, useSubscriptionState } from '@/components/oracle/FeatureGate';
+import {useSubscriptionState} from '@/components/oracle/FeatureGate';
 import { GuardStatsPanel } from '@/components/oracle/GuardStatsPanel';
 import { AGENT_TYPES, AGENT_SYSTEM_PROMPTS, type AgentType, type ConversationSummary, type ProjectSummary } from '@/components/oracle/agent-config';
 import { ChatHeader } from '@/components/oracle/ChatHeader';
@@ -122,7 +121,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
   // Web search state
   const [webSearchEnabled, setWebSearchEnabled] = useState(webSearchProp ?? false);
-  const [searchContext, setSearchContext] = useState('');
+  const [, setSearchContext] = useState('');
 
   // Cross-domain suggestions state
   const [crossDomainSuggestions, setCrossDomainSuggestions] = useState<Array<{ service: string; relevance: number; rationale: string; value: string }>>([]);
@@ -131,12 +130,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   const [detectedPatterns, setDetectedPatterns] = useState<Array<{ category: string; confidence: number; matchedKeywords: string[] }>>([]);
 
   // Drag-and-drop state
-  const [isDragging, setIsDragging] = useState(false);
+  const [, setIsDragging] = useState(false);
 
   // Daily usage state
   const [dailyUsage, setDailyUsage] = useState<{ used: number; limit: number } | null>(null);
   const dailyUsageRef = useRef<{ used: number; limit: number } | null>(null);
-  const { plan } = useSubscriptionState();
+  const { plan: _plan } = useSubscriptionState();
 
   // Star reactions (persisted in localStorage)
   const [starredMessages, setStarredMessages] = useState<Record<string, boolean>>(() => {
@@ -233,7 +232,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           try {
             const memories = await memoriesApi.list(p.id);
             return { id: p.id, count: memories.length };
-          } catch (err) {
+          } catch {
             toast.error('❌ Failed to load project memories', TOAST_DEFAULTS);
             return { id: p.id, count: 0 };
           }
@@ -635,7 +634,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         guardConfig,
       );
       setGuardResults((prev) => ({ ...prev, [msgId]: result }));
-    } catch (err) {
+    } catch {
       toast('⚠️ Hallucination guard check failed', TOAST_DEFAULTS);
     }
   }, [clientMemories]);
@@ -845,7 +844,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         setIsLoopActive(true);
         const loopProgressRef: OperatingLoopResult[] = [];
 
-        const loopResults = await runOperatingLoop(userMessage.content, callAI, (stepResult, completed, total) => {
+        const loopResults = await runOperatingLoop(userMessage.content, callAI, (stepResult, _completed, _total) => {
           loopProgressRef.push(stepResult);
           setActiveLoopProgress([...loopProgressRef]);
         }, sendSignal);
@@ -1140,7 +1139,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       loopAbortRef.current = null;
       setIsStreaming(false);
     }
-  }, [input, isStreaming, streamingEnabled, agentType, conversationTitle, buildAIContext, recordUsage, saveConversation, scoreResponse, runGuardCheck, runOutputEval, runEditorCheck, runAgencyQualityGate, attachments, getOptimizedMessages, webSearchEnabled, configuredProviders]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchDailyUsage is stable ([] deps)
+  }, [input, isStreaming, streamingEnabled, agentType, conversationTitle, buildAIContext, recordUsage, saveConversation, scoreResponse, runGuardCheck, runOutputEval, runEditorCheck, runAgencyQualityGate, attachments, getOptimizedMessages, webSearchEnabled, configuredProviders, fetchDailyUsage]);
 
   // ── Regenerate Response ──
   const handleRegenerate = useCallback((assistantMsgId: string) => {

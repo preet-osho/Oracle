@@ -5,8 +5,8 @@
 // ═══════════════════════════════════════
 
 import type { QualityScore } from '@/types';
-import { recordTask, getTrainingEntries } from '@/lib/self-training';
-import { getLearningEntries, getLearningInsights } from '@/lib/hallucination-guard';
+import { getTrainingEntries } from '@/lib/self-training';
+import { getLearningEntries } from '@/lib/hallucination-guard';
 import { logAgentPerformance, getBestPerformingModel } from '@/lib/model-selector';
 import type { ModelTier } from '@/lib/model-selector';
 import { PromptRegistry } from '@/lib/prompt-versioning';
@@ -98,7 +98,7 @@ export function recordGuardVerdict(
   originalOutput: string,
   verdict: 'accepted' | 'rejected',
   confidence: number,
-  domain: string = 'general'
+  _domain: string = 'general'
 ): void {
   try {
     // Update model performance based on guard verdict

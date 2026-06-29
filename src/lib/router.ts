@@ -47,7 +47,7 @@ export interface StreamChunk {
   modelId?: string;
 }
 
-import { USD_TO_INR, FAILOVER_ORDER, calculateCost as calculateCostShared } from '@/lib/ai-constants';
+import { FAILOVER_ORDER, calculateCost as calculateCostShared } from '@/lib/ai-constants';
 
 // ─── Key Format Patterns ───────────────
 

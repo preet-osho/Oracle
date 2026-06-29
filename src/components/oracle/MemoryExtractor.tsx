@@ -242,7 +242,7 @@ export function MemoryExtractor({ projectId }: { projectId?: string | null }) {
               </div>
               <h3 className="mb-2 text-[16px] font-bold text-[var(--oracle-text-1)]">No Memories Extracted Yet</h3>
               <p className="max-w-md mx-auto text-[13px] text-[var(--oracle-text-3)]">
-                Paste a conversation transcript above and click "Extract Memories" to identify key client facts.
+                Paste a conversation transcript above and click &quot;Extract Memories&quot; to identify key client facts.
               </p>
             </motion.div>
           )}

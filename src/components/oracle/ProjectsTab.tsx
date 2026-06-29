@@ -80,7 +80,6 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
   const [showInvoice, setShowInvoice] = useState<string | null>(null);
   const [showContract, setShowContract] = useState<string | null>(null);
   const [showExpenses, setShowExpenses] = useState<string | null>(null);
-  const [projectExpenses, setProjectExpenses] = useState<Record<string, Expense[]>>({});
   const { plan } = useSubscriptionState();
   const invoicesAllowed = plan === 'pro' || plan === 'agency';
   const [invoiceModal, setInvoiceModal] = useState<{ open: boolean; requiredPlan: PlanId }>({ open: false, requiredPlan: 'pro' });
@@ -90,14 +89,7 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
     loadTimeEntries().then(setTimeEntries);
   }, []);
 
-  // Load expenses for all projects (seeding happens in BusinessTab on first report generation)
-  useEffect(() => {
-    const expenses: Record<string, Expense[]> = {};
-    for (const p of projects) {
-      expenses[p.id] = getExpensesByProject(p.id);
-    }
-    setProjectExpenses(expenses);
-  }, [projects]);
+
 
 
 
@@ -321,6 +313,7 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
 
   const daysUntil = (d?: string) => {
     if (!d) return null;
+    // eslint-disable-next-line react-hooks/purity
     const diff = Math.ceil((new Date(d).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     if (diff < 0) return `⚠ Overdue by ${Math.abs(diff)} days`;
     if (diff === 0) return 'Due today';
@@ -507,13 +500,7 @@ export function ProjectsTab({ onAskOracle }: { onAskOracle?: (q: string) => void
             projectId={showExpenses}
             projectName={projects.find((p) => p.id === showExpenses)?.clientName || ''}
             onClose={() => setShowExpenses(null)}
-            onExpenseAdded={() => {
-              const expenses: Record<string, Expense[]> = {};
-              for (const p of projects) {
-                expenses[p.id] = getExpensesByProject(p.id);
-              }
-              setProjectExpenses(expenses);
-            }}
+            onExpenseAdded={() => {}}
           />
         )}
       </AnimatePresence>
@@ -798,6 +785,7 @@ function ExpenseTrackerModal({ projectId, projectName, onClose, onExpenseAdded }
   const formatINR = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- load expenses for project
     setExpenses(getExpensesByProject(projectId));
   }, [projectId]);
 
@@ -958,7 +946,7 @@ function ExpenseTrackerModal({ projectId, projectName, onClose, onExpenseAdded }
             </div>
           ))}
           {expenses.length === 0 && !isFormOpen && (
-            <p className="py-4 text-center text-[12px] text-[var(--oracle-text-muted)]">No expenses yet. Click "+ Add Expense" to track costs.</p>
+            <p className="py-4 text-center text-[12px] text-[var(--oracle-text-muted)]">No expenses yet. Click &quot;+ Add Expense&quot; to track costs.</p>
           )}
         </div>
       </motion.div>

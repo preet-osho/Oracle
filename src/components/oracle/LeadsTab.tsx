@@ -171,7 +171,7 @@ const STATUS_EMOJIS: Record<string, string> = {
 
 export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => void }) {
   const [activeView, setActiveView] = useState<'workflows' | 'tracker' | 'followups'>('tracker');
-  const [leads, setLeads] = useState<Lead[]>(
+  const [leads, setLeads] = useState<Lead[]>(() =>
     DEFAULT_LEAD_TEMPLATES.map((t) => ({ ...t, id: `template-${t.businessName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, createdAt: Date.now(), updatedAt: Date.now() }))
   );
   const [filterStatus, setFilterStatus] = useState('All');
@@ -179,7 +179,7 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showAddLead, setShowAddLead] = useState(false);
-  const [showFollowUp, setShowFollowUp] = useState<string | null>(null);
+  const [, setShowFollowUp] = useState<string | null>(null);
 
   // Seed default leads on first load, then fetch leads
   useEffect(() => {

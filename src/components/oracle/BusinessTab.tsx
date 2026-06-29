@@ -49,7 +49,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) => void }) {
   const [activeView, setActiveView] = useState<'streams' | 'projections' | 'forecast' | 'micro-saas' | 'annual-report'>('streams');
-  const [streams, setStreams] = useState<RevenueStream[]>(
+  const [streams, setStreams] = useState<RevenueStream[]>(() =>
     DEFAULT_REVENUE_TEMPLATES.map((t) => ({ ...t, id: `template-${t.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, createdAt: Date.now() }))
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);

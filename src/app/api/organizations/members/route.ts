@@ -78,6 +78,7 @@ export async function POST(request: Request) {
     }
 
     // Owners can assign any role; admins can only assign employee or client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- roleAtLeast accepts string union, role is validated above
     if (auth.org.role === 'admin' && roleAtLeast(role as any, 'admin')) {
       return NextResponse.json(
         { error: 'Admins can only invite employees or clients' },

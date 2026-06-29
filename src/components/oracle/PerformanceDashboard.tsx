@@ -61,7 +61,6 @@ const tooltipStyle = {
 // ─── Performance Dashboard ───────────
 
 export function PerformanceDashboard() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>(() => {
     if (typeof window !== 'undefined') {
@@ -76,13 +75,12 @@ export function PerformanceDashboard() {
   const [budgetLimitEditing, setBudgetLimitEditing] = useState(false);
   const autoRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const performance = useMemo(() => getAgentPerformance(), [refreshKey]);
-  const budget = useMemo(() => getTokenBudget(), [refreshKey]);
+  const performance = useMemo(() => getAgentPerformance(), []);
+  const budget = useMemo(() => getTokenBudget(), []);
 
   const filtered = useMemo(() => filterByRange(performance, timeRange), [performance, timeRange]);
 
   const refresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
     setLastUpdated(new Date());
   }, []);
 
@@ -318,10 +316,11 @@ export function PerformanceDashboard() {
   }, [selectedCompareAgents, agentGroups]);
 
   // ── Performance History (time-series) ──
-  const historyData = useMemo(() => getPerformanceHistory(), [refreshKey]);
+  const historyData = useMemo(() => getPerformanceHistory(), []);
 
   // Shared time-range helpers
   const historyFilter = useMemo(() => {
+    // eslint-disable-next-line react-hooks/purity
     const now = Date.now();
     const rangeMs: Record<TimeRange, number> = { '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '30d': 30 * 24 * 60 * 60 * 1000, 'all': Infinity };
     const bucketMs: Record<TimeRange, number> = { '24h': 60 * 60 * 1000, '7d': 6 * 60 * 60 * 1000, '30d': 24 * 60 * 60 * 1000, 'all': 24 * 60 * 60 * 1000 };

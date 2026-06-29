@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
-import { projectsApi, timeEntriesApi, invoicesApi } from '@/lib/api';
-import { calculateProfitability, aggregateProfitability, getMarginColor, getMarginLabel, getROIIcon, type ProfitabilityData, type CostBreakdown } from '@/lib/profitability';
+import {motionVariants, transitions} from '@/styles/design-tokens';
+import {projectsApi} from '@/lib/api';
+import {calculateProfitability, aggregateProfitability, getMarginColor, getMarginLabel, getROIIcon, type CostBreakdown} from '@/lib/profitability';
 
 // ─── Types ─────────────────────────────
 
@@ -25,6 +25,7 @@ export function ProfitabilityTab({ onAskOracle }: { onAskOracle?: () => void }) 
   const [projects, setProjects] = useState<ProjectWithFinancials[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability
     loadProjects();
   }, []);
 

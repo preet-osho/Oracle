@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { motionVariants, transitions } from '@/styles/design-tokens';
+import {motionVariants} from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 
 // ─── Types ─────────────────────────────
@@ -188,6 +188,7 @@ export function RateLimitDashboard() {
   }, [range, lastUpdated]);
 
   // Initial fetch
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load from API
   useEffect(() => { fetchData(false); }, [fetchData]);
 
   // Auto-refresh polling
@@ -823,6 +824,7 @@ function RateLimitConfigPanel({ onClose }: { onClose: () => void }) {
     }
   }, [historyOpen, history.length]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- load config change history from API
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   return (

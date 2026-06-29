@@ -9,7 +9,6 @@ import {
   updateClientTask,
   addTaskResult,
   type ClientTask,
-  type TaskResult,
 } from '@/lib/client-task-queue';
 import { NeverStopRouter } from '@/lib/router';
 
@@ -182,9 +181,9 @@ export async function executeClientTask(
     // 5. Call AI through the router (wrapping NeverStopRouter.callSync)
     const callAI = async (
       prompt: string,
-      systemPrompt?: string,
-      providerId?: string,
-      modelId?: string
+      _systemPrompt?: string,
+      _providerId?: string,
+      _modelId?: string
     ): Promise<{ text: string; provider: string; model: string; tokens: number }> => {
       const messages = [
         { id: 'user', role: 'user' as const, content: prompt, timestamp: Date.now() },
@@ -327,15 +326,6 @@ export async function executeBatchTasks(
   const concurrency = options.concurrency || 2; // Run up to 2 tasks in parallel
   const results: ExecutionResult[] = [];
   const queue = [...tasks];
-
-  async function processNext(): Promise<void> {
-    const task = queue.shift();
-    if (!task) return;
-
-    const result = await executeClientTask(task, options);
-    results.push(result);
-    await processNext();
-  }
 
   // Start initial batch
   const initialBatch = queue.splice(0, Math.min(concurrency, queue.length));

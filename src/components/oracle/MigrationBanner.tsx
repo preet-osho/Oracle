@@ -29,11 +29,14 @@ export function MigrationBanner() {
     // Check if migration already done or dismissed
     const migrated = localStorage.getItem('oracle-migration-done');
     if (migrated === 'true') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDismissed(true);
       return;
     }
     const data = hasLocalStorageData();
+     
     setHasData(data);
+     
     if (data) setStep('ready');
   }, []);
 

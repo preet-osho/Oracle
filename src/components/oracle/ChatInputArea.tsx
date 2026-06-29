@@ -1,12 +1,12 @@
 'use client';
 
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { estimateTokens } from '@/lib/utils';
 import { AGENT_TYPES, type AgentType } from './agent-config';
 import { DailyUsageIndicator, useSubscriptionState } from './FeatureGate';
 import { hasAgentAccess } from '@/lib/subscription';
-import type { ChatMessage } from './MessageBubble';
+
 
 // ─── Chat Input Area ───────────────────
 

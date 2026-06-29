@@ -18,9 +18,9 @@ const SEVERITY_CONFIG: Record<string, { color: string; bg: string; emoji: string
 // ─── ProactiveInsightsPanel ───────────
 
 export function ProactiveInsightsPanel() {
-  const [refreshKey, setRefreshKey] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Sample client context for demo — in production this would come from the active project
   const [clientContext, setClientContext] = useState(JSON.stringify({
@@ -35,7 +35,9 @@ export function ProactiveInsightsPanel() {
     clientType: 'business',
   }, null, 2));
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshKey intentionally triggers recomputation after localStorage mutations
   const activeInsights = useMemo(() => getActiveInsights(), [refreshKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const allInsights = useMemo(() => getInsights(), [refreshKey]);
 
   const runScan = useCallback(() => {
@@ -145,7 +147,7 @@ export function ProactiveInsightsPanel() {
               </div>
               <h3 className="mb-2 text-[18px] font-bold text-[var(--oracle-text-1)]">No Insights Yet</h3>
               <p className="max-w-md mx-auto text-[14px] text-[var(--oracle-text-3)]">
-                Edit the client context above and click "Run Scan" to detect risks and opportunities.
+                Edit the client context above and click &quot;Run Scan&quot; to detect risks and opportunities.
               </p>
             </motion.div>
           )}

@@ -67,7 +67,6 @@ const SAMPLE_LOGS: CallLog[] = [
 
 export function VoiceAgentTab() {
   const [agents, setAgents] = useState<VoiceAgent[]>(SAMPLE_AGENTS);
-  const [logs] = useState<CallLog[]>(SAMPLE_LOGS);
   const [selectedAgent, setSelectedAgent] = useState<VoiceAgent | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [activeView, setActiveView] = useState<'agents' | 'logs'>('agents');

@@ -105,20 +105,20 @@ export default function ProviderHealthDashboard() {
     } catch {
       // Silently fail
     }
-  }, []);
-
-  // Initial fetch + auto-refresh every 30s
+  }, []);      // Initial fetch + auto-refresh every 30s
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- initial data load from API
     fetchOverview();
     if (!autoRefresh) return;
 
     const interval = setInterval(fetchOverview, 30_000);
     return () => clearInterval(interval);
-  }, [fetchOverview, autoRefresh]);
-
-  // Fetch timeline when provider selected
+  }, [fetchOverview, autoRefresh]);      // Fetch timeline when provider selected
   useEffect(() => {
-    if (selectedProvider) fetchTimeline(selectedProvider);
+    if (selectedProvider) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- load timeline data from API
+      fetchTimeline(selectedProvider);
+    }
   }, [selectedProvider, fetchTimeline]);
 
   if (loading) {

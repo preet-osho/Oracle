@@ -21,6 +21,7 @@ export function QualityTab() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Re-load scores after manual scoring
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshKey intentionally forces re-computation
   const refreshedScores = useMemo(() => loadQualityScores(), [refreshKey]);
   const refreshedAnalysis = useMemo(() => analyzeQualityScores(refreshedScores), [refreshedScores]);
 

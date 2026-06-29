@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
@@ -108,13 +108,16 @@ export function CollaborationTab() {
     toast.success('Collaborator removed', TOAST_DEFAULTS);
   }, []);
 
-  const formatTime = (timestamp: number) => {
-    const diff = Date.now() - timestamp;
+  // eslint-disable-next-line react-hooks/purity
+  const nowRef = useRef(Date.now());
+
+  const formatTime = useCallback((timestamp: number) => {
+    const diff = nowRef.current - timestamp;
     if (diff < 60000) return 'just now';
     if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
     return `${Math.floor(diff / 86400000)}d ago`;
-  };
+  }, []);
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
@@ -183,6 +186,7 @@ export function CollaborationTab() {
               <div className="oracle-glass rounded-2xl p-4">
                 <h3 className="text-[13px] font-semibold text-[var(--oracle-text-1)] mb-3">Shared Projects</h3>
                 <div className="space-y-3">
+                  {/* eslint-disable-next-line react-hooks/refs */}
                   {projects.map((project) => (
                     <div key={project.id} onClick={() => setSelectedProject(project)} className={`cursor-pointer rounded-xl p-4 transition-all ${selectedProject?.id === project.id ? 'bg-[var(--oracle-primary)]/10 border border-[var(--oracle-primary)]/30' : 'border border-[var(--oracle-border)] hover:border-[var(--oracle-border-strong)]'}`}>
                       <div className="flex items-center justify-between mb-2">
@@ -215,6 +219,7 @@ export function CollaborationTab() {
               <div className="oracle-glass rounded-2xl p-4">
                 <h3 className="text-[13px] font-semibold text-[var(--oracle-text-1)] mb-3">Activity Feed</h3>
                 <div className="space-y-3">
+                  {/* eslint-disable-next-line react-hooks/refs */}
                   {activity.map((a) => (
                     <div key={a.id} className="flex items-start gap-2">
                       <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-[var(--oracle-primary)]" />

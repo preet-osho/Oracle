@@ -7,7 +7,6 @@ import {
   API_WRITE_RATE_LIMIT,
 } from '@/lib/rate-limit';
 import { requiresCsrf, validateCsrfToken, generateCsrfToken, setCsrfCookie } from '@/lib/csrf';
-import { checkSubscription } from '@/lib/subscription';
 
 // Routes that are exempt from CSRF (public/read-only or handled elsewhere)
 const CSRF_EXEMPT_PATHS = ['/api/auth', '/auth', '/login'];

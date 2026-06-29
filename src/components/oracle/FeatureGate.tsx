@@ -5,9 +5,10 @@
 // Restricts UI elements by subscription tier
 // ═══════════════════════════════════════
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import type { PlanId } from '@/lib/subscription';
+
 
 // ─── Subscription State (reactive via hooks) ───
 

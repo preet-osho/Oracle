@@ -41,9 +41,13 @@ export function RazorpayPaymentsTab() {
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- safe initialization from localStorage
     setConfigState(getRazorpayConfig());
+     
     setPayments(getPaymentRecords());
+     
     setUpiCodes(getUPIQRCodes());
+     
     setPaymentLinks(getPaymentLinks());
   }, []);
 
@@ -293,7 +297,7 @@ function CheckoutView({ config, onPayment }: { config: RazorpayConfig | null; on
 
 // ─── UPI QR View ───────────────────────
 
-function UPIQRView({ codes, config, onRefresh }: { codes: UPIQRData[]; config: RazorpayConfig | null; onRefresh: () => void }) {
+function UPIQRView({codes, onRefresh}: { codes: UPIQRData[]; config: RazorpayConfig | null; onRefresh: () => void }) {
   const [upiId, setUpiId] = useState('');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -344,6 +348,7 @@ function UPIQRView({ codes, config, onRefresh }: { codes: UPIQRData[]; config: R
             {/* Preview QR */}
             {selectedQR && (
               <div className="mt-4 rounded-xl border border-[var(--oracle-border)] bg-white p-4 text-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={selectedQR.qrUrl} alt="UPI QR Code" className="mx-auto mb-3 h-48 w-48" />
                 <p className="text-[12px] font-bold text-gray-900">₹{selectedQR.amount.toLocaleString('en-IN')}</p>
                 <p className="text-[10px] text-gray-500">{selectedQR.upiId}</p>
@@ -369,6 +374,7 @@ function UPIQRView({ codes, config, onRefresh }: { codes: UPIQRData[]; config: R
                   <div key={qr.id} onClick={() => setSelectedQR(qr)} className={`cursor-pointer rounded-xl border p-3 transition-all ${selectedQR?.id === qr.id ? 'border-[var(--oracle-primary)] bg-[var(--oracle-primary)]/5' : 'border-[var(--oracle-border)] hover:border-[var(--oracle-border-strong)]'}`}>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={qr.qrUrl} alt="" className="h-10 w-10 rounded-lg" />
                         <div>
                           <p className="text-[12px] font-semibold text-[var(--oracle-text-1)]">₹{qr.amount.toLocaleString('en-IN')}</p>
@@ -393,10 +399,10 @@ function UPIQRView({ codes, config, onRefresh }: { codes: UPIQRData[]; config: R
 
 // ─── Payment Links View ────────────────
 
-function PaymentLinksView({ links, config, onRefresh }: { links: PaymentLink[]; config: RazorpayConfig | null; onRefresh: () => void }) {
+function PaymentLinksView({links, onRefresh}: { links: PaymentLink[]; config: RazorpayConfig | null; onRefresh: () => void }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
-  const [agencyName, setAgencyName] = useState('Oracle Digital');
+  const [agencyName] = useState('Oracle Digital');
 
   const handleGenerate = useCallback(() => {
     if (!amount || parseFloat(amount) <= 0) { toast.error('❌ Enter valid amount', TOAST_DEFAULTS); return; }

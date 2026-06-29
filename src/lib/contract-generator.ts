@@ -203,7 +203,7 @@ export function generateContract(
   contract += `Between: ${details.agencyName} and ${details.clientName}\n\n`;
 
   for (const section of template.sections) {
-    let content = section.content
+    const content = section.content
       .replace(/\{\{startDate\}\}/g, details.startDate)
       .replace(/\{\{endDate\}\}/g, details.endDate)
       .replace(/\{\{clientName\}\}/g, details.clientName)

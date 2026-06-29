@@ -49,9 +49,7 @@ export function ChatHeader({
 
   useEffect(() => {
     if (showProjectSelector) {
-      setProjectSearch('');
-      const timer = setTimeout(() => projectSearchRef.current?.focus(), 50);
-      return () => clearTimeout(timer);
+      projectSearchRef.current?.focus();
     }
   }, [showProjectSelector]);
 

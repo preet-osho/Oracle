@@ -34,6 +34,7 @@ vi.mock('@/styles/design-tokens', () => ({
   ],
 }));
 
+/* eslint-disable react/display-name */
 // Mock cmdk
 vi.mock('cmdk', () => ({
   Command: Object.assign(
@@ -41,14 +42,20 @@ vi.mock('cmdk', () => ({
       <div {...props}>{children}</div>
     ),
     {
-      Input: React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
-        (props, ref) => <input ref={ref} {...props} />
+      Input: Object.assign(
+        React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
+          (props, ref) => <input ref={ref} {...props} />
+        ),
+        { displayName: 'Command.Input' }
       ),
-      Group: ({ children, heading }: { children: React.ReactNode; heading?: string }) => (
-        <div>
-          {heading && <div role="heading">{heading}</div>}
-          {children}
-        </div>
+      Group: Object.assign(
+        ({ children, heading }: { children: React.ReactNode; heading?: string }) => (
+          <div>
+            {heading && <div role="heading" aria-level={1}>{heading}</div>}
+            {children}
+          </div>
+        ),
+        { displayName: 'Command.Group' }
       ),
       Item: ({ children, onSelect, value }: { children: React.ReactNode; onSelect?: () => void; value?: string }) => (
         <button onClick={onSelect} data-value={value}>{children}</button>

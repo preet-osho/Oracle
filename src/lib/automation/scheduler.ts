@@ -3,9 +3,7 @@
 // Central configuration for scheduled automations
 // ═══════════════════════════════════════
 
-import { createLogger } from '@/lib/logger';
 
-const log = createLogger('AutomationScheduler');
 
 // ─── Types ─────────────────────────────
 
@@ -189,7 +187,7 @@ export function isValidCron(expression: string): boolean {
  */
 export function estimateNextRun(cronExpression: string, from: Date = new Date()): Date {
   const parts = cronExpression.trim().split(/\s+/);
-  const [, hourPart, dayPart, monthPart, dowPart] = parts;
+  const [, hourPart, dayPart, , dowPart] = parts;
 
   const next = new Date(from);
   next.setSeconds(0);

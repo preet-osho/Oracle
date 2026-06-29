@@ -155,8 +155,6 @@ export function sanitizeSystemPrompt(
     });
   }
 
-  const wasModified = sanitized !== input;
-
   // For critical risk, reject the entire prompt
   if (riskLevel === 'critical') {
     log.error('Critical prompt injection attempt — rejecting prompt', {
@@ -171,7 +169,7 @@ export function sanitizeSystemPrompt(
     };
   }
 
-  return { sanitized, wasModified, threatsDetected, riskLevel };
+  return { sanitized, wasModified: sanitized !== input, threatsDetected, riskLevel };
 }
 
 /**
@@ -314,32 +312,27 @@ export function sanitizeSearchResults(
   for (const result of results) {
     let title = result.title || '';
     let snippet = result.snippet || '';
-    let wasModified = false;
     const threats: string[] = [];
 
     // Length enforcement on title
     if (title.length > 500) {
       title = title.slice(0, 500);
-      wasModified = true;
       threats.push('title_truncated');
     }
 
     // Length enforcement on snippet
     if (snippet.length > MAX_SEARCH_RESULT_LENGTH) {
       snippet = snippet.slice(0, MAX_SEARCH_RESULT_LENGTH);
-      wasModified = true;
       threats.push('snippet_truncated');
     }
 
     // Zero-width character stripping on both
     if (ZERO_WIDTH_PATTERN.test(title)) {
       title = title.replace(ZERO_WIDTH_GLOBAL, '');
-      wasModified = true;
       threats.push('title_zero_width');
     }
     if (ZERO_WIDTH_PATTERN.test(snippet)) {
       snippet = snippet.replace(ZERO_WIDTH_GLOBAL, '');
-      wasModified = true;
       threats.push('snippet_zero_width');
     }
 

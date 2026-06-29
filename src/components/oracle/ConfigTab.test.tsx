@@ -1180,8 +1180,8 @@ describe('ConfigTab', () => {
 
       // Toggle off
       const label = screen.getByText('Enable hallucination guard');
-      const toggleButton = label.closest('div')?.parentElement?.querySelector('button')!;
-      await user.click(toggleButton);
+      const toggleButton = label.closest('div')?.parentElement?.querySelector('button');
+      await user.click(toggleButton!);
 
       // Preview should show disabled
       await waitFor(() => {
@@ -1492,9 +1492,10 @@ describe('ConfigTab', () => {
       render(<ConfigTab />);
 
       // Find the skip agent types section and click the researcher button within it
-      const skipSection = screen.getByText('Skip agent types').closest('div')?.parentElement!;
-      const researcherBtn = skipSection.querySelectorAll('button').length > 0
-        ? Array.from(skipSection.querySelectorAll('button')).find(b => b.textContent?.trim() === 'researcher')
+      const skipSection = screen.getByText('Skip agent types').closest('div')?.parentElement;
+      const buttons = skipSection ? Array.from(skipSection.querySelectorAll('button')) : [];
+      const researcherBtn = buttons.length > 0
+        ? buttons.find(b => b.textContent?.trim() === 'researcher')
         : screen.getAllByText('researcher')[0];
       await user.click(researcherBtn!);
 
@@ -1513,8 +1514,8 @@ describe('ConfigTab', () => {
       render(<ConfigTab />);
 
       // Find the skip agent types section and click the researcher button
-      const skipSection = screen.getByText('Skip agent types').closest('div')?.parentElement!;
-      const researcherBtn = Array.from(skipSection.querySelectorAll('button')).find(b => b.textContent?.includes('researcher'));
+      const skipSection = screen.getByText('Skip agent types').closest('div')?.parentElement;
+      const researcherBtn = Array.from(skipSection?.querySelectorAll('button') ?? []).find(b => b.textContent?.includes('researcher'));
       await user.click(researcherBtn!);
 
       expect(mockSaveEditorConfig).toHaveBeenCalledWith(

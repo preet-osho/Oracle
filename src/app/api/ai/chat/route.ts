@@ -16,7 +16,7 @@ import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
 import { recordCost } from '@/lib/cost-tracker';
 import { recordProviderHealth } from '@/lib/provider-health-server';
 import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';
-import { getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit, PLANS } from '@/lib/subscription';
+import {getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit} from '@/lib/subscription';
 
 // ─── Request Body ──────────────────────
 

@@ -102,10 +102,12 @@ export function MultiClientOrchestrator({ onAskOracle }: { onAskOracle?: (prompt
   // Load tasks
   useEffect(() => {
     populateDemoTasks();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- safe initialization from local data
     setAllTasks(getClientTasks());
   }, []);
 
   // Client summaries
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- allTasks triggers re-computation of getClientSummaries()
   const clientSummaries = useMemo(() => getClientSummaries(), [allTasks]);
 
   // Filtered tasks
@@ -132,13 +134,8 @@ export function MultiClientOrchestrator({ onAskOracle }: { onAskOracle?: (prompt
   }, [allTasks, selectedClientId, statusFilter, searchQuery]);
 
   // Skills
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- allTasks triggers re-computation of getSkillTemplates()
   const skills = useMemo(() => getSkillTemplates(), [allTasks]);
-
-  // Selected task
-  const selectedTask = useMemo(() =>
-    allTasks.find(t => t.id === selectedTaskId) || null,
-    [allTasks, selectedTaskId]
-  );
 
   // Handle batch analysis
   const handleBatchAnalysis = useCallback(() => {
@@ -172,7 +169,7 @@ export function MultiClientOrchestrator({ onAskOracle }: { onAskOracle?: (prompt
     priority: TaskPriority;
   }) => {
     const clientId = `client-${Date.now()}`;
-    const task = addClientTask({
+    addClientTask({
       clientId,
       clientName: data.clientName,
       title: data.title,

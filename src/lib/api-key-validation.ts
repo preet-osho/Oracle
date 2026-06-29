@@ -19,7 +19,7 @@ export interface ValidationResult {
  */
 export async function validateApiKey(
   providerId: string,
-  apiKey: string
+  _apiKey: string
 ): Promise<ValidationResult> {
   const startTime = Date.now();
 
