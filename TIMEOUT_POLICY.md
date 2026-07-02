@@ -4,6 +4,7 @@
 > Maps every call to its timeout tier constant for consistency and maintainability.
 >
 > **Last updated:** 2026-07-02
+> **Total callsites:** 64
 > **Related commits:**
 > - `36d4744` — refactor: consolidate fetchWithTimeout, add timeout tiers, and fix test regressions
 > - `d690ccd` — feat: add TabErrorBoundary component and typed event bus
@@ -175,6 +176,7 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 | 591 | `handleReset` (DELETE) | `/api/analytics/rate-limits` | QUICK | 15s | Internal API — reset user limits |
 | 796 | `RateLimitConfigPanel` (GET) | `/api/admin/rate-limit-config` | QUICK | 15s | Internal API — fetch config |
 | 816 | `handleSave` (PUT) | `/api/admin/rate-limit-config` | QUICK | 15s | Internal API — save config |
+| 870 | `fetchHistory` | `/api/admin/rate-limit-config?history=true` | QUICK | 15s | Internal API — config change history |
 
 ### 21. `src/components/oracle/Header.tsx` — Emergency Stop (Client)
 
@@ -233,19 +235,27 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 |---|---|---|---|---|---|
 | 203 | `startCheckout` | `/api/subscription/status` (POST) | QUICK | 15s | Internal API — activate subscription |
 
+### 30. `src/components/oracle/CostDashboard.tsx` — Cost Tracking (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 89 | `fetchData` (overview) | `/api/analytics/costs?view=overview` | QUICK | 15s | Internal API — cost overview |
+| 90 | `fetchData` (daily) | `/api/analytics/costs?view=daily&days=30` | QUICK | 15s | Internal API — daily cost breakdown |
+| 91 | `fetchData` (by-provider) | `/api/analytics/costs?view=by-provider&days=30` | QUICK | 15s | Internal API — provider cost breakdown |
+
 ---
 
 ## Summary Statistics
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 37 | 60% |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 41 | 64% |
 | MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 10 | 16% |
 | STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 10 | 16% |
 | STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 3 | 5% |
-| **Total** | | | **60** | **100%** |
+| **Total** | | | **64** | **100%** |
 
-> All 60 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
+> All 64 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
 
 ---
 
