@@ -140,19 +140,25 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 |---|---|---|---|---|---|
 | 88 | `POST` | `https://api.razorpay.com/v1/payments/{id}` | QUICK | 15s | External payment API — payment details |
 
+### 17. `src/app/api/og/route.tsx` — OG Image Font Fetching (Edge)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 77 | `fetchFontCached` | `https://fonts.gstatic.com/*` (Google Fonts) | QUICK | 15s | Font assets — cached after first fetch |
+
 ---
 
 ## Summary Statistics
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 18 | 50% |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 19 | 51% |
 | MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 8 | 22% |
 | STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 22% |
-| STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 6% |
-| **Total** | | | **36** | **100%** |
+| STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 5% |
+| **Total** | | | **37** | **100%** |
 
-> All 36 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
+> All 37 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
 
 ---
 

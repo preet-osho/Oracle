@@ -6,6 +6,7 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { TAB_METADATA, VALID_TAB_IDS, PAGE_METADATA, VALID_PAGE_IDS, type OracleTab } from '@/styles/design-tokens';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 export const runtime = 'edge';
 
@@ -72,7 +73,7 @@ async function generateOgImage(request: NextRequest) {
 
     try {
       // 2. Fetch from Google Fonts
-      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      const res = await fetchWithTimeout(url, { timeoutMs: TIMEOUT_QUICK_MS });
       if (!res.ok) return null;
       const buf = await res.arrayBuffer();
 
