@@ -6,10 +6,9 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ─── Hoisted mocks ─────────────────────
 
-const { handlers, mockFrom, mockCallSync, mockScoreResponse, mockExtractAndSaveMemories } = vi.hoisted(() => ({
+const { handlers, mockFrom, mockScoreResponse, mockExtractAndSaveMemories } = vi.hoisted(() => ({
   handlers: {} as Record<string, (...args: any[]) => any>,
   mockFrom: vi.fn(),
-  mockCallSync: vi.fn(),
   mockScoreResponse: vi.fn(),
   mockExtractAndSaveMemories: vi.fn(),
 }));
@@ -55,23 +54,10 @@ vi.mock('@supabase/supabase-js', () => ({
 
 // ─── Mock router ───────────────────────
 
-mockCallSync.mockResolvedValue({
-  text: JSON.stringify({
-    completeness: { score: 20, note: 'Good' },
-    specificity: { score: 20, note: 'Good' },
-    actionability: { score: 20, note: 'Good' },
-    indiaContext: { score: 12, note: 'Good' },
-    clientReady: { score: 8, note: 'Good' },
-    overallNotes: 'Well-structured response',
-  }),
-  provider: 'test',
-  model: 'test',
-  inputTokens: 100,
-  outputTokens: 200,
-});
-
+// NeverStopRouter is imported dynamically inside step.run callbacks but never
+// called directly in these tests (scoreResponse is mocked). Provide a minimal stub.
 vi.mock('@/lib/router', () => ({
-  NeverStopRouter: { callSync: (...a: any[]) => mockCallSync(...a) },
+  NeverStopRouter: { callAISyncServer: vi.fn().mockResolvedValue({ text: '', provider: 'test', model: 'test', inputTokens: 0, outputTokens: 0 }) },
 }));
 
 // ─── Mock quality scoring ──────────────

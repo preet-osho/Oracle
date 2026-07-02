@@ -29,8 +29,6 @@ const {
   mockTimeEntriesApi,
   mockProposalsApi,
   mockInvoicesApi,
-  mockCallStreaming,
-  mockCallSync,
   mockAddCost,
   mockAddUsageRecord,
   mockGetMemories,
@@ -90,8 +88,6 @@ const {
     mockTimeEntriesApi,
     mockProposalsApi,
     mockInvoicesApi,
-    mockCallStreaming: vi.fn(),
-    mockCallSync: vi.fn(),
     mockAddCost: vi.fn(),
     mockAddUsageRecord: vi.fn(),
     mockGetMemories: vi.fn(),
@@ -120,8 +116,6 @@ vi.mock('@/data/domains', () => ({
 
 vi.mock('@/lib/router', () => ({
   NeverStopRouter: {
-    callStreaming: (...args: unknown[]) => mockCallStreaming(...args),
-    callSync: (...args: unknown[]) => mockCallSync(...args),
     calculateCost: vi.fn().mockReturnValue({ usd: 0.001, inr: 0.084 }),
   },
 }));
@@ -314,7 +308,7 @@ vi.mock('@/components/oracle/GuardStatsPanel', () => ({
 }));
 
 // ─── Helpers (shared from test-utils) ──
-import { createStreamingChunks, streamFromChunks, createSSEFetchMock } from './test-utils';
+import { createSSEFetchMock } from './test-utils';
 
 // Controllable runOperatingLoop mock for operating loop tests
 const { mockRunOperatingLoop } = vi.hoisted(() => ({
@@ -331,25 +325,12 @@ describe('Integration: Cross-component workflows', () => {
     mockProposals.length = 0;
     mockMemories.length = 0;
 
-    mockCallStreaming.mockImplementation(async function* () {
-      yield* streamFromChunks(createStreamingChunks('Hello from AI'));
-    });
-
     // Mock global.fetch for ChatPanel's SSE streaming via /api/ai/chat
     global.fetch = createSSEFetchMock([
       { chunk: 'H', done: false, model: 'gpt-4o' },
       { chunk: 'ello', done: false, model: 'gpt-4o' },
       { chunk: ' from AI', done: false, model: 'gpt-4o' },
     ]);
-    mockCallSync.mockResolvedValue({
-      text: 'Hello from AI',
-      provider: 'openai',
-      model: 'gpt-4o',
-      inputTokens: 10,
-      outputTokens: 20,
-      costUSD: 0.001,
-      latencyMs: 150,
-    });
     mockGetMemories.mockResolvedValue([]);
   });
 
