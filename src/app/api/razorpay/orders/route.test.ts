@@ -51,6 +51,7 @@ describe('Razorpay Orders API /api/razorpay/orders', () => {
           receipt: 'orc_123',
           notes: {},
         }),
+        signal: expect.any(AbortSignal),
       });
 
       expect(res.body).toEqual({
