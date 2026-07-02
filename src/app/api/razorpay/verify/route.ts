@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { validateBody, RazorpayVerifySchema } from '@/lib/validations';
 import { enforceRateLimit } from '@/lib/rate-limit';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Razorpay API Helpers ──────────────
 
@@ -85,12 +86,13 @@ export async function POST(request: NextRequest) {
     // Optionally fetch full payment details from Razorpay
     let paymentDetails: Record<string, unknown> | null = null;
     try {
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://api.razorpay.com/v1/payments/${razorpay_payment_id}`,
         {
           headers: {
             'Authorization': `Basic ${Buffer.from(`${credentials.keyId}:${credentials.keySecret}`).toString('base64')}`,
           },
+          timeoutMs: TIMEOUT_QUICK_MS,
         }
       );
       if (response.ok) {

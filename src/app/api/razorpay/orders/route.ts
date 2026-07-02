@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateBody, RazorpayOrderSchema } from '@/lib/validations';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { enforceRateLimit } from '@/lib/rate-limit';
 
@@ -53,13 +54,14 @@ export async function POST(request: NextRequest) {
       notes: notes || {},
     };
 
-    const response = await fetch('https://api.razorpay.com/v1/orders', {
+    const response = await fetchWithTimeout('https://api.razorpay.com/v1/orders', {
       method: 'POST',
       headers: {
         'Authorization': getRazorpayAuthHeader(credentials.keyId, credentials.keySecret),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(orderPayload),
+      timeoutMs: TIMEOUT_QUICK_MS,
     });
 
     const order = await response.json();
