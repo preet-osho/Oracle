@@ -1,6 +1,7 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 import noRawTimeoutMs from "./eslint/rules/no-raw-timeout-ms.js";
+import noRawFetch from "./eslint/rules/no-raw-fetch.js";
 
 const eslintConfig = [
   ...nextCoreWebVitals,
@@ -10,10 +11,11 @@ const eslintConfig = [
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
     plugins: {
-      "custom": { rules: { "no-raw-timeout-ms": noRawTimeoutMs } },
+      "custom": { rules: { "no-raw-timeout-ms": noRawTimeoutMs, "no-raw-fetch": noRawFetch } },
     },
     rules: {
       "custom/no-raw-timeout-ms": "warn",
+      "custom/no-raw-fetch": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", {
         argsIgnorePattern: "^_",
@@ -32,6 +34,7 @@ const eslintConfig = [
       "@typescript-eslint/no-unused-vars": "off",
       "react-hooks/exhaustive-deps": "off",
       "custom/no-raw-timeout-ms": "off",
+      "custom/no-raw-fetch": "off",
     },
   },
 
