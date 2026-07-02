@@ -128,19 +128,31 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 | 117 | `searchTavilyServer` | `https://api.tavily.com/search` | MODERATE | 30s | External search API |
 | 147 | `searchSerperServer` | `https://google.serper.dev/search` | MODERATE | 30s | External search API |
 
+### 15. `src/app/api/razorpay/orders/route.ts` — Razorpay Order Creation (Server)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 56 | `POST` | `https://api.razorpay.com/v1/orders` | QUICK | 15s | External payment API — order creation |
+
+### 16. `src/app/api/razorpay/verify/route.ts` — Razorpay Payment Verification (Server)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 88 | `POST` | `https://api.razorpay.com/v1/payments/{id}` | QUICK | 15s | External payment API — payment details |
+
 ---
 
 ## Summary Statistics
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 16 | 48% |
-| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 8 | 24% |
-| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 24% |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 18 | 50% |
+| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 8 | 22% |
+| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 22% |
 | STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 6% |
-| **Total** | | | **34** | **100%** |
+| **Total** | | | **36** | **100%** |
 
-> All 32 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
+> All 36 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
 
 ---
 
