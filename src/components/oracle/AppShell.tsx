@@ -13,6 +13,7 @@ import { Sidebar } from './Sidebar';
 import { MigrationBanner } from './MigrationBanner';
 import { NotificationPanel } from './NotificationPanel';
 import { motionVariants, transitions, TAB_METADATA } from '@/styles/design-tokens';
+import { TabErrorBoundary } from './TabErrorBoundary';
 import { useRouterStore } from '@/stores/router.store';
 import { isKeyMigrationComplete, countLegacyKeys, migrateKeysToServer } from '@/lib/migrate-localstorage';
 import toast from 'react-hot-toast';
@@ -21,6 +22,7 @@ import { OnboardingWizard } from './OnboardingWizard';
 import { SkipNav } from './SkipNav';
 import { OfflineBanner } from './OfflineBanner';
 import { setSubscriptionState } from './FeatureGate';
+import { emit, on } from '@/lib/events';
 
 // ─── Lazy Load Tabs ───────────────────
 const PromptsTab = lazy(() => import('./PromptsTab').then((m) => ({ default: m.PromptsTab })));
@@ -166,31 +168,21 @@ export function AppShell() {
 
   // ── Quick Action handler: dispatches event to ChatPanel ──
   const handleQuickAction = useCallback((prompt: string) => {
-    window.dispatchEvent(new CustomEvent('oracle-quick-action', { detail: { prompt } }));
+    emit('oracle-quick-action', { prompt });
   }, []);
 
   // ── Listen for ChatPanel state updates to populate Sidebar ──
   useEffect(() => {
-    const onProjectsUpdate = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.projects) setSidebarProjects(detail.projects);
-    };
-    const onQualityUpdate = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (typeof detail?.score === 'number') setSidebarQualityScore(detail.score);
-    };
-    const onProjectSelect = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      setSidebarSelectedProjectId(detail?.projectId ?? null);
-    };
-    window.addEventListener('oracle-projects-update', onProjectsUpdate);
-    window.addEventListener('oracle-quality-update', onQualityUpdate);
-    window.addEventListener('oracle-project-select', onProjectSelect);
-    return () => {
-      window.removeEventListener('oracle-projects-update', onProjectsUpdate);
-      window.removeEventListener('oracle-quality-update', onQualityUpdate);
-      window.removeEventListener('oracle-project-select', onProjectSelect);
-    };
+    const unsub1 = on('oracle-projects-update', (e) => {
+      if (e.detail?.projects) setSidebarProjects(e.detail.projects);
+    });
+    const unsub2 = on('oracle-quality-update', (e) => {
+      if (typeof e.detail?.score === 'number') setSidebarQualityScore(e.detail.score);
+    });
+    const unsub3 = on('oracle-project-select', (e) => {
+      setSidebarSelectedProjectId(e.detail?.projectId ?? null);
+    });
+    return () => { unsub1(); unsub2(); unsub3(); };
   }, []);
 
   // ── Global Keyboard Shortcuts ──
@@ -409,7 +401,9 @@ export function AppShell() {
                   className="h-full"
                 >
                   <Suspense fallback={<TabFallback />}>
-                    {renderTabContent()}
+                    <TabErrorBoundary key={activeTab} tabName={activeTab}>
+                      {renderTabContent()}
+                    </TabErrorBoundary>
                   </Suspense>
                 </motion.div>
               </AnimatePresence>
@@ -425,7 +419,7 @@ export function AppShell() {
                 projects={sidebarProjects}
                 qualityScore={sidebarQualityScore}
                 webSearchEnabled={webSearchEnabled}
-                onWebSearchToggle={() => setWebSearchEnabled((p) => { const next = !p; window.dispatchEvent(new CustomEvent('oracle-web-search-toggle', { detail: { enabled: next } })); return next; })}
+                onWebSearchToggle={() => setWebSearchEnabled((p) => { const next = !p; emit('oracle-web-search-toggle', { enabled: next }); return next; })}
               />
             )}
 

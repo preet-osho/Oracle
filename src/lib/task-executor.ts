@@ -10,7 +10,10 @@ import {
   addTaskResult,
   type ClientTask,
 } from '@/lib/client-task-queue';
-import { NeverStopRouter } from '@/lib/router';
+import { csrfHeaders } from '@/lib/csrf';
+import { fetchWithTimeout } from '@/lib/fetch-utils';
+import { emit, on } from '@/lib/events';
+import type { OracleEventMap } from '@/lib/events';
 
 // ─── Types ─────────────────────────────
 
@@ -43,17 +46,11 @@ export interface ExecutionResult {
 // ─── Event Helpers ─────────────────────
 
 function dispatchProgress(progress: ExecutionProgress): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(
-    new CustomEvent('oracle-task-progress', { detail: progress })
-  );
+  emit('oracle-task-progress', progress as OracleEventMap['oracle-task-progress']);
 }
 
 function dispatchComplete(result: ExecutionResult): void {
-  if (typeof window === 'undefined') return;
-  window.dispatchEvent(
-    new CustomEvent('oracle-task-complete', { detail: result })
-  );
+  emit('oracle-task-complete', result as OracleEventMap['oracle-task-complete']);
 }
 
 // ─── Background Queue Dispatch ────────
@@ -178,25 +175,37 @@ export async function executeClientTask(
       project: undefined as Parameters<typeof runSwarm>[3]['project'],
     };
 
-    // 5. Call AI through the router (wrapping NeverStopRouter.callSync)
+    // 5. Call AI through the server-side proxy (secure, no client-side key exposure)
     const callAI = async (
       prompt: string,
       _systemPrompt?: string,
       _providerId?: string,
       _modelId?: string
     ): Promise<{ text: string; provider: string; model: string; tokens: number }> => {
-      const messages = [
-        { id: 'user', role: 'user' as const, content: prompt, timestamp: Date.now() },
-      ];
-      const result = await NeverStopRouter.callSync(messages, {
-        messages: [{ role: 'user', content: prompt }],
-        maxTokens: 2000,
+      const res = await fetchWithTimeout('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...csrfHeaders(),
+        },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: prompt }],
+          stream: false,
+          maxTokens: 2000,
+        }),
       });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
+        throw new Error(errorData.error || `AI proxy error (${res.status})`);
+      }
+
+      const data = await res.json();
       return {
-        text: result.text,
-        provider: result.provider,
-        model: result.model,
-        tokens: result.inputTokens + result.outputTokens,
+        text: data.text || '',
+        provider: data.provider || 'unknown',
+        model: data.model || 'unknown',
+        tokens: (data.inputTokens || 0) + (data.outputTokens || 0),
       };
     };
 
@@ -352,27 +361,21 @@ export function createProgressListener(
 ): () => void {
   if (typeof window === 'undefined') return () => {};
 
-  const progressHandler = (e: Event) => {
-    const detail = (e as CustomEvent).detail as ExecutionProgress;
+  const unsub1 = on('oracle-task-progress', (e) => {
+    const detail = e.detail as ExecutionProgress;
     if (detail.taskId === taskId) {
       onUpdate(detail);
     }
-  };
+  });
 
-  const completeHandler = (e: Event) => {
-    const detail = (e as CustomEvent).detail as ExecutionResult;
+  const unsub2 = on('oracle-task-complete', (e) => {
+    const detail = e.detail as ExecutionResult;
     if (detail.taskId === taskId && onComplete) {
       onComplete(detail);
     }
-  };
+  });
 
-  window.addEventListener('oracle-task-progress', progressHandler);
-  window.addEventListener('oracle-task-complete', completeHandler);
-
-  return () => {
-    window.removeEventListener('oracle-task-progress', progressHandler);
-    window.removeEventListener('oracle-task-complete', completeHandler);
-  };
+  return () => { unsub1(); unsub2(); };
 }
 
 // ─── Global Progress Store ─────────────
@@ -389,12 +392,12 @@ export function getAllActiveProgress(): ExecutionProgress[] {
 
 // Auto-update the global store via event listeners
 if (typeof window !== 'undefined') {
-  window.addEventListener('oracle-task-progress', ((e: Event) => {
-    const detail = (e as CustomEvent).detail as ExecutionProgress;
+  on('oracle-task-progress', (e) => {
+    const detail = e.detail as ExecutionProgress;
     if (detail.status === 'completed' || detail.status === 'failed') {
       activeTasks.delete(detail.taskId);
     } else {
       activeTasks.set(detail.taskId, detail);
     }
-  }) as EventListener);
+  });
 }

@@ -9,9 +9,12 @@ import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tok
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { MULTI_AGENT_ORCHESTRATOR_PROMPT } from '@/lib/system-prompt';
+import { csrfHeaders } from '@/lib/csrf';
 import { extractFirstJson, buildPlanGraph, detectCyclesInPlan, topologicalSort, parallelExecutionGroups } from '@/lib/workflow-validation';
 import { DependencyGraph, parseCycleEdges } from '@/components/oracle/DependencyGraph';
 import { recogniseTaskPatterns, getKnowledgeHints, getTaskMeta, recordTask, type TaskCategory } from '@/lib/pattern-recognition';
+import { on } from '@/lib/events';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 interface AgentPlan {
@@ -442,16 +445,13 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
 
   // ── Listen for client tasks from MultiClientOrchestrator ──
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.prompt) {
-        setTask(detail.prompt);
+    return on('oracle-client-task', (e) => {
+      if (e.detail?.prompt) {
+        setTask(e.detail.prompt);
         setSelectedPresetId(null);
         toast.success('📥 Client task loaded — ready to analyze', { ...TOAST_DEFAULTS, icon: '🎯' });
       }
-    };
-    window.addEventListener('oracle-client-task', handler);
-    return () => window.removeEventListener('oracle-client-task', handler);
+    });
   }, []);
 
   // Pattern recognition on input change
@@ -527,11 +527,18 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
     const prompt = MULTI_AGENT_ORCHESTRATOR_PROMPT + '\n\nAnalyze this task:\n' + task.slice(0, 2000);
 
     try {
-      const { NeverStopRouter } = await import('@/lib/router');
-      const apiResult = await NeverStopRouter.callSync(
-        [{ id: 'orchestrator', role: 'user', content: prompt, timestamp: Date.now() }],
-        { messages: [{ role: 'user', content: prompt }], maxTokens: 1500 }
-      );
+      const res = await fetchWithTimeout('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, maxTokens: 1500 }),
+        timeoutMs: TIMEOUT_STANDARD_MS,
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
+        throw new Error(errorData.error || `AI proxy error (${res.status})`);
+      }
+      const data = await res.json();
+      const apiResult = { text: data.text as string };
 
       // Parse JSON response using non-greedy bracket-depth extraction
       let parsed: OrchestratorResult | null = null;

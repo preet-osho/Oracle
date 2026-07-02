@@ -19,6 +19,7 @@ import { estimateTokens } from '@/lib/utils';
 import { exportChatToPDF, exportChatToWord } from '@/lib/export-utils';
 import { formatSearchResults } from '@/lib/search';
 import { csrfHeaders } from '@/lib/csrf';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS, TIMEOUT_STANDARD_MS, TIMEOUT_STREAMING_MS } from '@/lib/fetch-utils';
 import { recordTask } from '@/lib/self-training';
 import { recordProviderHealth } from '@/lib/provider-health';
 import { attachQualityToTraining, recordMessageFeedback } from '@/lib/feedback-bridge';
@@ -27,6 +28,7 @@ import { recogniseTaskPatterns } from '@/lib/pattern-recognition';
 import { runQualityGates, runOperatingLoop, type QualityGateResult, type OperatingLoopResult } from '@/lib/agency-operations';
 import { analyzeTask } from '@/lib/task-analyzer';
 import { OperatingLoopStepDots, OperatingLoopFloatingProgress } from '@/components/oracle/OperatingLoopDashboard';
+import { emit, on } from '@/lib/events';
 
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
@@ -159,7 +161,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   // ── Fetch daily usage on mount and after each message ──
   const fetchDailyUsage = useCallback(async () => {
     try {
-      const res = await fetch('/api/subscription/status');
+      const res = await fetchWithTimeout('/api/subscription/status', { timeoutMs: TIMEOUT_QUICK_MS });
       if (res.ok) {
         const data = await res.json();
         if (data.usage) {
@@ -243,7 +245,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         return found ? { ...p, memoryCount: found.count } : p;
       });
       setProjects(updated);
-      window.dispatchEvent(new CustomEvent('oracle-projects-update', { detail: { projects: updated } }));
+      emit('oracle-projects-update', { projects: updated });
     }).catch(() => { toast.error('❌ Failed to load projects', TOAST_DEFAULTS); });
   }, []);
 
@@ -342,7 +344,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     } else {
       setClientMemories([]);
     }
-    window.dispatchEvent(new CustomEvent('oracle-project-select', { detail: { projectId: effectiveProjectId } }));
+    emit('oracle-project-select', { projectId: effectiveProjectId ?? null });
   }, [effectiveProjectId]);
 
   // ── Load conversation ──
@@ -489,10 +491,11 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
     if (webSearchEnabled && userMessage.length > 5) {
       try {
-        const proxyResponse = await fetch('/api/web-search', {
+        const proxyResponse = await fetchWithTimeout('/api/web-search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
           body: JSON.stringify({ query: userMessage, provider: 'tavily', maxResults: 5 }),
+          timeoutMs: TIMEOUT_MODERATE_MS,
         });
         if (proxyResponse.ok) {
           const data = await proxyResponse.json();
@@ -713,7 +716,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     const scores = Object.values(qualityScores);
     if (scores.length > 0) {
       const avg = Math.round(scores.reduce((s, q) => s + q.total, 0) / scores.length);
-      window.dispatchEvent(new CustomEvent('oracle-quality-update', { detail: { score: avg } }));
+      emit('oracle-quality-update', { score: avg });
     }
   }, [qualityScores]);
 
@@ -726,7 +729,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
       const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
 
-      const proxyResponse = await fetch('/api/ai/chat', {
+      const proxyResponse = await fetchWithTimeout('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -738,6 +741,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           maxTokens: 500,
           stream: false,
         }),
+        timeoutMs: TIMEOUT_STANDARD_MS,
       });
 
       if (!proxyResponse.ok) return undefined;
@@ -818,7 +822,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       if (taskAnalysis.complexity > 0.8) {
         const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
         const callAI = async (prompt: string, sysPrompt?: string): Promise<{ text: string; tokens: number }> => {
-          const res = await fetch('/api/ai/chat', {
+          const res = await fetchWithTimeout('/api/ai/chat', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -832,6 +836,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
               maxTokens: 2000,
             }),
             signal: sendSignal,
+            timeoutMs: TIMEOUT_STANDARD_MS,
           });
           if (!res.ok) throw new Error(`AI call failed: ${res.status}`);
           const data = await res.json();
@@ -853,9 +858,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         setOperatingLoopResults((prev) => ({ ...prev, [assistantMessage.id]: loopResults }));
 
         // Dispatch event so Sidebar can show the last completed loop
-        window.dispatchEvent(new CustomEvent('oracle-loop-complete', {
-          detail: { results: loopResults, total: 6, task: userMessage.content, timestamp: Date.now() },
-        }));
+        emit('oracle-loop-complete', { results: loopResults, total: 6, task: userMessage.content, timestamp: Date.now() });
 
         // Inject loop context into system prompt
         const loopContext = loopResults
@@ -884,7 +887,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
         const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
 
-        const proxyResponse = await fetch('/api/ai/chat', {
+        const proxyResponse = await fetchWithTimeout('/api/ai/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -897,6 +900,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
             stream: true,
           }),
           signal: sendSignal,
+          timeoutMs: TIMEOUT_STREAMING_MS,
         });
 
         if (!proxyResponse.ok) {
@@ -1018,7 +1022,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       } else {
         const providerId = configuredProviders.length > 0 ? configuredProviders[0] : 'groq';
 
-        const proxyResponse = await fetch('/api/ai/chat', {
+        const proxyResponse = await fetchWithTimeout('/api/ai/chat', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1031,6 +1035,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
             stream: false,
           }),
           signal: sendSignal,
+          timeoutMs: TIMEOUT_STANDARD_MS,
         });
 
         if (!proxyResponse.ok) {
@@ -1210,27 +1215,21 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
 
   // ── Listen for Quick Actions from Sidebar ──
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail?.prompt) {
-        setInput(detail.prompt);
+    return on('oracle-quick-action', (e) => {
+      if (e.detail?.prompt) {
+        setInput(e.detail.prompt);
         setTimeout(() => inputRef.current?.focus(), 100);
       }
-    };
-    window.addEventListener('oracle-quick-action', handler);
-    return () => window.removeEventListener('oracle-quick-action', handler);
+    });
   }, []);
 
   // ── Listen for Web Search toggle from AppShell/Sidebar ──
   useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (typeof detail?.enabled === 'boolean') {
-        setWebSearchEnabled(detail.enabled);
+    return on('oracle-web-search-toggle', (e) => {
+      if (typeof e.detail?.enabled === 'boolean') {
+        setWebSearchEnabled(e.detail.enabled);
       }
-    };
-    window.addEventListener('oracle-web-search-toggle', handler);
-    return () => window.removeEventListener('oracle-web-search-toggle', handler);
+    });
   }, []);
 
   // ── File Attachment Handler ──

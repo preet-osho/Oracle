@@ -11,6 +11,7 @@ import { useSubscriptionState, UpgradeModal, getRequiredPlanForFeature } from '.
 import type { PlanId } from '@/lib/subscription';
 import { OperatingLoopDashboard } from '@/components/oracle/OperatingLoopDashboard';
 import type { OperatingLoopResult } from '@/lib/agency-operations';
+import { on } from '@/lib/events';
 
 // ─── Sidebar ───────────────────────────
 
@@ -32,19 +33,15 @@ export function Sidebar({ isOpen, onClose, onQuickAction, selectedProjectId, pro
   const [showLoopDashboard, setShowLoopDashboard] = useState(false);
 
   // Listen for oracle-loop-complete events from ChatPanel
-  const handleLoopComplete = useCallback((e: Event) => {
-    const detail = (e as CustomEvent).detail;
-    if (detail?.results) {
-      setLastLoopResults(detail.results);
-      setLastLoopTask(detail.task || '');
-      setShowLoopDashboard(true);
-    }
-  }, []);
-
   useEffect(() => {
-    window.addEventListener('oracle-loop-complete', handleLoopComplete);
-    return () => window.removeEventListener('oracle-loop-complete', handleLoopComplete);
-  }, [handleLoopComplete]);
+    return on('oracle-loop-complete', (e) => {
+      if (e.detail?.results) {
+        setLastLoopResults(e.detail.results);
+        setLastLoopTask(e.detail.task || '');
+        setShowLoopDashboard(true);
+      }
+    });
+  }, []);
   const {
     selectedModel,
     setSelectedModel,

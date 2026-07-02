@@ -22,6 +22,7 @@ import {
 } from '@/lib/client-task-queue';
 import { type TaskCategory } from '@/lib/task-analyzer';
 import { executeClientTask, type ExecutionProgress, type ExecutionResult, createProgressListener } from '@/lib/task-executor';
+import { emit } from '@/lib/events';
 
 
 
@@ -263,7 +264,7 @@ export function MultiClientOrchestrator({ onAskOracle }: { onAskOracle?: (prompt
     ].join('\n');
 
     // Dispatch custom event so OrchestratorPanel can auto-fill
-    window.dispatchEvent(new CustomEvent('oracle-client-task', { detail: { task, prompt } }));
+    emit('oracle-client-task', { task: task.clientName, prompt });
 
     // Navigate to orchestrator tab with the prompt
     onAskOracle(prompt);
