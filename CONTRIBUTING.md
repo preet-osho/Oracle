@@ -18,6 +18,7 @@
   - [Common Pitfalls](#common-pitfalls)
 - [Code Style](#code-style)
 - [Fetch Timeout Tiers](#fetch-timeout-tiers)
+  - [ESLint Rules](#eslint-rules)
 - [Commit Conventions](#commit-conventions)
 - [Pull Request Process](#pull-request-process)
 
@@ -381,6 +382,52 @@ const res = await fetchWithTimeout('https://api.example.com/data', {
 ### Updating the Audit
 
 After adding a new callsite, update `TIMEOUT_POLICY.md` with a new row in the appropriate section and increment the summary statistics.
+
+### ESLint Rules
+
+Two custom ESLint rules enforce fetch timeout conventions:
+
+#### `custom/no-raw-timeout-ms`
+
+Flags raw `timeoutMs` number literals (e.g., `30_000`). All timeouts must use named tier constants.
+
+```typescript
+// ❌ ESLint warning — raw number literal
+const res = await fetchWithTimeout(url, { timeoutMs: 30_000 });
+
+// ✅ Correct — named tier constant
+const res = await fetchWithTimeout(url, { timeoutMs: TIMEOUT_MODERATE_MS });
+```
+
+#### `custom/no-raw-fetch`
+
+Flags raw `fetch()` calls and enforces using `fetchWithTimeout` from `@/lib/fetch-utils`. This ensures every network request has proper timeout protection via the tier constant system.
+
+```typescript
+// ❌ ESLint warning — raw fetch() call
+const res = await fetch('https://api.example.com/data', { method: 'POST' });
+
+// ✅ Correct — fetchWithTimeout with tier constant
+const res = await fetchWithTimeout('https://api.example.com/data', {
+  method: 'POST',
+  timeoutMs: TIMEOUT_MODERATE_MS,
+});
+```
+
+**What gets flagged:**
+- `fetch(url)` — standalone calls
+- `fetch(url, opts)` — calls with options
+- `const res = fetch(url)` — assigned results
+- `Promise.all([fetch(a), fetch(b)])` — parallel calls
+- `fetch(url).then(...)` — chained calls
+
+**What is allowed:**
+- `fetchWithTimeout(url, { timeoutMs: TIMEOUT_QUICK_MS })` — the correct pattern
+- `obj.fetch(url)` — member expressions (e.g., Supabase client)
+- `import { fetch } from '...'` — import declarations
+- Test files — disabled via ESLint config override
+
+Both rules are set to `warn` level for `src/**/*.ts(x)` and disabled in test files. See `eslint/rules/` for implementations and `eslint/rules/*.test.js` for test suites.
 
 ---
 
