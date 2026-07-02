@@ -1,7 +1,12 @@
 # Fetch Timeout Policy
 
-> Auto-generated audit of all `fetchWithTimeout` call sites across the codebase.
+> Audit of all `fetchWithTimeout` call sites across the codebase.
 > Maps every call to its timeout tier constant for consistency and maintainability.
+>
+> **Last updated:** 2026-07-02
+> **Related commits:**
+> - `36d4744` — refactor: consolidate fetchWithTimeout, add timeout tiers, and fix test regressions
+> - `d690ccd` — feat: add TabErrorBoundary component and typed event bus
 
 ## Timeout Tiers
 
@@ -14,105 +19,107 @@
 
 `FETCH_TIMEOUT_MS` aliases `TIMEOUT_QUICK_MS` (15s) — used when no explicit `timeoutMs` is passed.
 
+All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint rule `custom/no-raw-timeout-ms` (set to `warn`).
+
 ---
 
 ## Call Site Registry
 
 ### 1. `src/app/api/ai/chat/route.ts` — AI Chat Proxy (Server)
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 406 | `streamAnthropic` | `https://api.anthropic.com/v1/messages` | 120s | STREAMING | Anthropic streaming — long generation |
-| 485 | `streamOpenAICompatible` | `{baseUrl}/chat/completions` | 120s | STREAMING | OpenAI-compatible streaming — long generation |
-| 570 | `callAnthropicSync` | `https://api.anthropic.com/v1/messages` | 60s | STANDARD | Anthropic non-streaming — moderate generation |
-| 619 | `callOpenAISync` | `{baseUrl}/chat/completions` | 60s | STANDARD | OpenAI-compatible non-streaming — moderate generation |
+| 406 | `streamAnthropic` | `https://api.anthropic.com/v1/messages` | STREAMING | 120s | Anthropic streaming — long generation |
+| 485 | `streamOpenAICompatible` | `{baseUrl}/chat/completions` | STREAMING | 120s | OpenAI-compatible streaming — long generation |
+| 570 | `callAnthropicSync` | `https://api.anthropic.com/v1/messages` | STANDARD | 60s | Anthropic non-streaming — moderate generation |
+| 619 | `callOpenAISync` | `{baseUrl}/chat/completions` | STANDARD | 60s | OpenAI-compatible non-streaming — moderate generation |
 
 ### 2. `src/lib/router.ts` — AI Provider Router
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 288 | `callAnthropicSync` | `{provider.baseUrl}/messages` | 60s | STANDARD | Anthropic provider sync call |
-| 342 | `callOpenAISync` | `{baseUrl}/chat/completions` | 60s | STANDARD | OpenAI-compatible provider sync call |
+| 288 | `callAnthropicSync` | `{provider.baseUrl}/messages` | STANDARD | 60s | Anthropic provider sync call |
+| 342 | `callOpenAISync` | `{baseUrl}/chat/completions` | STANDARD | 60s | OpenAI-compatible provider sync call |
 
 ### 3. `src/lib/editor-gate.ts` — Editor Quality Gate
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 154 | `runEditorGate` | `/api/ai/chat` (proxy) | 30s | MODERATE | AI review with maxTokens:1500 |
+| 154 | `runEditorGate` | `/api/ai/chat` (proxy) | MODERATE | 30s | AI review with maxTokens:1500 |
 
 ### 4. `src/lib/embeddings.ts` — OpenAI Embeddings
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 76 | `generateEmbeddings` | `https://api.openai.com/v1/embeddings` | 30s | MODERATE | Batch embedding requests can be slow |
+| 76 | `generateEmbeddings` | `https://api.openai.com/v1/embeddings` | MODERATE | 30s | Batch embedding requests can be slow |
 
 ### 5. `src/lib/rag.ts` — External Search APIs
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 344 | `tavilySearch` | `https://api.tavily.com/search` | 30s | MODERATE | External search API |
-| 373 | `serperSearch` | `https://google.serper.dev/search` | 30s | MODERATE | External search API |
+| 344 | `tavilySearch` | `https://api.tavily.com/search` | MODERATE | 30s | External search API |
+| 373 | `serperSearch` | `https://google.serper.dev/search` | MODERATE | 30s | External search API |
 
 ### 6. `src/lib/api-key-validation.ts` — API Key Validation
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 35 | `validateApiKey` | `/api/ai/chat` (proxy) | 15s | QUICK | Quick "Say ok" validation with maxTokens:5 |
+| 35 | `validateApiKey` | `/api/ai/chat` (proxy) | QUICK | 15s | Quick "Say ok" validation with maxTokens:5 |
 
 ### 7. `src/lib/task-executor.ts` — Background Task Execution
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 185 | `executeClientTask` | `/api/ai/chat` (proxy) | 15s | DEFAULT | Background task — uses `FETCH_TIMEOUT_MS` |
+| 185 | `executeClientTask` | `/api/ai/chat` (proxy) | QUICK | 15s | Background task — uses `FETCH_TIMEOUT_MS` |
 
 ### 8. `src/lib/razorpay.ts` — Razorpay Payment API
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 135 | `createRazorpayOrder` | `/api/razorpay/orders` (proxy) | 15s | DEFAULT | Internal payment API — uses `FETCH_TIMEOUT_MS` |
-| 150 | `verifyRazorpayPayment` | `/api/razorpay/verify` (proxy) | 15s | DEFAULT | Internal payment API — uses `FETCH_TIMEOUT_MS` |
+| 135 | `createRazorpayOrder` | `/api/razorpay/orders` (proxy) | QUICK | 15s | Internal payment API — uses `FETCH_TIMEOUT_MS` |
+| 150 | `verifyRazorpayPayment` | `/api/razorpay/verify` (proxy) | QUICK | 15s | Internal payment API — uses `FETCH_TIMEOUT_MS` |
 
 ### 9. `src/lib/api.ts` — Generic API Fetch Helper
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 119 | `apiFetch` | Dynamic (CRUD endpoints) | 15s | DEFAULT | General API helper — uses `FETCH_TIMEOUT_MS` |
+| 119 | `apiFetch` | Dynamic (CRUD endpoints) | QUICK | 15s | General API helper — uses `FETCH_TIMEOUT_MS` |
 
 ### 10. `src/lib/user-api-keys.ts` — User API Key Management
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 34 | `list` | `/api/user-api-keys` | 15s | DEFAULT | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
-| 51 | `save` | `/api/user-api-keys` | 15s | DEFAULT | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
-| 72 | `remove` | `/api/user-api-keys` | 15s | DEFAULT | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
+| 34 | `list` | `/api/user-api-keys` | QUICK | 15s | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
+| 51 | `save` | `/api/user-api-keys` | QUICK | 15s | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
+| 72 | `remove` | `/api/user-api-keys` | QUICK | 15s | Internal CRUD — uses `FETCH_TIMEOUT_MS` |
 
 ### 11. `src/components/oracle/ChatPanel.tsx` — Chat Panel (Client)
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 164 | Subscription check | `/api/subscription/status` | 15s | DEFAULT | Quick status check — uses `FETCH_TIMEOUT_MS` |
-| 494 | Web search | `/api/web-search` (proxy) | 15s | DEFAULT | External search via proxy — uses `FETCH_TIMEOUT_MS` |
-| 731 | callAI (sync) | `/api/ai/chat` (proxy) | 15s | DEFAULT | Step-by-step operating loop — uses `FETCH_TIMEOUT_MS` |
-| 823 | Main response (streaming) | `/api/ai/chat` (proxy) | 15s | DEFAULT | SSE streaming — uses `FETCH_TIMEOUT_MS` |
-| 887 | callAI (loop step) | `/api/ai/chat` (proxy) | 15s | DEFAULT | Loop step execution — uses `FETCH_TIMEOUT_MS` |
-| 1021 | callAI (orchestrator) | `/api/ai/chat` (proxy) | 15s | DEFAULT | Multi-agent orchestration — uses `FETCH_TIMEOUT_MS` |
+| 164 | `fetchDailyUsage` | `/api/subscription/status` | QUICK | 15s | Quick status check |
+| 494 | `buildAIContext` | `/api/web-search` (proxy) | MODERATE | 30s | External search via proxy |
+| 732 | `scoreResponse` | `/api/ai/chat` (proxy) | STANDARD | 60s | Quality scoring — sync AI call |
+| 825 | `callAI` (operating loop) | `/api/ai/chat` (proxy) | STANDARD | 60s | Loop step — sync AI call |
+| 890 | Main response (streaming) | `/api/ai/chat` (proxy) | STREAMING | 120s | SSE streaming — long generation |
+| 1025 | Non-streaming response | `/api/ai/chat` (proxy) | STANDARD | 60s | Non-streaming AI call |
 
 ### 12. `src/components/oracle/ConfigTab.tsx` — Config Tab (Client)
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 68 | List circuits | `/api/analytics/circuits` | 15s | DEFAULT | Internal API — uses `FETCH_TIMEOUT_MS` |
-| 90 | Toggle circuit | `/api/analytics/circuits` | 15s | DEFAULT | Internal API — uses `FETCH_TIMEOUT_MS` |
-| 204 | List indexed docs | `/api/knowledge-docs/indexed` | 15s | DEFAULT | Internal API — uses `FETCH_TIMEOUT_MS` |
-| 231 | AI analysis | `/api/ai/chat` (proxy) | 15s | DEFAULT | Document analysis — uses `FETCH_TIMEOUT_MS` |
-| 365 | Reindex doc | `/api/knowledge-docs/{id}/reindex` | 15s | DEFAULT | Internal API — uses `FETCH_TIMEOUT_MS` |
-| 385 | Reindex all | `/api/knowledge-docs/reindex` | 15s | DEFAULT | Internal API — uses `FETCH_TIMEOUT_MS` |
+| 68 | `fetchCircuits` (GET) | `/api/analytics/circuits` | QUICK | 15s | Internal API — circuit breaker status |
+| 90 | `handleResetCircuit` (POST) | `/api/analytics/circuits` | QUICK | 15s | Internal API — circuit breaker reset |
+| 204 | `fetchIndexedIds` | `/api/knowledge-docs/indexed` | QUICK | 15s | Internal API — indexed doc list |
+| 231 | `handleTestKey` | `/api/ai/chat` (proxy) | QUICK | 15s | Validation "Say ok" with maxTokens:10 |
+| 365 | `handleReindexDoc` | `/api/knowledge-docs/{id}/reindex` | MODERATE | 30s | Re-indexing a single document |
+| 385 | `handleReindexAll` | `/api/knowledge-docs/reindex` | MODERATE | 30s | Re-indexing all documents |
 
 ### 13. `src/components/oracle/OrchestratorPanel.tsx` — Orchestrator (Client)
 
-| Line | Function | URL | Timeout | Tier | Rationale |
+| Line | Function | URL | Tier | Timeout | Rationale |
 |---|---|---|---|---|---|
-| 530 | AI orchestration | `/api/ai/chat` (proxy) | 15s | DEFAULT | Multi-agent planning — uses `FETCH_TIMEOUT_MS` |
+| 530 | `analyzeTask` | `/api/ai/chat` (proxy) | STANDARD | 60s | Multi-agent planning — sync AI call |
 
 ---
 
@@ -120,29 +127,32 @@
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` | 15s | 1 | 3% |
-| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 3 | 9% |
-| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 4 | 12% |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 14 | 44% |
+| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 6 | 19% |
+| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 25% |
 | STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 6% |
-| DEFAULT | `FETCH_TIMEOUT_MS` | 15s | 22 | 70% |
+| QUICK (alias) | `FETCH_TIMEOUT_MS` | 15s | 2 | 6% |
 | **Total** | | | **32** | **100%** |
+
+> Note: `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS`. Server-side and library callsites that use `FETCH_TIMEOUT_MS` implicitly get 15s. Client-side callsites now use explicit tier constants for full consistency.
 
 ---
 
 ## Design Principles
 
-1. **Internal APIs (15s / DEFAULT):** All calls to our own `/api/*` endpoints use the default 15s timeout. These are server-side proxies that should respond quickly.
-2. **External APIs (30s / MODERATE):** Third-party APIs (OpenAI embeddings, Tavily, Serper) get 30s to account for network variability.
-3. **AI Generation Sync (60s / STANDARD):** Non-streaming AI generation calls (Anthropic, OpenAI-compatible) get 60s for complete responses.
-4. **AI Generation Streaming (120s / STREAMING):** Streaming AI generation calls get 120s — the timer clears once SSE headers arrive, so this is a safety net.
-5. **Client-side calls to `/api/*`** use `FETCH_TIMEOUT_MS` (15s) since the server-side handler already has its own timeout budget.
+1. **All callsites use named constants** — No raw `timeoutMs` number literals. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
+2. **Internal APIs (15s / QUICK):** All calls to our own `/api/*` endpoints use `TIMEOUT_QUICK_MS` or `FETCH_TIMEOUT_MS`. These are server-side proxies that should respond quickly.
+3. **External APIs (30s / MODERATE):** Third-party APIs (OpenAI embeddings, Tavily, Serper) get `TIMEOUT_MODERATE_MS` to account for network variability.
+4. **AI Generation Sync (60s / STANDARD):** Non-streaming AI generation calls (Anthropic, OpenAI-compatible) get `TIMEOUT_STANDARD_MS` for complete responses.
+5. **AI Generation Streaming (120s / STREAMING):** Streaming AI generation calls get `TIMEOUT_STREAMING_MS` — the timer clears once SSE headers arrive, so this is a safety net.
+6. **Client-side calls to `/api/*`** use explicit tier constants matching the expected response time, not just the default.
 
 ## Adding a New Call Site
 
 When adding a new `fetchWithTimeout` call:
 
 1. **Determine the tier** based on the target:
-   - Internal `/api/*` endpoint → `TIMEOUT_QUICK_MS` (or default)
+   - Internal `/api/*` endpoint → `TIMEOUT_QUICK_MS`
    - External third-party API → `TIMEOUT_MODERATE_MS`
    - AI provider sync → `TIMEOUT_STANDARD_MS`
    - AI provider streaming → `TIMEOUT_STREAMING_MS`
