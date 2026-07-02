@@ -1,4 +1,5 @@
 'use client';
+import { csrfHeaders } from "@/lib/csrf";
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -210,13 +211,18 @@ function ManualQualityScorer({ onScoreSaved }: { onScoreSaved?: () => void }) {
     setError('');
 
     try {
-      const { NeverStopRouter } = await import('@/lib/router');
       const score = await scoreResponse(responseText, async (prompt) => {
-        const apiResult = await NeverStopRouter.callSync(
-          [{ id: 'quality', role: 'user', content: prompt, timestamp: Date.now() }],
-          { messages: [{ role: 'user', content: prompt }], maxTokens: 800 }
-        );
-        return apiResult.text;
+        const res = await fetch('/api/ai/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+          body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, maxTokens: 800 }),
+        });
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
+          throw new Error(errorData.error || `AI proxy error (${res.status})`);
+        }
+        const data = await res.json();
+        return data.text;
       });
 
       if (score) {

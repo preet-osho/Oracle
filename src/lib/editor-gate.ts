@@ -6,6 +6,7 @@
 
 import { EDITOR_AGENT_PROMPT } from '@/lib/agents/editor-agent';
 import { csrfHeaders } from '@/lib/csrf';
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('EditorGate');
@@ -150,7 +151,7 @@ OUTPUT FORMAT (JSON only):
   "assessment": "<brief assessment>"
 }`;
 
-    const proxyResponse = await fetch('/api/ai/chat', {
+    const proxyResponse = await fetchWithTimeout('/api/ai/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
       body: JSON.stringify({
@@ -158,6 +159,7 @@ OUTPUT FORMAT (JSON only):
         maxTokens: 1500,
         stream: false,
       }),
+      timeoutMs: TIMEOUT_MODERATE_MS,
     });
 
     if (!proxyResponse.ok) {

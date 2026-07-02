@@ -5,7 +5,7 @@ import type { MemoryItem } from '@/types';
 
 const {
   mockMemoriesApi,
-  mockCallSync,
+  mockCallAISyncServer,
 } = vi.hoisted(() => {
   const mockMemoriesApi = {
     list: vi.fn(),
@@ -13,8 +13,8 @@ const {
     delete: vi.fn(),
     getAllClientIds: vi.fn(),
   };
-  const mockCallSync = vi.fn();
-  return { mockMemoriesApi, mockCallSync };
+  const mockCallAISyncServer = vi.fn();
+  return { mockMemoriesApi, mockCallAISyncServer };
 });
 
 vi.mock('@/lib/api', () => ({
@@ -23,7 +23,7 @@ vi.mock('@/lib/api', () => ({
 
 // Mock the router (used by extractAndSaveMemories via dynamic import)
 vi.mock('@/lib/router', () => ({
-  NeverStopRouter: { callSync: mockCallSync },
+  NeverStopRouter: { callAISyncServer: mockCallAISyncServer },
 }));
 
 // Import after mocks
@@ -226,11 +226,15 @@ describe('extractAndSaveMemories', () => {
 
   it('extracts memories from AI response and saves them', async () => {
     mockMemoriesApi.list.mockResolvedValue([]);
-    mockCallSync.mockResolvedValue({
+    mockCallAISyncServer.mockResolvedValue({
       text: JSON.stringify([
         { content: 'Prefers email', category: 'preference', importance: 2 },
         { content: 'Based in Mumbai', category: 'fact', importance: 1 },
       ]),
+      provider: 'groq',
+      model: 'test',
+      inputTokens: 100,
+      outputTokens: 50,
     });
 
     mockMemoriesApi.create.mockResolvedValue({
@@ -239,13 +243,13 @@ describe('extractAndSaveMemories', () => {
 
     await extractAndSaveMemories('c1', 'We prefer email communication');
 
-    expect(mockCallSync).toHaveBeenCalled();
+    expect(mockCallAISyncServer).toHaveBeenCalled();
     expect(mockMemoriesApi.create).toHaveBeenCalledTimes(2);
   });
 
   it('handles empty AI response gracefully', async () => {
     mockMemoriesApi.list.mockResolvedValue([]);
-    mockCallSync.mockResolvedValue({ text: 'No memories found' });
+    mockCallAISyncServer.mockResolvedValue({ text: 'No memories found', provider: 'groq', model: 'test', inputTokens: 0, outputTokens: 0 });
 
     await extractAndSaveMemories('c1', 'Hello');
 
@@ -261,7 +265,7 @@ describe('extractAndSaveMemories', () => {
 
     await extractAndSaveMemories('c1', 'New conversation');
 
-    expect(mockCallSync).not.toHaveBeenCalled();
+    expect(mockCallAISyncServer).not.toHaveBeenCalled();
     expect(mockMemoriesApi.create).not.toHaveBeenCalled();
   });
 
@@ -269,11 +273,15 @@ describe('extractAndSaveMemories', () => {
     mockMemoriesApi.list.mockResolvedValue([
       { id: 'e1', client_id: 'c1', content: 'prefers email', category: 'preference', importance: 2, created_at: 0 },
     ]);
-    mockCallSync.mockResolvedValue({
+    mockCallAISyncServer.mockResolvedValue({
       text: JSON.stringify([
         { content: 'Prefers email', category: 'preference', importance: 2 },
         { content: 'Based in Mumbai', category: 'fact', importance: 1 },
       ]),
+      provider: 'groq',
+      model: 'test',
+      inputTokens: 100,
+      outputTokens: 50,
     });
     mockMemoriesApi.create.mockResolvedValue({
       id: 'new', client_id: 'c1', content: 'x', category: 'fact', importance: 2, created_at: 0,
@@ -290,11 +298,15 @@ describe('extractAndSaveMemories', () => {
 
   it('validates and clamps importance values', async () => {
     mockMemoriesApi.list.mockResolvedValue([]);
-    mockCallSync.mockResolvedValue({
+    mockCallAISyncServer.mockResolvedValue({
       text: JSON.stringify([
         { content: 'Test fact', category: 'fact', importance: 99 },
         { content: 'Another fact', category: 'invalid_cat', importance: -5 },
       ]),
+      provider: 'groq',
+      model: 'test',
+      inputTokens: 100,
+      outputTokens: 50,
     });
     mockMemoriesApi.create.mockResolvedValue({
       id: 'new', client_id: 'c1', content: 'x', category: 'fact', importance: 2, created_at: 0,

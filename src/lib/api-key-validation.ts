@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import { getCsrfToken } from '@/lib/csrf';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 export interface ValidationResult {
   valid: boolean;
@@ -31,7 +32,7 @@ export async function validateApiKey(
     };
     if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
-    const response = await fetch('/api/ai/chat', {
+    const response = await fetchWithTimeout('/api/ai/chat', {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -39,6 +40,7 @@ export async function validateApiKey(
         stream: false,
         maxTokens: 5,
       }),
+      timeoutMs: TIMEOUT_QUICK_MS,
     });
 
     const latencyMs = Date.now() - startTime;

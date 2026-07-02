@@ -5,6 +5,7 @@
 
 import type { KnowledgeDocument, SearchResult, MemoryItem } from '@/types';
 import { nanoid } from 'nanoid';
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import {
   semanticSearch,
   storeEmbeddings,
@@ -340,7 +341,7 @@ export async function webSearch(
   // Try Tavily first (free 1000/month)
   if (tavilyKey) {
     try {
-      const response = await fetch('https://api.tavily.com/search', {
+      const response = await fetchWithTimeout('https://api.tavily.com/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -349,6 +350,7 @@ export async function webSearch(
           max_results: 5,
           include_answer: false,
         }),
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
 
       if (response.ok) {
@@ -368,7 +370,7 @@ export async function webSearch(
   // Try Serper (free 2500/month)
   if (serperKey) {
     try {
-      const response = await fetch('https://google.serper.dev/search', {
+      const response = await fetchWithTimeout('https://google.serper.dev/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -378,6 +380,7 @@ export async function webSearch(
           q: query,
           num: 5,
         }),
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
 
       if (response.ok) {

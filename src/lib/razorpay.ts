@@ -3,6 +3,8 @@
 // Checkout · UPI QR · Payment Links · Order Management
 // ═══════════════════════════════════════
 
+import { fetchWithTimeout } from '@/lib/fetch-utils';
+
 // ─── Types ─────────────────────────────
 
 export interface RazorpayConfig {
@@ -130,7 +132,7 @@ export async function createRazorpayOrder(
   receipt?: string,
   notes?: Record<string, string>
 ): Promise<{ orderId: string; amount: number; currency: string; status: string }> {
-  const response = await fetch('/api/razorpay/orders', {
+  const response = await fetchWithTimeout('/api/razorpay/orders', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ amount, currency, receipt, notes }),
@@ -145,7 +147,7 @@ export async function verifyRazorpayPayment(
   paymentId: string,
   signature: string
 ): Promise<{ verified: boolean; amount?: number; status?: string }> {
-  const response = await fetch('/api/razorpay/verify', {
+  const response = await fetchWithTimeout('/api/razorpay/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -101,6 +101,7 @@ export interface ApiFavourite {
 // ─── CSRF Token Helper ─────────────────
 
 import { getCsrfToken } from '@/lib/csrf';
+import { fetchWithTimeout } from '@/lib/fetch-utils';
 
 // ─── Fetch Helper ──────────────────────
 
@@ -115,7 +116,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     if (token) csrfHeaders['x-csrf-token'] = token;
   }
 
-  const res = await fetch(path, {
+  const res = await fetchWithTimeout(path, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...csrfHeaders, ...(options?.headers || {}) },
   });

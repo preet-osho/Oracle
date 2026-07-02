@@ -21,13 +21,58 @@ vi.mock('react-hot-toast', () => ({
   ) as any,
 }));
 
-// Mock NeverStopRouter
-const mockCallSync = vi.fn();
-vi.mock('@/lib/router', () => ({
-  NeverStopRouter: {
-    callSync: (...args: unknown[]) => mockCallSync(...args),
-  },
+vi.mock('@/lib/toast-config', () => ({
+  TOAST_DEFAULTS: { duration: 3000 },
 }));
+
+vi.mock('@/styles/design-tokens', () => ({
+  motionVariants: { fadeUp: {}, tabContent: {}, scaleIn: {} },
+  transitions: { smooth: {}, snappy: {}, popSpring: {} },
+  buttonTapProps: {},
+  cardHoverProps: {},
+}));
+
+vi.mock('@/lib/system-prompt', () => ({
+  MULTI_AGENT_ORCHESTRATOR_PROMPT: 'You are an orchestrator. Decompose tasks into agent plans.',
+}));
+
+vi.mock('@/lib/csrf', () => ({
+  csrfHeaders: vi.fn().mockReturnValue({}),
+}));
+
+vi.mock('@/lib/workflow-validation', () => ({
+  extractFirstJson: (text: string) => {
+    try {
+      const match = text.match(/\{[\s\S]*\}/);
+      return match ? match[0] : null;
+    } catch { return null; }
+  },
+  buildPlanGraph: vi.fn().mockReturnValue({}),
+  detectCyclesInPlan: vi.fn().mockReturnValue([]),
+  topologicalSort: vi.fn().mockReturnValue([0, 1, 2]),
+  parallelExecutionGroups: vi.fn().mockReturnValue([[0], [1], [2]]),
+}));
+
+vi.mock('@/components/oracle/DependencyGraph', () => ({
+  DependencyGraph: () => <div data-testid="dependency-graph" />,
+  parseCycleEdges: vi.fn().mockReturnValue([]),
+}));
+
+vi.mock('@/lib/pattern-recognition', () => ({
+  recogniseTaskPatterns: vi.fn().mockReturnValue([]),
+  getKnowledgeHints: vi.fn().mockReturnValue([]),
+  getTaskMeta: vi.fn().mockReturnValue({ complexity: 'medium', tools: [], estimatedTime: '1 week' }),
+  recordTask: vi.fn(),
+}));
+
+vi.mock('@/lib/events', () => ({
+  emit: vi.fn(),
+  on: vi.fn().mockReturnValue(() => {}),
+}));
+
+// Mock global fetch
+const mockFetch = vi.fn();
+global.fetch = mockFetch;
 
 // ─── Helpers ───────────────────────────
 
@@ -62,6 +107,24 @@ function createOrchestratorResponse(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function mockFetchSuccess(response: Record<string, unknown> = createOrchestratorResponse()) {
+  mockFetch.mockResolvedValue({
+    ok: true,
+    json: () => Promise.resolve({ text: JSON.stringify(response) }),
+  });
+}
+
+function mockFetchFailure(error: string = 'API Error') {
+  mockFetch.mockResolvedValue({
+    ok: false,
+    json: () => Promise.resolve({ error }),
+  });
+}
+
+function mockFetchNetworkError() {
+  mockFetch.mockRejectedValue(new Error('Network error'));
+}
+
 // ─── Tests ─────────────────────────────
 
 describe('OrchestratorPanel', () => {
@@ -69,11 +132,7 @@ describe('OrchestratorPanel', () => {
     vi.clearAllMocks();
     mockToast.mockClear();
     mockToastError.mockClear();
-    mockCallSync.mockResolvedValue({
-      text: JSON.stringify(createOrchestratorResponse()),
-      provider: 'openai',
-      model: 'gpt-4o',
-    });
+    mockFetchSuccess();
   });
 
   // ── Rendering ──
@@ -151,7 +210,7 @@ describe('OrchestratorPanel', () => {
   // ── Task Analysis ──
 
   describe('task analysis', () => {
-    it('calls NeverStopRouter.callSync when analyze is clicked', async () => {
+    it('calls fetch /api/ai/chat when analyze is clicked', async () => {
       const user = userEvent.setup();
       render(<OrchestratorPanel />);
       const textarea = screen.getByPlaceholderText(/Describe a complex task/);
@@ -159,7 +218,10 @@ describe('OrchestratorPanel', () => {
       await user.click(screen.getByText('⚡ Analyze & Decompose'));
 
       await waitFor(() => {
-        expect(mockCallSync).toHaveBeenCalledTimes(1);
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/ai/chat',
+          expect.objectContaining({ method: 'POST' })
+        );
       });
     });
 
@@ -233,8 +295,13 @@ describe('OrchestratorPanel', () => {
 
     it('shows loading state during analysis', async () => {
       let resolvePromise: ((value: unknown) => void) | undefined;
-      mockCallSync.mockImplementation(() =>
-        new Promise((resolve) => { resolvePromise = resolve; })
+      mockFetch.mockImplementation(() =>
+        new Promise((resolve) => {
+          resolvePromise = () => resolve({
+            ok: true,
+            json: () => Promise.resolve({ text: JSON.stringify(createOrchestratorResponse()) }),
+          });
+        })
       );
 
       const user = userEvent.setup();
@@ -251,7 +318,7 @@ describe('OrchestratorPanel', () => {
     });
 
     it('handles analysis failure gracefully', async () => {
-      mockCallSync.mockRejectedValue(new Error('API Error'));
+      mockFetchFailure('API Error');
 
       const user = userEvent.setup();
       render(<OrchestratorPanel />);
@@ -261,20 +328,17 @@ describe('OrchestratorPanel', () => {
 
       await waitFor(() => {
         expect(screen.getByText('API Error')).toBeDefined();
-        // Verify it's in the styled error container
         const errorEl = screen.getByText('API Error');
         expect(errorEl.closest('[class*="oracle-error"]')).toBeDefined();
       });
-      // Empty state and result should not appear
       expect(screen.queryByText('No Task Analyzed Yet')).toBeNull();
       expect(screen.queryByText('📋 Task Analysis')).toBeNull();
     });
 
     it('handles invalid JSON response', async () => {
-      mockCallSync.mockResolvedValue({
-        text: 'This is not valid JSON',
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ text: 'This is not valid JSON' }),
       });
 
       const user = userEvent.setup();
@@ -286,7 +350,6 @@ describe('OrchestratorPanel', () => {
       await waitFor(() => {
         const errorEl = screen.getByText(/Failed to parse orchestrator response/);
         expect(errorEl).toBeDefined();
-        // Verify it's in the styled error container
         expect(errorEl.closest('[class*="oracle-error"]')).toBeDefined();
       });
       expect(screen.queryByText('No Task Analyzed Yet')).toBeNull();
@@ -294,10 +357,9 @@ describe('OrchestratorPanel', () => {
     });
 
     it('shows warning toast when JSON parsing fails', async () => {
-      mockCallSync.mockResolvedValue({
-        text: '{broken json content',
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ text: '{broken json content' }),
       });
 
       const user = userEvent.setup();
@@ -315,10 +377,9 @@ describe('OrchestratorPanel', () => {
     });
 
     it('handles response with no plan array', async () => {
-      mockCallSync.mockResolvedValue({
-        text: JSON.stringify({ analysis: 'Some analysis', synthesisInstructions: 'Some instructions' }),
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () => Promise.resolve({ text: JSON.stringify({ analysis: 'Some analysis', synthesisInstructions: 'Some instructions' }) }),
       });
 
       const user = userEvent.setup();
@@ -342,18 +403,14 @@ describe('OrchestratorPanel', () => {
       await user.type(textarea, 'Create a marketing strategy');
 
       // First attempt fails
-      mockCallSync.mockRejectedValue(new Error('Network error'));
+      mockFetchFailure('Network error');
       await user.click(screen.getByText('⚡ Analyze & Decompose'));
       await waitFor(() => {
         expect(screen.getByText('Network error')).toBeDefined();
       });
 
       // Second attempt succeeds
-      mockCallSync.mockResolvedValue({
-        text: JSON.stringify(createOrchestratorResponse()),
-        provider: 'openai',
-        model: 'gpt-4o',
-      });
+      mockFetchSuccess();
       await user.click(screen.getByText('⚡ Analyze & Decompose'));
       await waitFor(() => {
         expect(screen.queryByText('Network error')).toBeNull();
@@ -362,7 +419,7 @@ describe('OrchestratorPanel', () => {
     });
 
     it('shows non-Error rejection as generic message', async () => {
-      mockCallSync.mockRejectedValue('something weird');
+      mockFetch.mockRejectedValue('something weird');
 
       const user = userEvent.setup();
       render(<OrchestratorPanel />);
@@ -443,10 +500,9 @@ describe('OrchestratorPanel', () => {
       await user.click(screen.getByText('⚡ Analyze & Decompose'));
 
       await waitFor(() => {
-        // Emojis appear multiple times (agent cards + execution order), so use getAllByText
-        expect(screen.getAllByText('🔍').length).toBeGreaterThanOrEqual(1); // researcher
-        expect(screen.getAllByText('🎯').length).toBeGreaterThanOrEqual(1); // strategist
-        expect(screen.getAllByText('✍️').length).toBeGreaterThanOrEqual(1); // writer
+        expect(screen.getAllByText('🔍').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText('🎯').length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText('✍️').length).toBeGreaterThanOrEqual(1);
       });
     });
 

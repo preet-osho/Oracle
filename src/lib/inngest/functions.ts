@@ -86,10 +86,7 @@ export const executeTask = inngest.createFunction(
         _providerId?: string,
         _modelId?: string
       ): Promise<{ text: string; provider: string; model: string; tokens: number }> => {
-        const result = await NeverStopRouter.callSync(
-          [{ id: 'user', role: 'user', content: prompt, timestamp: Date.now() }],
-          { messages: [{ role: 'user', content: prompt }], maxTokens: 2000 }
-        );
+        const result = await NeverStopRouter.callAISyncServer(prompt, { maxTokens: 2000 });
         return {
           text: result.text,
           provider: result.provider,
@@ -194,10 +191,7 @@ export const scoreQuality = inngest.createFunction(
       const { NeverStopRouter } = await import('@/lib/router');
 
       const callAI = async (prompt: string): Promise<string> => {
-        const result = await NeverStopRouter.callSync(
-          [{ id: 'score', role: 'user', content: prompt, timestamp: Date.now() }],
-          { messages: [{ role: 'user', content: prompt }], maxTokens: 1000 }
-        );
+        const result = await NeverStopRouter.callAISyncServer(prompt, { maxTokens: 1000 });
         return result.text;
       };
 
@@ -711,10 +705,7 @@ export const batchQualityReview = inngest.createFunction(
       if (!supabase) return { scored: 0, skipped: unscoredConversations.length };
 
       const callAI = async (prompt: string): Promise<string> => {
-        const result = await NeverStopRouter.callSync(
-          [{ id: 'score', role: 'user', content: prompt, timestamp: Date.now() }],
-          { messages: [{ role: 'user', content: prompt }], maxTokens: 1000 }
-        );
+        const result = await NeverStopRouter.callAISyncServer(prompt, { maxTokens: 1000 });
         return result.text;
       };
 

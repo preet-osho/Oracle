@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { proposalsApi } from '@/lib/api';
 import { ROADMAP_GENERATION_PROMPT } from '@/lib/system-prompt';
+import { csrfHeaders } from '@/lib/csrf';
 import { exportProposalToPDF, exportProposalToWord } from '@/lib/proposal-pdf';
 import { FeatureGate, UpgradePrompt } from './FeatureGate';
 
@@ -57,15 +58,36 @@ export function RoadmapTab({ onAskOracle }: { onAskOracle?: (prompt: string) => 
       .replace('{{timeline}}', '12 weeks standard');
 
     try {
-      const { NeverStopRouter } = await import('@/lib/router');
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: true }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
+        throw new Error(errorData.error || `AI proxy error (${res.status})`);
+      }
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
       let fullText = '';
-      for await (const chunk of NeverStopRouter.callStreaming(
-        [{ id: '1', role: 'user', content: prompt, timestamp: Date.now() }],
-        { messages: [{ role: 'user', content: prompt }] }
-      )) {
-        if (chunk.done) break;
-        fullText += chunk.chunk;
-        setOutput(fullText);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const text = decoder.decode(value, { stream: true });
+          for (const line of text.split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === '[DONE]') continue;
+            try {
+              const chunk = JSON.parse(jsonStr);
+              if (chunk.chunk) {
+                fullText += chunk.chunk;
+                setOutput(fullText);
+              }
+            } catch { /* skip malformed SSE */ }
+          }
+        }
       }
 
       const saved = await proposalsApi.create({

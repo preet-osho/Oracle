@@ -6,7 +6,7 @@
 
 import { NextResponse } from 'next/server';
 import { validateAuth } from '@/lib/supabase/validate';
-import { inviteMember, roleAtLeast, hasPermissionSync } from '@/lib/permissions';
+import { inviteMember, roleAtLeast, hasPermissionSync, type OrgRole } from '@/lib/permissions';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('OrgMembers');
@@ -78,8 +78,7 @@ export async function POST(request: Request) {
     }
 
     // Owners can assign any role; admins can only assign employee or client
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- roleAtLeast accepts string union, role is validated above
-    if (auth.org.role === 'admin' && roleAtLeast(role as any, 'admin')) {
+    if (auth.org.role === 'admin' && roleAtLeast(role as OrgRole, 'admin')) {
       return NextResponse.json(
         { error: 'Admins can only invite employees or clients' },
         { status: 403 }

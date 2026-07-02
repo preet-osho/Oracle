@@ -23,6 +23,7 @@ vi.mock('./FeatureGate', () => ({
 }));
 
 import { ConfigTab } from './ConfigTab';
+import { fetchWithTimeout } from '@/lib/fetch-utils';
 
 // ─── Mocks ─────────────────────────────
 
@@ -187,6 +188,812 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
+// ─── Circuit Breaker Test Helpers ──────────────────────
+
+type CircuitState = 'open' | 'half-open' | 'closed';
+
+interface CircuitFixture {
+  providerId: string;
+  state: CircuitState;
+  consecutiveFailures: number;
+  cooldownRemainingMs: number | null;
+}
+
+interface ResetOptions {
+  /** Response returned by POST /api/analytics/circuits. Defaults to empty circuits. */
+  resetCircuits?: CircuitFixture[];
+  /** If true, POST returns ok: false. */
+  resetError?: boolean;
+}
+
+/**
+ * Mocks global.fetch to return the given circuit fixtures on GET
+ * /api/analytics/circuits, and handles /api/knowledge-docs/indexed + fallback.
+ *
+ * Optionally configures a POST handler for the reset endpoint.
+ */
+function setupCircuitMock(circuits: CircuitFixture[], opts?: ResetOptions) {
+  const unavailable = circuits.filter((c) => c.state === 'open').map((c) => c.providerId);
+  const summary = {
+    total: circuits.length,
+    open: circuits.filter((c) => c.state === 'open').length,
+    halfOpen: circuits.filter((c) => c.state === 'half-open').length,
+    closed: circuits.filter((c) => c.state === 'closed').length,
+  };
+  const resetCircuits = opts?.resetCircuits ?? [];
+  const resetUnavailable = resetCircuits.filter((c) => c.state === 'open').map((c) => c.providerId);
+
+  mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+    if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+    }
+    if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+      if (init?.method === 'POST') {
+        if (opts?.resetError) {
+          return Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'Server error' }) });
+        }
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ success: true, circuits: resetCircuits, unavailable: resetUnavailable }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ circuits, unavailable, summary }),
+      });
+    }
+    return Promise.resolve({ ok: true });
+  });
+}
+
+/** Create a single circuit fixture with sensible defaults. */
+function circuit(
+  providerId: string,
+  state: CircuitState,
+  overrides?: Partial<CircuitFixture>,
+): CircuitFixture {
+  return {
+    providerId,
+    state,
+    consecutiveFailures: state === 'closed' ? 0 : 3,
+    cooldownRemainingMs: state === 'open' ? 120000 : null,
+    ...overrides,
+  };
+}
+
+
+
+// ─── circuit() factory tests ──────────────
+
+describe('circuit() factory', () => {
+  it('returns open circuit with default failures and cooldown', () => {
+    const c = circuit('groq', 'open');
+    expect(c.providerId).toBe('groq');
+    expect(c.state).toBe('open');
+    expect(c.consecutiveFailures).toBe(3);
+    expect(c.cooldownRemainingMs).toBe(120000);
+  });
+
+  it('returns closed circuit with zero failures and no cooldown', () => {
+    const c = circuit('openai', 'closed');
+    expect(c.providerId).toBe('openai');
+    expect(c.state).toBe('closed');
+    expect(c.consecutiveFailures).toBe(0);
+    expect(c.cooldownRemainingMs).toBeNull();
+  });
+
+  it('returns half-open circuit with default failures and no cooldown', () => {
+    const c = circuit('anthropic', 'half-open');
+    expect(c.providerId).toBe('anthropic');
+    expect(c.state).toBe('half-open');
+    expect(c.consecutiveFailures).toBe(3);
+    expect(c.cooldownRemainingMs).toBeNull();
+  });
+
+  it('applies overrides on top of defaults', () => {
+    const c = circuit('groq', 'open', { consecutiveFailures: 10, cooldownRemainingMs: 300000 });
+    expect(c.consecutiveFailures).toBe(10);
+    expect(c.cooldownRemainingMs).toBe(300000);
+    // providerId and state still come from positional args
+    expect(c.providerId).toBe('groq');
+    expect(c.state).toBe('open');
+  });
+
+  it('allows partial overrides (only some fields)', () => {
+    const c = circuit('groq', 'open', { consecutiveFailures: 7 });
+    expect(c.consecutiveFailures).toBe(7);
+    expect(c.cooldownRemainingMs).toBe(120000); // default for open
+  });
+
+  it('allows overriding cooldownRemainingMs on closed circuit', () => {
+    const c = circuit('groq', 'closed', { cooldownRemainingMs: 60000 });
+    expect(c.cooldownRemainingMs).toBe(60000);
+    expect(c.consecutiveFailures).toBe(0); // default for closed
+  });
+
+  // ── Edge cases ──
+
+  it('handles empty overrides object without changing defaults', () => {
+    const c = circuit('groq', 'open', {});
+    expect(c.consecutiveFailures).toBe(3);
+    expect(c.cooldownRemainingMs).toBe(120000);
+  });
+
+  it('overrides all fields at once', () => {
+    const c = circuit('groq', 'open', {
+      consecutiveFailures: 99,
+      cooldownRemainingMs: 0,
+    });
+    expect(c.providerId).toBe('groq');
+    expect(c.state).toBe('open');
+    expect(c.consecutiveFailures).toBe(99);
+    expect(c.cooldownRemainingMs).toBe(0);
+  });
+
+  it('handles providerId with special characters', () => {
+    const c = circuit('my-provider_v2.1', 'half-open');
+    expect(c.providerId).toBe('my-provider_v2.1');
+    expect(c.state).toBe('half-open');
+    expect(c.consecutiveFailures).toBe(3);
+    expect(c.cooldownRemainingMs).toBeNull();
+  });
+
+  it('handles empty string providerId', () => {
+    const c = circuit('', 'closed');
+    expect(c.providerId).toBe('');
+    expect(c.consecutiveFailures).toBe(0);
+  });
+
+  it('handles very large consecutiveFailures override', () => {
+    const c = circuit('groq', 'open', { consecutiveFailures: Number.MAX_SAFE_INTEGER });
+    expect(c.consecutiveFailures).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it('handles zero cooldownRemainingMs override (not null)', () => {
+    const c = circuit('groq', 'open', { cooldownRemainingMs: 0 });
+    expect(c.cooldownRemainingMs).toBe(0); // 0 is falsy but distinct from null
+  });
+});
+
+// ─── setupCircuitMock() tests ──────────────
+
+describe('setupCircuitMock() helper', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('GET returns circuit fixtures with correct summary', async () => {
+    setupCircuitMock([
+      circuit('groq', 'open'),
+      circuit('openai', 'closed'),
+    ]);
+
+    const res = await mockFetch('/api/analytics/circuits', { headers: {} });
+    const data = await res.json();
+    expect(data.circuits).toHaveLength(2);
+    expect(data.summary).toEqual({ total: 2, open: 1, halfOpen: 0, closed: 1 });
+    expect(data.unavailable).toEqual(['groq']);
+  });
+
+  it('GET returns empty arrays for no circuits', async () => {
+    setupCircuitMock([]);
+
+    const res = await mockFetch('/api/analytics/circuits', { headers: {} });
+    const data = await res.json();
+    expect(data.circuits).toHaveLength(0);
+    expect(data.unavailable).toHaveLength(0);
+    expect(data.summary).toEqual({ total: 0, open: 0, halfOpen: 0, closed: 0 });
+  });
+
+  it('GET computes summary counts for mixed states', async () => {
+    setupCircuitMock([
+      circuit('groq', 'open'),
+      circuit('openai', 'half-open'),
+      circuit('anthropic', 'closed'),
+      circuit('deepseek', 'open'),
+    ]);
+
+    const res = await mockFetch('/api/analytics/circuits', { headers: {} });
+    const data = await res.json();
+    expect(data.summary).toEqual({ total: 4, open: 2, halfOpen: 1, closed: 1 });
+    expect(data.unavailable).toEqual(['groq', 'deepseek']);
+  });
+
+  it('GET unavailable list only includes open (not half-open) circuits', async () => {
+    setupCircuitMock([
+      circuit('groq', 'half-open'),
+      circuit('openai', 'closed'),
+    ]);
+
+    const res = await mockFetch('/api/analytics/circuits', { headers: {} });
+    const data = await res.json();
+    expect(data.unavailable).toHaveLength(0);
+    expect(data.summary.open).toBe(0);
+    expect(data.summary.halfOpen).toBe(1);
+  });
+
+  it('POST returns resetCircuits response', async () => {
+    setupCircuitMock(
+      [circuit('groq', 'open')],
+      { resetCircuits: [circuit('openai', 'open')] },
+    );
+
+    const res = await mockFetch('/api/analytics/circuits', { method: 'POST' });
+    expect(res.ok).toBe(true);
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.circuits).toHaveLength(1);
+    expect(data.circuits[0].providerId).toBe('openai');
+    expect(data.unavailable).toEqual(['openai']);
+  });
+
+  it('POST returns empty resetCircuits by default', async () => {
+    setupCircuitMock([circuit('groq', 'open')]);
+
+    const res = await mockFetch('/api/analytics/circuits', { method: 'POST' });
+    const data = await res.json();
+    expect(data.success).toBe(true);
+    expect(data.circuits).toHaveLength(0);
+    expect(data.unavailable).toHaveLength(0);
+  });
+
+  it('POST returns error response when resetError is true', async () => {
+    setupCircuitMock(
+      [circuit('groq', 'open')],
+      { resetError: true },
+    );
+
+    const res = await mockFetch('/api/analytics/circuits', { method: 'POST' });
+    expect(res.ok).toBe(false);
+    const data = await res.json();
+    expect(data.error).toBe('Server error');
+  });
+
+  it('handles /api/knowledge-docs/indexed with empty indexedIds', async () => {
+    setupCircuitMock([]);
+
+    const res = await mockFetch('/api/knowledge-docs/indexed');
+    expect(res.ok).toBe(true);
+    const data = await res.json();
+    expect(data.indexedIds).toEqual([]);
+  });
+
+  it('returns ok:true for unrecognized URLs', async () => {
+    setupCircuitMock([]);
+
+    const res = await mockFetch('/api/some/other/endpoint');
+    expect(res.ok).toBe(true);
+  });
+
+  it('POST resetUnavailable only includes open circuits from resetCircuits', async () => {
+    setupCircuitMock(
+      [circuit('groq', 'open')],
+      {
+        resetCircuits: [
+          circuit('groq', 'closed'),
+          circuit('openai', 'open'),
+        ],
+      },
+    );
+
+    const res = await mockFetch('/api/analytics/circuits', { method: 'POST' });
+    const data = await res.json();
+    expect(data.unavailable).toEqual(['openai']);
+  });
+});
+
+// ─── fetchWithTimeout unit tests ──────────────────────────
+
+describe('fetchWithTimeout (direct)', () => {
+  beforeEach(() => {
+    mockFetch.mockReset();
+  });
+
+  it('passes an AbortSignal to fetch', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    await fetchWithTimeout('/api/test');
+
+    const call = mockFetch.mock.calls[0];
+    expect(call[0]).toBe('/api/test');
+    expect(call[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('works with no init argument', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({ data: 1 }) });
+
+    const res = await fetchWithTimeout('/api/test');
+    expect(res.ok).toBe(true);
+    const call = mockFetch.mock.calls[0];
+    expect(call[0]).toBe('/api/test');
+    expect(call[1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('works with empty object init', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    const res = await fetchWithTimeout('/api/test', {});
+    expect(res.ok).toBe(true);
+    expect(mockFetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('uses default 15s timeout when timeoutMs is not provided', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+      await fetchWithTimeout('/api/test');
+
+      const timeoutCall = setTimeoutSpy.mock.calls.find(
+        ([fn, delay]) => typeof fn === 'function' && delay === 15_000,
+      );
+      expect(timeoutCall).toBeDefined();
+      expect(timeoutCall![1]).toBe(15_000);
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('uses custom timeoutMs when provided', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    try {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+      await fetchWithTimeout('/api/test', { timeoutMs: 5_000 });
+
+      const timeoutCall = setTimeoutSpy.mock.calls.find(
+        ([fn, delay]) => typeof fn === 'function' && delay === 5_000,
+      );
+      expect(timeoutCall).toBeDefined();
+      expect(timeoutCall![1]).toBe(5_000);
+    } finally {
+      setTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('strips timeoutMs from init before passing to fetch', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    await fetchWithTimeout('/api/test', { timeoutMs: 5_000, method: 'POST', headers: { 'Content-Type': 'application/json' } });
+
+    const init = mockFetch.mock.calls[0][1];
+    expect(init.method).toBe('POST');
+    expect(init.headers).toEqual({ 'Content-Type': 'application/json' });
+    expect(init.timeoutMs).toBeUndefined();
+  });
+
+  it('clears the timeout on successful response with the correct timer ID', async () => {
+    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    try {
+      mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+      await fetchWithTimeout('/api/test');
+
+      // Get the return value of the abort setTimeout call (the timer ID)
+      const abortCallIdx = setTimeoutSpy.mock.calls.findIndex(
+        ([fn]) => typeof fn === 'function',
+      );
+      const expectedTimerId = setTimeoutSpy.mock.results[abortCallIdx]?.value;
+
+      // clearTimeout should have been called with that exact timer ID
+      expect(clearTimeoutSpy).toHaveBeenCalledWith(expectedTimerId);
+    } finally {
+      setTimeoutSpy.mockRestore();
+      clearTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('clears the timeout on fetch rejection', async () => {
+    const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+    try {
+      mockFetch.mockRejectedValue(new Error('network error'));
+
+      await expect(fetchWithTimeout('/api/test')).rejects.toThrow('network error');
+      expect(clearTimeoutSpy).toHaveBeenCalled();
+    } finally {
+      clearTimeoutSpy.mockRestore();
+    }
+  });
+
+  it('rejects with AbortError when timeout fires', async () => {
+    vi.useFakeTimers();
+    try {
+      // Mock fetch to hang — the abort signal will reject it
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test');
+
+      // Advance past the 15s timeout — this triggers controller.abort()
+      vi.advanceTimersByTime(15_001);
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('rejects with AbortError when custom timeoutMs fires', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', { timeoutMs: 5000 });
+
+      vi.advanceTimersByTime(5001);
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not abort before custom timeoutMs fires', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', { timeoutMs: 5000 });
+
+      // Advance past 4s but NOT past 5s — should NOT abort yet
+      vi.advanceTimersByTime(4000);
+
+      // Race the promise against a 100ms timer; if it settles within that window, the abort fired too early
+      const raceWinner = await Promise.race([
+        promise.then(() => 'settled').catch(() => 'settled'),
+        new Promise<string>((resolve) => {
+          vi.advanceTimersByTime(100);
+          resolve('timeout-won');
+        }),
+      ]);
+      expect(raceWinner).toBe('timeout-won');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('resolves with the fetch response on success', async () => {
+    const mockResponse = { ok: true, json: () => Promise.resolve({ data: 42 }) };
+    mockFetch.mockResolvedValue(mockResponse);
+
+    const res = await fetchWithTimeout('/api/test');
+    expect(res).toBe(mockResponse);
+    expect(res.ok).toBe(true);
+  });
+
+  it('resolves successfully within custom timeoutMs window', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveFetch!: (value: Response) => void;
+      mockFetch.mockImplementation(() =>
+        new Promise((resolve) => { resolveFetch = resolve; }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', { timeoutMs: 5000 });
+
+      // Advance 2s — before the 5s timeout — then resolve the fetch externally
+      vi.advanceTimersByTime(2000);
+      resolveFetch({ ok: true, json: () => Promise.resolve({ resolved: true }) } as Response);
+
+      const res = await promise;
+      expect(res.ok).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('forwards caller signal abort to fetch', async () => {
+    const callerController = new AbortController();
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted.');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }),
+    );
+
+    const promise = fetchWithTimeout('/api/test', { signal: callerController.signal });
+
+    // Abort via the caller's controller — should propagate through
+    callerController.abort();
+
+    try {
+      await promise;
+      expect.fail('Expected promise to reject');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).name).toBe('AbortError');
+    }
+  });
+
+  it('rejects immediately when caller signal is already aborted', async () => {
+    const callerController = new AbortController();
+    callerController.abort(); // abort before passing
+
+    // Mock must check signal.aborted because the 'abort' event already
+    // fired before the listener was registered inside fetchWithTimeout.
+    mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        if (init?.signal?.aborted) {
+          const err = new Error('The operation was aborted.');
+          err.name = 'AbortError';
+          reject(err);
+          return;
+        }
+        init?.signal?.addEventListener('abort', () => {
+          const err = new Error('The operation was aborted.');
+          err.name = 'AbortError';
+          reject(err);
+        });
+      }),
+    );
+
+    const promise = fetchWithTimeout('/api/test', { signal: callerController.signal });
+
+    try {
+      await promise;
+      expect.fail('Expected promise to reject');
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(Error);
+      expect((err as Error).name).toBe('AbortError');
+    }
+  });
+
+  it('timeout still works when caller signal is also provided', async () => {
+    vi.useFakeTimers();
+    try {
+      const callerController = new AbortController();
+
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', {
+        signal: callerController.signal,
+        timeoutMs: 5000,
+      });
+
+      // Advance past the 5s timeout — should abort even though caller hasn't
+      vi.advanceTimersByTime(5001);
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('caller signal abort wins over timeout when fired first', async () => {
+    vi.useFakeTimers();
+    try {
+      const callerController = new AbortController();
+
+      // Mock fetch to hang until the abort signal fires
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', {
+        signal: callerController.signal,
+        timeoutMs: 5000,
+      });
+
+      // Abort via the caller's signal BEFORE the 5s timeout fires (at 2s)
+      vi.advanceTimersByTime(2000);
+      callerController.abort();
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+
+      // The timeout timer should still be cleared in .finally()
+      // (advance past it to confirm no double-abort issues)
+      vi.advanceTimersByTime(5000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('cleans up caller signal abort listener after successful resolution', async () => {
+    const callerController = new AbortController();
+    const removeListenerSpy = vi.spyOn(callerController.signal, 'removeEventListener');
+
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    try {
+      await fetchWithTimeout('/api/test', { signal: callerController.signal });
+
+      // The abort listener should have been removed in .finally()
+      expect(removeListenerSpy).toHaveBeenCalledWith('abort', expect.any(Function));
+    } finally {
+      removeListenerSpy.mockRestore();
+    }
+  });
+
+  it('forwards init properties like headers and body to fetch', async () => {
+    mockFetch.mockResolvedValue({ ok: true, json: () => Promise.resolve({}) });
+
+    await fetchWithTimeout('/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: 'value' }),
+    });
+
+    const init = mockFetch.mock.calls[0][1];
+    expect(init.method).toBe('POST');
+    expect(init.body).toBe('{"key":"value"}');
+  });
+
+  // ── Edge-case timeoutMs values ──
+
+  it('timeoutMs of 0 aborts immediately', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetch.mockImplementation((_url: string, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', { timeoutMs: 0 });
+
+      // A 0ms timeout fires on the next tick — advance timers
+      vi.advanceTimersByTime(0);
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('timeoutMs of Number.MAX_SAFE_INTEGER does not abort within test window', async () => {
+    vi.useFakeTimers();
+    try {
+      const huge = Number.MAX_SAFE_INTEGER;
+      let resolveFetch!: (value: Response) => void;
+      mockFetch.mockImplementation(() =>
+        new Promise((resolve) => { resolveFetch = resolve; }),
+      );
+
+      const promise = fetchWithTimeout('/api/test', { timeoutMs: huge });
+
+      // Advancing a reasonable time should NOT trigger the astronomically large timeout
+      vi.advanceTimersByTime(10_000);
+
+      // Resolve externally before the astronomically large timeout fires
+      resolveFetch({ ok: true, json: () => Promise.resolve({ resolved: true }) } as Response);
+      const res = await promise;
+      expect(res.ok).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ── Request object as URL input ──
+
+  it('accepts a Request object as input instead of a string', async () => {
+    const mockResponse = { ok: true, json: () => Promise.resolve({ from: 'request' }) };
+    mockFetch.mockResolvedValue(mockResponse);
+
+    const request = new Request('http://localhost/api/test', { method: 'GET' });
+    const res = await fetchWithTimeout(request);
+
+    expect(res).toBe(mockResponse);
+    expect(res.ok).toBe(true);
+
+    // The first positional arg passed to fetch should be the Request object
+    const call = mockFetch.mock.calls[0];
+    expect(call[0]).toBe(request);
+  });
+
+  it('accepts a Request object and still attaches timeout signal', async () => {
+    vi.useFakeTimers();
+    try {
+      mockFetch.mockImplementation((_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => {
+            const err = new Error('The operation was aborted.');
+            err.name = 'AbortError';
+            reject(err);
+          });
+        }),
+      );
+
+      const request = new Request('http://localhost/api/test');
+      const promise = fetchWithTimeout(request, { timeoutMs: 5000 });
+
+      // The signal passed to fetch should be the AbortController's signal,
+      // not anything from the original Request object
+      const fetchedInit = mockFetch.mock.calls[0][1] as RequestInit;
+      expect(fetchedInit.signal).toBeInstanceOf(AbortSignal);
+
+      // Advance past the timeout — should abort
+      vi.advanceTimersByTime(5001);
+
+      try {
+        await promise;
+        expect.fail('Expected promise to reject');
+      } catch (err: unknown) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).name).toBe('AbortError');
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+
+
 // ─── Tests ─────────────────────────────
 
 describe('ConfigTab', () => {
@@ -204,9 +1011,13 @@ describe('ConfigTab', () => {
     mockTemperature = 0.7;
     mockFetch.mockReset();
     // Default: handle /api/knowledge-docs/indexed call on mount
-    mockFetch.mockImplementation((url: string) => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+      }
+      if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+        // Default: no circuits (all healthy)
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ circuits: [], unavailable: [], summary: { total: 0, open: 0, halfOpen: 0, closed: 0 } }) });
       }
       return Promise.resolve({ ok: true });
     });
@@ -1598,6 +2409,519 @@ describe('ConfigTab', () => {
 
       expect(editorIdx).toBeGreaterThan(evalIdx);
       expect(editorIdx).toBeLessThan(agencyIdx);
+    });
+  });
+
+  // ── Circuit Breaker Health Panel ──
+
+  describe('circuit breaker health panel', () => {
+    it('fetches circuit status on mount', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/analytics/circuits',
+        expect.objectContaining({ headers: expect.any(Object) })
+      );
+    });
+
+    it('shows Provider Health section after fetch', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.getByText('⚡ Provider Health')).toBeDefined();
+    });
+
+    it('shows all providers healthy when no circuits', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.getByText('All providers healthy ✓')).toBeDefined();
+    });
+
+    it('shows open circuit with provider name and failures', async () => {
+      setupCircuitMock([circuit('groq', 'open', { consecutiveFailures: 5, cooldownRemainingMs: 180000 })]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getAllByText('Groq').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText(/🔴 Open/)).toBeDefined();
+      expect(screen.getByText(/5 failures/)).toBeDefined();
+    });
+
+    it('shows half-open circuit state', async () => {
+      setupCircuitMock([circuit('openai', 'half-open')]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getAllByText('OpenAI').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText(/🟡 Half-open/)).toBeDefined();
+    });
+
+    it('shows cooldown remaining for open circuits', async () => {
+      setupCircuitMock([circuit('groq', 'open', { cooldownRemainingMs: 150000 })]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/150s left/)).toBeDefined();
+    });
+
+    it('shows reset button for open circuits', async () => {
+      setupCircuitMock([circuit('groq', 'open')]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText('↺ Reset')).toBeDefined();
+    });
+
+    it('does not show reset button for closed circuits', async () => {
+      setupCircuitMock([circuit('groq', 'closed')]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/🟢 Closed/)).toBeDefined();
+      expect(screen.queryByText('↺ Reset')).toBeNull();
+    });
+
+    it('calls POST /api/analytics/circuits when reset is clicked', async () => {
+      setupCircuitMock([circuit('groq', 'open')]);
+
+      const user = userEvent.setup();
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      const resetButton = screen.getByText('↺ Reset');
+      await user.click(resetButton);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/api/analytics/circuits',
+        expect.objectContaining({ method: 'POST' })
+      );
+    });
+
+    it('shows refresh button and re-fetches on click', async () => {
+      let fetchCount = 0;
+      mockFetch.mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+        }
+        if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+          fetchCount++;
+          if (fetchCount > 1) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ circuits: [], unavailable: [], summary: { total: 0, open: 0, halfOpen: 0, closed: 0 } }) });
+          }
+          return Promise.resolve({ ok: true, json: () => Promise.resolve({ circuits: [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 60000 }], unavailable: ['groq'], summary: { total: 1, open: 1, halfOpen: 0, closed: 0 } }) });
+        }
+        return Promise.resolve({ ok: true });
+      });
+
+      const user = userEvent.setup();
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/🔴 Open/)).toBeDefined();
+
+      const refreshButton = screen.getByText(/Refresh Status/);
+      await user.click(refreshButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('All providers healthy ✓')).toBeDefined();
+      });
+    });
+
+    it('shows cooldown description text', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.getByText(/Providers with open circuits are temporarily skipped/)).toBeDefined();
+    });
+
+    it('shows 1 failure (singular) for single failure count', async () => {
+      setupCircuitMock([circuit('anthropic', 'open', { consecutiveFailures: 1, cooldownRemainingMs: 300000 })]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/1 failure$/)).toBeDefined();
+    });
+
+    // ── Summary Banner ──
+
+    it('auto-refreshes circuit status every 30s when circuits are open', async () => {
+      vi.useFakeTimers();
+      try {
+        setupCircuitMock([circuit('groq', 'open')]);
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        const initialCallCount = mockFetch.mock.calls.filter(
+          ([url]) => typeof url === 'string' && url.includes('/api/analytics/circuits')
+        ).length;
+
+        await act(async () => { vi.advanceTimersByTime(30_000); });
+
+        expect(mockFetch.mock.calls.filter(([url]) => typeof url === 'string' && url.includes('/api/analytics/circuits')).length).toBe(initialCallCount + 1);
+
+        await act(async () => { vi.advanceTimersByTime(30_000); });
+
+        expect(mockFetch.mock.calls.filter(([url]) => typeof url === 'string' && url.includes('/api/analytics/circuits')).length).toBe(initialCallCount + 2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('stops auto-refresh when all circuits are closed', async () => {
+      vi.useFakeTimers();
+      try {
+        setupCircuitMock([circuit('groq', 'open')]);
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        // Simulate circuit recovery — swap mock to return closed circuits
+        setupCircuitMock([circuit('groq', 'closed')]);
+
+        await act(async () => { vi.advanceTimersByTime(30_000); });
+
+        const countAfterRecovery = mockFetch.mock.calls.filter(
+          ([url]) => typeof url === 'string' && url.includes('/api/analytics/circuits')
+        ).length;
+
+        // Advance 60s more — no more fetches (interval stopped)
+        await act(async () => { vi.advanceTimersByTime(60_000); });
+
+        const finalCount = mockFetch.mock.calls.filter(
+          ([url]) => typeof url === 'string' && url.includes('/api/analytics/circuits')
+        ).length;
+        expect(finalCount).toBe(countAfterRecovery);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('hides summary banner when no circuits are open', async () => {
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+      expect(screen.queryByText(/temporarily unavailable/)).toBeNull();
+    });
+
+    it('shows summary banner with correct count when 1 provider is open', async () => {
+      setupCircuitMock([circuit('groq', 'open')]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/1 provider temporarily unavailable/)).toBeDefined();
+      expect(screen.getByText(/see Provider Health below/)).toBeDefined();
+    });
+
+    it('shows summary banner with plural count when multiple providers are open', async () => {
+      setupCircuitMock([
+        circuit('groq', 'open'),
+        circuit('openai', 'half-open'),
+      ]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.getByText(/2 providers temporarily unavailable/)).toBeDefined();
+    });
+
+    it('hides summary banner when only closed circuits exist', async () => {
+      setupCircuitMock([circuit('groq', 'closed')]);
+
+      await act(async () => {
+        render(<ConfigTab />);
+      });
+
+      expect(screen.queryByText(/temporarily unavailable/)).toBeNull();
+    });
+    // ── End-to-End Reset Flow Integration Tests ──
+
+    describe('end-to-end reset flow', () => {
+      it('full reset flow: open circuit → banner → reset → healthy state', async () => {
+        const user = userEvent.setup();
+
+        setupCircuitMock(
+          [{ providerId: 'groq', state: 'open', consecutiveFailures: 5, cooldownRemainingMs: 200000 }],
+          { resetCircuits: [] },
+        );
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        expect(screen.getByText(/🔴 Open/)).toBeDefined();
+        expect(screen.getByText(/5 failures/)).toBeDefined();
+        expect(screen.getByText(/200s left/)).toBeDefined();
+        expect(screen.getByText('↺ Reset')).toBeDefined();
+        expect(screen.getByText(/1 provider temporarily unavailable/)).toBeDefined();
+        expect(screen.getByText(/⚠ 1 down/)).toBeDefined();
+
+        await user.click(screen.getByText('↺ Reset'));
+
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/analytics/circuits',
+          expect.objectContaining({ method: 'POST' })
+        );
+
+        await waitFor(() => {
+          expect(screen.getByText('All providers healthy ✓')).toBeDefined();
+        });
+        expect(screen.queryByText(/temporarily unavailable/)).toBeNull();
+        expect(screen.queryByText(/⚠.*down/)).toBeNull();
+        expect(screen.queryByText('↺ Reset')).toBeNull();
+      });
+
+      it('reset with multiple circuits clears only the reset one', async () => {
+        const user = userEvent.setup();
+
+        setupCircuitMock(
+          [
+            { providerId: 'groq', state: 'open', consecutiveFailures: 5, cooldownRemainingMs: 180000 },
+            { providerId: 'openai', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 150000 },
+          ],
+          {
+            resetCircuits: [{ providerId: 'openai', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 150000 }],
+          },
+        );
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        expect(screen.getByText(/2 providers temporarily unavailable/)).toBeDefined();
+        expect(screen.getByText(/⚠ 2 down/)).toBeDefined();
+
+        const resetButtons = screen.getAllByText('↺ Reset');
+        await user.click(resetButtons[0]);
+
+        await waitFor(() => {
+          expect(screen.getByText(/1 provider temporarily unavailable/)).toBeDefined();
+        });
+        expect(screen.getByText(/⚠ 1 down/)).toBeDefined();
+        expect(screen.getByText(/🔴 Open/)).toBeDefined();
+      });
+
+      it('handles reset failure gracefully without crashing', async () => {
+        const user = userEvent.setup();
+
+        setupCircuitMock(
+          [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 120000 }],
+          { resetError: true },
+        );
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        expect(screen.getByText('↺ Reset')).toBeDefined();
+
+        await user.click(screen.getByText('↺ Reset'));
+
+        await waitFor(() => {
+          expect(screen.getByText(/🔴 Open/)).toBeDefined();
+        });
+        expect(screen.getByText('↺ Reset')).toBeDefined();
+      });
+
+      it('reset disables button while in flight and re-enables after', async () => {
+        const user = userEvent.setup();
+
+        let resolveReset: (() => void) | undefined;
+        mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+          if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+          }
+          if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+            if (init?.method === 'POST') {
+              return new Promise((resolve) => {
+                resolveReset = () => resolve({
+                  ok: true,
+                  json: () => Promise.resolve({ success: true, circuits: [], unavailable: [] }),
+                });
+              });
+            }
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                circuits: [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 120000 }],
+                unavailable: ['groq'],
+                summary: { total: 1, open: 1, halfOpen: 0, closed: 0 },
+              }),
+            });
+          }
+          return Promise.resolve({ ok: true });
+        });
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        await user.click(screen.getByText('↺ Reset'));
+        expect(screen.getByText('⟳')).toBeDefined();
+
+        const resolver = resolveReset;
+        await act(async () => {
+          resolver?.();
+        });
+
+        await waitFor(() => {
+          expect(screen.getByText('All providers healthy ✓')).toBeDefined();
+        });
+      });
+
+      it('uses 15s timeout for AbortController on circuit reset', async () => {
+        const user = userEvent.setup();
+        const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+        try {
+          setupCircuitMock([circuit('groq', 'open')]);
+
+          await act(async () => {
+            render(<ConfigTab />);
+          });
+
+          await user.click(screen.getByText('↺ Reset'));
+
+          // Find the setTimeout call whose first arg is a function (the abort callback)
+          // and verify the delay is exactly 15_000ms
+          const abortTimeoutCall = setTimeoutSpy.mock.calls.find(
+            ([fn, delay]) => typeof fn === 'function' && delay === 15_000,
+          );
+          expect(abortTimeoutCall).toBeDefined();
+          expect(abortTimeoutCall![1]).toBe(15_000);
+        } finally {
+          setTimeoutSpy.mockRestore();
+        }
+      });
+
+      it('passes AbortSignal to fetch for timeout support', async () => {
+        const user = userEvent.setup();
+
+        // Capture the AbortSignal passed to fetch to verify it exists and is valid
+        let capturedSignal: AbortSignal | null = null;
+        mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+          if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+          }
+          if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+            if (init?.method === 'POST') {
+              capturedSignal = init.signal ?? null;
+              // Hang — we just want to verify the signal is attached
+              return new Promise(() => {});
+            }
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                circuits: [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 120000 }],
+                unavailable: ['groq'],
+                summary: { total: 1, open: 1, halfOpen: 0, closed: 0 },
+              }),
+            });
+          }
+          return Promise.resolve({ ok: true });
+        });
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        await user.click(screen.getByText('↺ Reset'));
+
+        // The AbortController signal should be attached to the POST request
+        expect(capturedSignal).not.toBeNull();
+        expect(capturedSignal).toBeInstanceOf(AbortSignal);
+        expect(capturedSignal!.aborted).toBe(false);
+        expect(typeof capturedSignal!.addEventListener).toBe('function');
+      });
+
+      it('shows timeout error toast when fetch throws AbortError', async () => {
+        const user = userEvent.setup();
+
+        // Override the POST to immediately throw an AbortError
+        // This simulates what happens when the 15s AbortController timeout fires
+        mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+          if (typeof url === 'string' && url.includes('/api/knowledge-docs/indexed')) {
+            return Promise.resolve({ ok: true, json: () => Promise.resolve({ indexedIds: [] }) });
+          }
+          if (typeof url === 'string' && url.includes('/api/analytics/circuits')) {
+            if (init?.method === 'POST') {
+              // Immediately throw to simulate an already-aborted controller
+              throw Object.assign(new Error('The operation was aborted.'), { name: 'AbortError' });
+            }
+            return Promise.resolve({
+              ok: true,
+              json: () => Promise.resolve({
+                circuits: [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 120000 }],
+                unavailable: ['groq'],
+                summary: { total: 1, open: 1, halfOpen: 0, closed: 0 },
+              }),
+            });
+          }
+          return Promise.resolve({ ok: true });
+        });
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        await user.click(screen.getByText('↺ Reset'));
+
+        // The synchronous throw in the mock causes an uncaught error in the
+        // async handler, which the try/catch catches. Verify toast fires.
+        await waitFor(() => {
+          expect(mockToastError).toHaveBeenCalledWith(
+            expect.stringContaining('timed out'),
+            expect.any(Object)
+          );
+        });
+
+        // Button should re-enable after timeout error
+        expect(screen.getByText('↺ Reset')).toBeDefined();
+        expect(screen.getByText(/🔴 Open/)).toBeDefined();
+      });
+
+      it('banner and inline badge stay in sync after reset', async () => {
+        const user = userEvent.setup();
+
+        setupCircuitMock(
+          [{ providerId: 'groq', state: 'open', consecutiveFailures: 3, cooldownRemainingMs: 120000 }],
+          { resetCircuits: [] },
+        );
+
+        await act(async () => {
+          render(<ConfigTab />);
+        });
+
+        expect(screen.getByText(/1 provider temporarily unavailable/)).toBeDefined();
+        expect(screen.getByText(/⚠ 1 down/)).toBeDefined();
+
+        await user.click(screen.getByText('↺ Reset'));
+
+        await waitFor(() => {
+          expect(screen.queryByText(/temporarily unavailable/)).toBeNull();
+        });
+        expect(screen.queryByText(/⚠.*down/)).toBeNull();
+      });
     });
   });
 

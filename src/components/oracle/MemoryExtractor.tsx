@@ -6,6 +6,7 @@ import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tok
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { MEMORY_EXTRACTION_PROMPT } from '@/lib/system-prompt';
+import { csrfHeaders } from '@/lib/csrf';
 import { memoriesApi } from '@/lib/api';
 
 // ─── Types ────────────────────────────
@@ -52,11 +53,17 @@ export function MemoryExtractor({ projectId }: { projectId?: string | null }) {
       .replace('{{conversation}}', conversationText.slice(0, 4000));
 
     try {
-      const { NeverStopRouter } = await import('@/lib/router');
-      const result = await NeverStopRouter.callSync(
-        [{ id: 'extract', role: 'user', content: prompt, timestamp: Date.now() }],
-        { messages: [{ role: 'user', content: prompt }], maxTokens: 1000 }
-      );
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, maxTokens: 1000 }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
+        throw new Error(errorData.error || `AI proxy error (${res.status})`);
+      }
+      const data = await res.json();
+      const result = { text: data.text as string };
 
       // Parse JSON response
       let memories: ExtractedMemory[] = [];

@@ -11,6 +11,11 @@ import path from 'path';
 const ROOT = process.cwd();
 const COVERAGE_DIR = path.join(ROOT, 'coverage-priority');
 
+/** Strip ANSI color escape codes from a string. */
+function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 // ─── Priority Definitions ───────────────
 
 interface PriorityLevel {
@@ -369,7 +374,7 @@ function runTestsForLevel(level: PriorityLevel, failFast: boolean): RunResult {
   }
 
   const fileArgs = existingFiles.map((f) => `"${f}"`).join(' ');
-  const failFastFlag = failFast ? ' --bail' : '';
+  const failFastFlag = failFast ? ' --bail 1' : '';
 
   try {
     const output = execSync(
@@ -381,8 +386,8 @@ function runTestsForLevel(level: PriorityLevel, failFast: boolean): RunResult {
       }
     );
 
-    // Extract test count from vitest output
-    const testMatch = output.match(/Tests?\s+(\d+)\s+passed/);
+    // Extract test count from vitest output (strip ANSI color codes first)
+    const testMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+passed/);
     const tests = testMatch ? parseInt(testMatch[1], 10) : 0;
     const duration = Date.now() - startTime;
 
@@ -393,8 +398,8 @@ function runTestsForLevel(level: PriorityLevel, failFast: boolean): RunResult {
     const output = (error as { stdout?: string; stderr?: string }).stdout || '';
     const errOutput = (error as { stderr?: string }).stderr || '';
 
-    // Extract failure info
-    const failMatch = output.match(/Tests?\s+(\d+)\s+failed/);
+    // Extract failure info (strip ANSI color codes first)
+    const failMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+failed/);
     const fails = failMatch ? parseInt(failMatch[1], 10) : 'unknown';
 
     console.log(`  ❌ ${level.level} FAILED — ${fails} test(s) failed in ${(duration / 1000).toFixed(1)}s`);
@@ -441,7 +446,8 @@ function runTestsForLevelWithCoverage(level: PriorityLevel): CoverageResult {
       }
     );
 
-    const testMatch = output.match(/Tests?\s+(\d+)\s+passed/);
+    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const testMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+passed/);
     const tests = testMatch ? parseInt(testMatch[1], 10) : 0;
     const duration = Date.now() - startTime;
 
@@ -465,7 +471,8 @@ function runTestsForLevelWithCoverage(level: PriorityLevel): CoverageResult {
     const output = (error as { stdout?: string; stderr?: string }).stdout || '';
     const errOutput = (error as { stderr?: string }).stderr || '';
 
-    const failMatch = output.match(/Tests?\s+(\d+)\s+failed/);
+    const cleanErrOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
+    const failMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+failed/);
     const fails = failMatch ? parseInt(failMatch[1], 10) : 'unknown';
 
     console.log(`  ❌ ${level.level} FAILED — ${fails} test(s) failed in ${(duration / 1000).toFixed(1)}s`);

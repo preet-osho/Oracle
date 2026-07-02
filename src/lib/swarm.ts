@@ -56,7 +56,7 @@ export async function shouldUseSwarm(
         } catch {
           const match = raw.match(/\{[\s\S]*\}/);
           if (match) {
-            try { parsed = JSON.parse(match[0]); } catch { console.warn('[Swarm] Failed to parse orchestrator JSON from text match'); }
+            try { parsed = JSON.parse(match[0]); } catch { log.warn('Failed to parse orchestrator JSON from text match'); }
           }
         }
       }
@@ -70,7 +70,7 @@ export async function shouldUseSwarm(
         };
       }
     } catch (e) {
-      console.warn('[Swarm] Failed to get orchestrator decision:', e);
+      log.warn('Failed to get orchestrator decision', { error: e instanceof Error ? e.message : 'Unknown' });
     }
   }
 
@@ -217,7 +217,7 @@ export async function runSwarm(
       const estimatedTokens = analysis.estimatedTokens;
       const budgetAvailable = trackTokenUsage(estimatedTokens);
       if (!budgetAvailable) {
-        console.warn(`[Swarm] Token budget exceeded, skipping ${st.agent}`);
+        log.warn('Token budget exceeded, skipping parallel agent', { agent: st.agent });
         agentResults.push({
           agent: st.agent,
           result: '[Skipped: token budget exceeded]',
@@ -234,7 +234,7 @@ export async function runSwarm(
       const downgradedTier = shouldDowngradeDueToBudget(estimatedTokens, modelSelection.tier);
       if (downgradedTier !== modelSelection.tier) {
         modelSelection = selectModel(task, st.agent, availableProviders, downgradedTier);
-        console.log(`[Swarm] Downgrading ${st.agent} from ${st.modelSelection.tier} to ${downgradedTier} due to budget`);
+        log.info('Downgrading agent due to budget', { agent: st.agent, from: st.modelSelection.tier, to: downgradedTier });
       }
 
       try {
@@ -310,7 +310,7 @@ export async function runSwarm(
       const estimatedTokens = analysis.estimatedTokens;
       const budgetAvailable = trackTokenUsage(estimatedTokens);
       if (!budgetAvailable) {
-        console.warn(`[Swarm] Token budget exceeded, skipping ${st.agent}`);
+        log.warn('Token budget exceeded, skipping sequential agent', { agent: st.agent });
         agentResults.push({
           agent: st.agent,
           result: '[Skipped: token budget exceeded]',
@@ -326,7 +326,7 @@ export async function runSwarm(
       const downgradedTier = shouldDowngradeDueToBudget(estimatedTokens, modelSelection.tier);
       if (downgradedTier !== modelSelection.tier) {
         modelSelection = selectModel(task, st.agent, availableProviders, downgradedTier);
-        console.log(`[Swarm] Downgrading ${st.agent} from ${st.modelSelection.tier} to ${downgradedTier} due to budget`);
+        log.info('Downgrading agent due to budget', { agent: st.agent, from: st.modelSelection.tier, to: downgradedTier });
       }
 
       try {
@@ -451,7 +451,7 @@ End with "**Next Step:** [one specific action]"`;
 
     return { synthesis: finalSynthesis, agentResults, totalCostUsd };
   } catch (e) {
-    console.warn('[Swarm] Synthesis failed, returning concatenated results:', e);
+    log.warn('Synthesis failed, returning concatenated results', { error: e instanceof Error ? e.message : 'Unknown' });
 
     const fallbackResult: SwarmResult = {
       agent: 'synthesizer',

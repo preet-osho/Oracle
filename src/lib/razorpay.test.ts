@@ -59,11 +59,11 @@ describe('createRazorpayOrder', () => {
 
     const result = await createRazorpayOrder(1000, 'INR', 'receipt_1', { project: 'Web' });
 
-    expect(fetch).toHaveBeenCalledWith('/api/razorpay/orders', {
+    expect(fetch).toHaveBeenCalledWith('/api/razorpay/orders', expect.objectContaining({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ amount: 1000, currency: 'INR', receipt: 'receipt_1', notes: { project: 'Web' } }),
-    });
+    }));
     expect(result).toEqual({
       orderId: 'order_abc',
       amount: 100000,
@@ -97,7 +97,7 @@ describe('verifyRazorpayPayment', () => {
 
     const result = await verifyRazorpayPayment('order_1', 'pay_1', 'sig_abc');
 
-    expect(fetch).toHaveBeenCalledWith('/api/razorpay/verify', {
+    expect(fetch).toHaveBeenCalledWith('/api/razorpay/verify', expect.objectContaining({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -105,7 +105,7 @@ describe('verifyRazorpayPayment', () => {
         razorpay_payment_id: 'pay_1',
         razorpay_signature: 'sig_abc',
       }),
-    });
+    }));
     expect(result).toEqual({ verified: true, amount: 50000, status: 'captured' });
   });
 

@@ -36,6 +36,12 @@ function lastFetchArgs() {
 // ─── Tests ─────────────────────────────
 
 describe('apiFetch (via API methods)', () => {
+  it('passes an AbortSignal to fetch (via fetchWithTimeout)', async () => {
+    mockFetchOk([]);
+    await projectsApi.list();
+    const [, opts] = lastFetchArgs();
+    expect(opts.signal).toBeInstanceOf(AbortSignal);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

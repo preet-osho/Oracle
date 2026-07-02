@@ -1,5 +1,6 @@
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
+import noRawTimeoutMs from "./eslint/rules/no-raw-timeout-ms.js";
 
 const eslintConfig = [
   ...nextCoreWebVitals,
@@ -8,7 +9,11 @@ const eslintConfig = [
   // Production code: warn on noisy rules, ignore _ prefixed args/vars
   {
     files: ["src/**/*.ts", "src/**/*.tsx"],
+    plugins: {
+      "custom": { rules: { "no-raw-timeout-ms": noRawTimeoutMs } },
+    },
     rules: {
+      "custom/no-raw-timeout-ms": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", {
         argsIgnorePattern: "^_",
@@ -26,6 +31,7 @@ const eslintConfig = [
       "@typescript-eslint/no-explicit-any": "off",
       "@typescript-eslint/no-unused-vars": "off",
       "react-hooks/exhaustive-deps": "off",
+      "custom/no-raw-timeout-ms": "off",
     },
   },
 

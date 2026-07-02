@@ -12,7 +12,7 @@ import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { checkRateLimit, AI_CHAT_RATE_LIMIT } from '@/lib/rate-limit';
 import { decrypt as decryptKey } from '@/lib/encryption';
 import { sanitizeSystemPrompt, sanitizeMessages } from '@/lib/prompt-sanitizer';
-import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
+import { fetchWithTimeout, TIMEOUT_STREAMING_MS, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 import { recordCost } from '@/lib/cost-tracker';
 import { recordProviderHealth } from '@/lib/provider-health-server';
 import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';
@@ -411,7 +411,7 @@ async function streamAnthropic(
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify(body),
-      streaming: true,
+      timeoutMs: TIMEOUT_STREAMING_MS,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -494,7 +494,7 @@ async function streamOpenAICompatible(
         max_tokens: maxTokens || 4096,
         stream: true,
       }),
-      streaming: true,
+      timeoutMs: TIMEOUT_STREAMING_MS,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -575,6 +575,7 @@ async function callAnthropicSync(
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify(body),
+    timeoutMs: TIMEOUT_STANDARD_MS,
   });
 
   if (!response.ok) {
@@ -626,6 +627,7 @@ async function callOpenAISync(
       messages: allMessages,
       max_tokens: maxTokens || 4096,
     }),
+    timeoutMs: TIMEOUT_STANDARD_MS,
   });
 
   if (!response.ok) {

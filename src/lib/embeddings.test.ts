@@ -103,7 +103,7 @@ describe('Embeddings', () => {
 
       await generateEmbeddings(['hello world']);
 
-      expect(mockFetch).toHaveBeenCalledWith('https://api.openai.com/v1/embeddings', {
+      expect(mockFetch).toHaveBeenCalledWith('https://api.openai.com/v1/embeddings', expect.objectContaining({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -114,7 +114,7 @@ describe('Embeddings', () => {
           input: ['hello world'],
           encoding_format: 'float',
         }),
-      });
+      }));
     });
 
     it('returns embeddings in correct order when API returns scrambled indices', async () => {

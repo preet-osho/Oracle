@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Embeddings');
@@ -72,7 +73,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     );
 
     try {
-      const response = await fetch('https://api.openai.com/v1/embeddings', {
+      const response = await fetchWithTimeout('https://api.openai.com/v1/embeddings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -83,6 +84,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
           input: truncatedBatch,
           encoding_format: 'float',
         }),
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
 
       if (!response.ok) {

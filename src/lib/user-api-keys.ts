@@ -18,6 +18,7 @@ export interface ApiKeyInfo {
 // ─── CSRF Token Helper ─────────────────
 
 import { getCsrfToken } from '@/lib/csrf';
+import { fetchWithTimeout } from '@/lib/fetch-utils';
 
 // ─── API Methods ───────────────────────
 
@@ -30,7 +31,7 @@ export const userApiKeysApi = {
     const headers: Record<string, string> = {};
     if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
-    const res = await fetch('/api/user-api-keys', { headers });
+    const res = await fetchWithTimeout('/api/user-api-keys', { headers });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: res.statusText }));
       throw new Error(body.error || `Failed to list API keys: ${res.status}`);
@@ -47,7 +48,7 @@ export const userApiKeysApi = {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
-    const res = await fetch('/api/user-api-keys', {
+    const res = await fetchWithTimeout('/api/user-api-keys', {
       method: 'POST',
       headers,
       body: JSON.stringify({ provider_id: providerId, api_key: apiKey }),
@@ -68,7 +69,7 @@ export const userApiKeysApi = {
     const headers: Record<string, string> = {};
     if (csrfToken) headers['x-csrf-token'] = csrfToken;
 
-    const res = await fetch(`/api/user-api-keys?provider_id=${encodeURIComponent(providerId)}`, {
+    const res = await fetchWithTimeout(`/api/user-api-keys?provider_id=${encodeURIComponent(providerId)}`, {
       method: 'DELETE',
       headers,
     });

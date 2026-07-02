@@ -20,6 +20,7 @@ import { ALL_AGENT_NAMES } from '@/lib/agents/registry';
 
 // ─── API Helpers ──────────────────────
 import { knowledgeDocsApi } from '@/lib/api';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 
 function getAgencyProfile() {
   if (typeof window === 'undefined') return { agencyName: '', ownerName: '', city: '', services: '' };
@@ -55,6 +56,56 @@ export function ConfigTab() {
   const clientMemoryAllowed = plan === 'pro' || plan === 'agency';
   // Editor Gate config
   const [editorConfig, setEditorConfig] = useState<EditorGateConfig>(loadEditorConfig);
+
+  // Circuit Breaker status
+  type CircuitInfo = { providerId: string; state: string; consecutiveFailures: number; lastFailureAt: number | null; lastSuccessAt: number | null; cooldownRemainingMs: number | null };
+  const [circuits, setCircuits] = useState<CircuitInfo[]>([]);
+  const [circuitsFetched, setCircuitsFetched] = useState(false);
+  const [resettingCircuit, setResettingCircuit] = useState<string | null>(null);
+
+  const fetchCircuits = useCallback(async () => {
+    try {
+      const res = await fetchWithTimeout('/api/analytics/circuits', { headers: { ...csrfHeaders() }, timeoutMs: TIMEOUT_QUICK_MS });
+      if (res.ok) {
+        const data = await res.json();
+        setCircuits(data.circuits || []);
+      }
+    } catch { /* ignore */ }
+    setCircuitsFetched(true);
+  }, []);
+
+  useEffect(() => { fetchCircuits(); }, [fetchCircuits]);
+
+  // Auto-refresh every 30s when any circuit is open or half-open (live cooldown countdown)
+  useEffect(() => {
+    const hasOpenCircuit = circuits.some((c) => c.state === 'open' || c.state === 'half-open');
+    if (!hasOpenCircuit) return;
+    const id = setInterval(fetchCircuits, 30_000);
+    return () => clearInterval(id);
+  }, [circuits, fetchCircuits]);
+
+  const handleResetCircuit = useCallback(async (providerId: string) => {
+    setResettingCircuit(providerId);
+    try {
+      const res = await fetchWithTimeout('/api/analytics/circuits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        body: JSON.stringify({ providerId }),
+        timeoutMs: TIMEOUT_QUICK_MS,
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCircuits(data.circuits || []);
+        toast.success(`✅ ${providerId} circuit breaker reset`, TOAST_DEFAULTS);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        toast.error(`Reset timed out for ${providerId}`, TOAST_DEFAULTS);
+      }
+    } finally {
+      setResettingCircuit(null);
+    }
+  }, []);
 
   const updateEditorConfig = useCallback((patch: Partial<EditorGateConfig>) => {
     setEditorConfig((prev) => {
@@ -151,7 +202,7 @@ export function ConfigTab() {
 
   const fetchIndexedIds = useCallback(async () => {
     try {
-      const res = await fetch('/api/knowledge-docs/indexed');
+      const res = await fetchWithTimeout('/api/knowledge-docs/indexed', { timeoutMs: TIMEOUT_QUICK_MS });
       const data = await res.json();
       if (res.ok && Array.isArray(data.indexedIds)) {
         setIndexedDocIds(new Set(data.indexedIds));
@@ -178,7 +229,7 @@ export function ConfigTab() {
       // Step 1: Save key to server-side storage
       await setByokKey(providerId, key);
       // Step 2: Test the key through the server proxy
-      const proxyResponse = await fetch('/api/ai/chat', {
+      const proxyResponse = await fetchWithTimeout('/api/ai/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -190,6 +241,7 @@ export function ConfigTab() {
           stream: false,
           maxTokens: 10,
         }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
       if (!proxyResponse.ok) {
         const err = await proxyResponse.json().catch(() => ({ error: 'Test failed' }));
@@ -312,9 +364,10 @@ export function ConfigTab() {
     if (reindexingDocId) return;
     setReindexingDocId(docId);
     try {
-      const res = await fetch(`/api/knowledge-docs/${docId}/reindex`, {
+      const res = await fetchWithTimeout(`/api/knowledge-docs/${docId}/reindex`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Re-indexing failed');
@@ -332,9 +385,10 @@ export function ConfigTab() {
     setReindexing(true);
     setReindexProgress({ done: 0, total: knowledgeDocs.length });
     try {
-      const res = await fetch('/api/knowledge-docs/reindex', {
+      const res = await fetchWithTimeout('/api/knowledge-docs/reindex', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Re-indexing failed');
@@ -349,14 +403,36 @@ export function ConfigTab() {
     }
   }, [knowledgeDocs, reindexing, fetchIndexedIds]);
 
+  const activeCircuitCount = circuitsFetched
+    ? circuits.filter((c) => c.state === 'open' || c.state === 'half-open').length
+    : 0;
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="mx-auto max-w-4xl space-y-6">
           <motion.div variants={motionVariants.fadeUp} initial="initial" animate="animate" transition={transitions.smooth}>
-            <h1 className="text-[22px] font-bold text-[var(--oracle-text-1)]">⚙ Settings</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-[22px] font-bold text-[var(--oracle-text-1)]">⚙ Settings</h1>
+              {circuitsFetched && activeCircuitCount > 0 && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--oracle-warning)]/15 px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-warning)]">
+                  ⚠ {activeCircuitCount} down
+                </span>
+              )}
+            </div>
             <p className="mt-1 text-[13px] text-[var(--oracle-text-3)]">Configure ORACLE to match your agency workflow</p>
           </motion.div>
+
+          {/* ── Circuit Breaker Summary Banner ── */}
+          {circuitsFetched && activeCircuitCount > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-xl border border-[var(--oracle-warning)]/30 bg-[var(--oracle-warning)]/10 px-4 py-3 text-[12px] text-[var(--oracle-warning)]"
+            >
+              ⚠ {activeCircuitCount} provider{activeCircuitCount !== 1 ? 's' : ''} temporarily unavailable — see Provider Health below
+            </motion.div>
+          )}
 
           {/* ── Section 1: BYOK API Keys ── */}
           <Section title="🔑 API Keys (BYOK)">
@@ -418,6 +494,66 @@ export function ConfigTab() {
               })}
             </div>
           </Section>
+
+          {/* ── Section 1b: Provider Health (Circuit Breaker) ── */}
+          {circuitsFetched && (
+            <Section title="⚡ Provider Health">
+              <div className="oracle-glass rounded-xl p-4 space-y-3">
+                <p className="text-[11px] text-[var(--oracle-text-muted)]">
+                  Providers with open circuits are temporarily skipped. Cooldown: 5 minutes.
+                </p>
+                <div className="space-y-2">
+                  {circuits.length === 0 && (
+                    <p className="text-center text-[12px] text-[var(--oracle-success)] py-2">All providers healthy ✓</p>
+                  )}
+                  {circuits.map((c) => {
+                    const provider = PROVIDERS.find((p) => p.id === c.providerId);
+                    const isOpen = c.state === 'open';
+                    const isHalfOpen = c.state === 'half-open';
+                    const stateColor = isOpen ? 'var(--oracle-error)' : isHalfOpen ? 'var(--oracle-warning)' : 'var(--oracle-success)';
+                    const stateLabel = isOpen ? '🔴 Open' : isHalfOpen ? '🟡 Half-open' : '🟢 Closed';
+                    return (
+                      <div key={c.providerId} className="flex items-center justify-between rounded-lg bg-[var(--oracle-surface-2)] px-3 py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ backgroundColor: `${provider?.color || '#6366f1'}20` }}>
+                            <span className="text-[10px] font-bold" style={{ color: provider?.color || '#6366f1' }}>{(provider?.name || c.providerId).charAt(0)}</span>
+                          </div>
+                          <div>
+                            <p className="text-[12px] font-medium text-[var(--oracle-text-1)]">{provider?.name || c.providerId}</p>
+                            <p className="text-[10px]" style={{ color: stateColor }}>{stateLabel} · {c.consecutiveFailures} failure{c.consecutiveFailures !== 1 ? 's' : ''}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isOpen && c.cooldownRemainingMs != null && c.cooldownRemainingMs > 0 && (
+                            <span className="text-[10px] font-mono text-[var(--oracle-text-muted)]">
+                              {Math.ceil(c.cooldownRemainingMs / 1000)}s left
+                            </span>
+                          )}
+                          {(isOpen || isHalfOpen) && (
+                            <motion.button
+                              {...buttonTapProps}
+                              onClick={() => handleResetCircuit(c.providerId)}
+                              disabled={resettingCircuit === c.providerId}
+                              className="rounded-lg border border-[var(--oracle-primary)]/30 px-2.5 py-1 text-[10px] font-medium text-[var(--oracle-primary-l)] hover:bg-[var(--oracle-primary)]/10 transition-colors disabled:opacity-50"
+                            >
+                              {resettingCircuit === c.providerId ? '⟳' : '↺ Reset'}
+                            </motion.button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <motion.button
+                  {...buttonTapProps}
+                  onClick={fetchCircuits}
+                  className="w-full rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[11px] text-[var(--oracle-text-3)] hover:bg-[var(--oracle-card-hover)] transition-colors"
+                >
+                  🔄 Refresh Status
+                </motion.button>
+              </div>
+            </Section>
+          )}
 
           {/* ── Section 2: Model Selection ── */}
           <Section title="🤖 Model Selection">

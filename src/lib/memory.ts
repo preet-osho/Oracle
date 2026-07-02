@@ -119,10 +119,7 @@ If nothing new worth remembering, return an empty array [].`;
   try {
     const { NeverStopRouter } = await import('@/lib/router');
 
-    const result = await NeverStopRouter.callSync(
-      [{ id: 'extract', role: 'user', content: extractionPrompt, timestamp: Date.now() }],
-      { messages: [{ role: 'user', content: extractionPrompt }], maxTokens: 1000 }
-    );
+    const result = await NeverStopRouter.callAISyncServer(extractionPrompt, { maxTokens: 1000 });
 
     const text = result.text.trim();
     const jsonMatch = text.match(/\[[\s\S]*\]/);

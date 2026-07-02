@@ -1,32 +1,14 @@
 // ═══════════════════════════════════════
 // ORACLE — NeverStopRouter Engine
-// BYOK Key Management · Streaming · Smart Routing · Cost Calculator · MCP
+// BYOK Key Management · Server-Side AI Calls · Cost Calculator
 // ═══════════════════════════════════════
 
-import type { Message, Attachment } from '@/types';
-import { PROVIDERS, SMART_ROUTING_RULES } from '@/data/providers';
-import { estimateTokens } from '@/lib/utils';
-import { PromptRegistry } from '@/lib/prompt-versioning';
-import { fetchWithTimeout } from '@/lib/fetch-with-timeout';
-import { sanitizeDocumentContent, sanitizeExternalContext } from '@/lib/prompt-sanitizer';
+import { PROVIDERS } from '@/data/providers';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
+import { FAILOVER_ORDER, calculateCost as calculateCostShared } from '@/lib/ai-constants';
+import { isAvailable, recordSuccess, recordFailure } from '@/lib/circuit-breaker';
 
 // ─── Interfaces ────────────────────────
-
-export interface RouteOptions {
-  messages: Array<{ role: string; content: string; attachments?: Attachment[] }>;
-  systemPrompt?: string;
-  maxTokens?: number;
-  streamCallback?: (chunk: string) => void;
-  mcpEnabled?: boolean;
-  taskType?: 'code' | 'reasoning' | 'speed' | 'document' | 'search' | 'general';
-  preferredProvider?: string;
-  preferredModel?: string;
-  enableWebSearch?: boolean;
-  documents?: string[];
-  agentMemory?: string;
-  promptVersionId?: string;
-  testId?: string;
-}
 
 export interface RouteResult {
   text: string;
@@ -38,16 +20,6 @@ export interface RouteResult {
   costUSD: number;
   latencyMs: number;
 }
-
-export interface StreamChunk {
-  chunk: string;
-  done: boolean;
-  provider: string;
-  providerId?: string;
-  modelId?: string;
-}
-
-import { FAILOVER_ORDER, calculateCost as calculateCostShared } from '@/lib/ai-constants';
 
 // ─── Key Format Patterns ───────────────
 
@@ -68,18 +40,10 @@ const KEY_PATTERNS: Record<string, RegExp> = {
 
 /**
  * SECURITY NOTICE: Client-side BYOK (Bring Your Own Key) localStorage methods
- * are DEPRECATED. All AI calls MUST go through the server-side proxy at
- * /api/ai/chat which handles key decryption and provider routing securely.
- *
- * The localStorage methods below are retained for backward compatibility
- * with the settings UI and migration tooling only. Direct provider calls
- * from the browser are UNSAFE because:
- *   1. API keys in localStorage are accessible to any XSS attack
- *   2. Browser→provider connections bypass rate limiting, audit logging,
- *      cost tracking, and prompt sanitization
- *
- * Use the server proxy instead:
- *   await fetch('/api/ai/chat', { method: 'POST', body: JSON.stringify({...}) })
+ * are retained ONLY for the settings UI and migration tooling.
+ * All AI calls MUST go through:
+ *   - Client-side: fetch('/api/ai/chat', ...) server proxy
+ *   - Server-side: NeverStopRouter.callAISyncServer()
  */
 export class NeverStopRouter {
   private static readonly STORAGE_KEY = 'oracle_byok_keys';
@@ -159,91 +123,132 @@ export class NeverStopRouter {
     return pattern.test(key);
   }
 
-  // ── Smart Provider Selection with Failover ──
+  // ── Server-Side AI Call (reads keys from env vars, not localStorage) ──
+  // Use this in server-side code (Inngest, API routes, background jobs).
+  // Client-side code should use fetch('/api/ai/chat', ...) instead.
+  // Retries across FAILOVER_ORDER providers on failure.
 
-  static selectProvider(options: RouteOptions): { providerId: string; modelId: string } | null {
-    // 1. User forced a specific provider/model
-    if (options.preferredProvider && options.preferredModel) {
-      if (this.hasKey(options.preferredProvider)) {
-        return { providerId: options.preferredProvider, modelId: options.preferredModel };
+  static async callAISyncServer(
+    prompt: string,
+    options: { maxTokens?: number; providerId?: string; modelId?: string } = {}
+  ): Promise<RouteResult> {
+    const startTime = Date.now();
+
+    // Read API keys from server-side environment variables
+    const ENV_KEY_MAP: Record<string, string> = {
+      openai: 'OPENAI_API_KEY',
+      anthropic: 'ANTHROPIC_API_KEY',
+      groq: 'GROQ_API_KEY',
+      google: 'GOOGLE_API_KEY',
+      cerebras: 'CEREBRAS_API_KEY',
+      perplexity: 'PERPLEXITY_API_KEY',
+      together: 'TOGETHER_API_KEY',
+      mistral: 'MISTRAL_API_KEY',
+      cohere: 'COHERE_API_KEY',
+    };
+
+    // Build ordered list of providers to try.
+    // If caller specified a provider, put it first; then follow FAILOVER_ORDER.
+    const providersToTry: Array<{ providerId: string; apiKey: string }> = [];
+    const seen = new Set<string>();
+
+    if (options.providerId) {
+      const envKey = ENV_KEY_MAP[options.providerId];
+      const key = envKey ? process.env[envKey] : undefined;
+      if (key) {
+        providersToTry.push({ providerId: options.providerId, apiKey: key });
+        seen.add(options.providerId);
       }
     }
 
-    // 2. Task-based smart routing
-    if (options.taskType && !options.preferredProvider) {
-      const routedId = SMART_ROUTING_RULES[options.taskType];
-      if (routedId && this.hasKey(routedId)) {
-        const provider = PROVIDERS.find((p) => p.id === routedId);
-        if (provider) {
-          const freeModel = provider.models.find((m) => m.isFree) || provider.models[0];
-          return { providerId: routedId, modelId: freeModel.id };
-        }
+    for (const pid of FAILOVER_ORDER) {
+      if (seen.has(pid)) continue;
+      const envKey = ENV_KEY_MAP[pid];
+      const key = envKey ? process.env[envKey] : undefined;
+      if (key) {
+        providersToTry.push({ providerId: pid, apiKey: key });
+        seen.add(pid);
       }
     }
 
-    // 3. Web search → Perplexity
-    if (options.enableWebSearch && this.hasKey('perplexity')) {
+    if (providersToTry.length === 0) {
       return {
-        providerId: 'perplexity',
-        modelId: 'llama-3.1-sonar-large-128k-online',
+        text: 'No server-side AI API keys configured. Set OPENAI_API_KEY or ANTHROPIC_API_KEY in environment.',
+        provider: 'none',
+        model: 'none',
+        toolsUsed: [],
+        inputTokens: 0,
+        outputTokens: 0,
+        costUSD: 0,
+        latencyMs: Date.now() - startTime,
       };
     }
 
-    // 4. Fall through with failover order
-    const allKeys = this.getAllKeys();
-    const availableProviders = Object.keys(allKeys);
-    if (availableProviders.length === 0) return null;
+    const messages = [{ role: 'user', content: prompt }];
+    const errors: string[] = [];
 
-    // Prefer free models first, then follow failover order
-    for (const pid of FAILOVER_ORDER) {
-      if (!availableProviders.includes(pid)) continue;
-      const provider = PROVIDERS.find((p) => p.id === pid);
-      if (provider) {
-        const freeModel = provider.models.find((m) => m.isFree);
-        if (freeModel) return { providerId: pid, modelId: freeModel.id };
+    for (const { providerId, apiKey } of providersToTry) {
+      // Skip providers whose circuit is open (known-failing)
+      if (!isAvailable(providerId)) {
+        errors.push(`${providerId}: circuit breaker open (skipped)`);
+        continue;
       }
-    }
 
-    // Otherwise use first available
-    const firstPid = availableProviders[0];
-    const firstProvider = PROVIDERS.find((p) => p.id === firstPid);
-    if (firstProvider && firstProvider.models.length > 0) {
-      return { providerId: firstPid, modelId: firstProvider.models[0].id };
-    }
+      const provider = PROVIDERS.find((p) => p.id === providerId);
+      if (!provider) {
+        errors.push(`${providerId}: unknown provider`);
+        continue;
+      }
 
-    return null;
-  }
+      const modelId = options.modelId || provider.models[0]?.id || 'unknown';
 
-  // ── Get Failover Provider ──
+      try {
+        let result: { text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] };
 
-  static getFailoverProvider(currentProviderId: string): { providerId: string; modelId: string } | null {
-    const currentIndex = FAILOVER_ORDER.indexOf(currentProviderId);
-    const startSearch = currentIndex >= 0 ? currentIndex + 1 : 0;
-    
-    for (let i = startSearch; i < FAILOVER_ORDER.length; i++) {
-      const pid = FAILOVER_ORDER[i];
-      if (this.hasKey(pid)) {
-        const provider = PROVIDERS.find((p) => p.id === pid);
-        if (provider) {
-          const freeModel = provider.models.find((m) => m.isFree) || provider.models[0];
-          return { providerId: pid, modelId: freeModel.id };
+        if (providerId === 'anthropic') {
+          result = await callAnthropicSync(apiKey, modelId, messages, '', options.maxTokens);
+        } else {
+          result = await callOpenAISync(provider.baseUrl, apiKey, modelId, messages, '', options.maxTokens);
         }
-      }
-    }
-    
-    // Wrap around if we didn't find one
-    for (let i = 0; i < startSearch; i++) {
-      const pid = FAILOVER_ORDER[i];
-      if (this.hasKey(pid)) {
-        const provider = PROVIDERS.find((p) => p.id === pid);
-        if (provider) {
-          const freeModel = provider.models.find((m) => m.isFree) || provider.models[0];
-          return { providerId: pid, modelId: freeModel.id };
+
+        // Detect API error responses returned as text (not thrown)
+        // so they trigger failover to the next provider
+        if (result.text.startsWith('API error: ') || result.text.startsWith('Anthropic API error: ')) {
+          throw new Error(result.text);
         }
+
+        recordSuccess(providerId);
+        const cost = calculateCostShared(providerId, modelId, result.inputTokens, result.outputTokens);
+
+        return {
+          text: result.text,
+          provider: providerId,
+          model: modelId,
+          toolsUsed: result.toolsUsed,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          costUSD: cost.usd,
+          latencyMs: Date.now() - startTime,
+        };
+      } catch (error) {
+        recordFailure(providerId);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`${providerId}: ${errorMessage}`);
+        // Continue to next provider
       }
     }
-    
-    return null;
+
+    // All providers exhausted
+    return {
+      text: `All providers failed. Tried: ${errors.join('; ')}`,
+      provider: providersToTry[providersToTry.length - 1]?.providerId || 'none',
+      model: options.modelId || 'unknown',
+      toolsUsed: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      costUSD: 0,
+      latencyMs: Date.now() - startTime,
+    };
   }
 
   // ── Cost Calculator (delegates to shared implementation) ──
@@ -256,589 +261,110 @@ export class NeverStopRouter {
   ): { usd: number; inr: number } {
     return calculateCostShared(provider, model, inputTokens, outputTokens);
   }
+}
 
-  // ── DEPRECATED: Client-Side Streaming ──
-  // SECURITY: This method reads API keys from localStorage and calls providers
-  // directly from the browser. Use the server proxy /api/ai/chat instead.
+// ─── Private: Anthropic Sync ────────────
 
-  /** @deprecated SECURITY: Use fetch('/api/ai/chat', ...) server proxy instead. Direct provider calls bypass security controls. */
-  static async *callStreaming(
-    messages: Message[],
-    options: RouteOptions
-  ): AsyncGenerator<StreamChunk> {
-    console.warn(
-      '[Router] SECURITY: callStreaming() is deprecated. Use /api/ai/chat server proxy to prevent XSS key theft.',
-    );
-    const route = this.selectProvider(options);
-    if (!route) {
-      yield { chunk: 'No API keys configured. Please add a provider key in Settings.', done: true, provider: 'none' };
-      return;
-    }
+async function callAnthropicSync(
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  systemPrompt: string,
+  maxTokens?: number,
+): Promise<{ text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] }> {
+  const provider = PROVIDERS.find((p) => p.id === 'anthropic');
+  if (!provider) return { text: '', inputTokens: 0, outputTokens: 0, toolsUsed: [] };
 
-    const { providerId, modelId } = route;
-    const key = this.getKey(providerId);
-    if (!key) {
-      yield { chunk: `Missing API key for ${providerId}. Please add it in Settings.`, done: true, provider: providerId };
-      return;
-    }
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens || 4096,
+    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+  };
 
-    const provider = PROVIDERS.find((p) => p.id === providerId);
-    if (!provider) {
-      yield { chunk: `Unknown provider: ${providerId}`, done: true, provider: providerId };
-      return;
-    }
+  if (systemPrompt) {
+    body.system = systemPrompt;
+  }
 
-    // Build message payload
-    const apiMessages = this.buildMessages(messages, options);
-    const systemPrompt = this.buildSystemPrompt(options);
+  const response = await fetchWithTimeout(`${provider.baseUrl}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify(body),
+    timeoutMs: TIMEOUT_STANDARD_MS,
+  });
 
-    // Try with failover
-    let currentProviderId = providerId;
-    let currentModelId = modelId;
-    let attempts = 0;
-    const maxAttempts = 3;
+  if (!response.ok) {
+    const error = await response.text();
+    return { text: `Anthropic API error: ${error}`, inputTokens: 0, outputTokens: 0, toolsUsed: [] };
+  }
 
-    while (attempts < maxAttempts) {
-      try {
-        // Anthropic uses a different API format
-        if (currentProviderId === 'anthropic') {
-          yield* this.streamAnthropic(key, currentModelId, apiMessages, systemPrompt, options);
-          return;
-        }
+  const data = await response.json();
+  const textParts: string[] = [];
+  const toolsUsed: string[] = [];
 
-        // All other providers use OpenAI-compatible format
-        const currentProvider = PROVIDERS.find((p) => p.id === currentProviderId);
-        if (!currentProvider) break;
-        
-        yield* this.streamOpenAICompatible(currentProvider.baseUrl, key, currentModelId, currentProviderId, apiMessages, systemPrompt, options);
-        return;
-      } catch (error) {
-        attempts++;
-        console.error(`Provider ${currentProviderId} failed (attempt ${attempts}/${maxAttempts}):`, error);
-        
-        // Try failover
-        const failover = this.getFailoverProvider(currentProviderId);
-        if (failover && attempts < maxAttempts) {
-          const failoverKey = this.getKey(failover.providerId);
-          if (failoverKey) {
-            currentProviderId = failover.providerId;
-            currentModelId = failover.modelId;
-            yield { chunk: `Switching to ${currentProviderId} due to error...`, done: false, provider: currentProviderId };
-            continue;
-          }
-        }
-        
-        yield { chunk: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. No more providers available for failover.`, done: true, provider: currentProviderId };
-        return;
+  if (Array.isArray(data.content)) {
+    for (const block of data.content) {
+      if (block.type === 'text') {
+        textParts.push(block.text);
+      } else if (block.type === 'mcp_tool_use') {
+        toolsUsed.push(block.name);
       }
     }
   }
 
-  // ── DEPRECATED: Client-Side Sync Call ──
-  // SECURITY: This method reads API keys from localStorage and calls providers
-  // directly from the browser. Use the server proxy /api/ai/chat instead.
+  return {
+    text: textParts.join('\n'),
+    inputTokens: data.usage?.input_tokens || 0,
+    outputTokens: data.usage?.output_tokens || 0,
+    toolsUsed,
+  };
+}
 
-  /** @deprecated SECURITY: Use fetch('/api/ai/chat', ...) server proxy instead. Direct provider calls bypass security controls. */
-  static async callSync(
-    messages: Message[],
-    options: RouteOptions
-  ): Promise<RouteResult> {
-    console.warn(
-      '[Router] SECURITY: callSync() is deprecated. Use /api/ai/chat server proxy to prevent XSS key theft.',
-    );
-    const startTime = Date.now();
-    const route = this.selectProvider(options);
+// ─── Private: OpenAI-Compatible Sync ────
 
-    if (!route) {
-      return {
-        text: 'No API keys configured. Please add a provider key in Settings.',
-        provider: 'none',
-        model: 'none',
-        toolsUsed: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        costUSD: 0,
-        latencyMs: 0,
-      };
-    }
-
-    const { providerId, modelId } = route;
-    const key = this.getKey(providerId);
-    if (!key) {
-      return {
-        text: `Missing API key for ${providerId}.`,
-        provider: providerId,
-        model: modelId,
-        toolsUsed: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        costUSD: 0,
-        latencyMs: 0,
-      };
-    }
-
-    const provider = PROVIDERS.find((p) => p.id === providerId);
-    if (!provider) {
-      return {
-        text: `Unknown provider: ${providerId}`,
-        provider: providerId,
-        model: modelId,
-        toolsUsed: [],
-        inputTokens: 0,
-        outputTokens: 0,
-        costUSD: 0,
-        latencyMs: 0,
-      };
-    }
-
-    const apiMessages = this.buildMessages(messages, options);
-    const systemPrompt = this.buildSystemPrompt(options);
-
-    // Try with failover
-    let currentProviderId = providerId;
-    let currentModelId = modelId;
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    while (attempts < maxAttempts) {
-      try {
-        let result: { text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] };
-
-        if (currentProviderId === 'anthropic') {
-          result = await this.callAnthropicSync(key, currentModelId, apiMessages, systemPrompt, options);
-        } else {
-          const currentProvider = PROVIDERS.find((p) => p.id === currentProviderId);
-          if (!currentProvider) break;
-          result = await this.callOpenAISync(currentProvider.baseUrl, key, currentModelId, apiMessages, systemPrompt);
-        }
-
-        const cost = this.calculateCost(currentProviderId, currentModelId, result.inputTokens, result.outputTokens);
-
-        // Log request for prompt versioning analytics (single selection, no duplicate)
-        if (options.testId || options.promptVersionId) {
-          const version = options.promptVersionId
-            ? PromptRegistry.getVersion(options.promptVersionId)
-            : PromptRegistry.selectVersion(options.testId);
-          if (version) {
-            PromptRegistry.logRequest({
-              versionId: version.id,
-              testId: options.testId,
-              timestamp: Date.now(),
-              provider: currentProviderId,
-              model: currentModelId,
-              inputTokens: result.inputTokens,
-              outputTokens: result.outputTokens,
-              costUSD: cost.usd,
-            });
-          }
-        }
-
-        return {
-          text: result.text,
-          provider: currentProviderId,
-          model: currentModelId,
-          toolsUsed: result.toolsUsed,
-          inputTokens: result.inputTokens,
-          outputTokens: result.outputTokens,
-          costUSD: cost.usd,
-          latencyMs: Date.now() - startTime,
-        };
-      } catch (error) {
-        attempts++;
-        console.error(`Provider ${currentProviderId} failed (attempt ${attempts}/${maxAttempts}):`, error);
-        
-        // Try failover
-        const failover = this.getFailoverProvider(currentProviderId);
-        if (failover && attempts < maxAttempts) {
-          const failoverKey = this.getKey(failover.providerId);
-          if (failoverKey) {
-            currentProviderId = failover.providerId;
-            currentModelId = failover.modelId;
-            continue;
-          }
-        }
-        
-        return {
-          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}. No more providers available for failover.`,
-          provider: currentProviderId,
-          model: currentModelId,
-          toolsUsed: [],
-          inputTokens: 0,
-          outputTokens: 0,
-          costUSD: 0,
-          latencyMs: Date.now() - startTime,
-        };
-      }
-    }
-
-    return {
-      text: 'Failed after all attempts.',
-      provider: currentProviderId,
-      model: currentModelId,
-      toolsUsed: [],
-      inputTokens: 0,
-      outputTokens: 0,
-      costUSD: 0,
-      latencyMs: Date.now() - startTime,
-    };
+async function callOpenAISync(
+  baseUrl: string,
+  apiKey: string,
+  model: string,
+  messages: Array<{ role: string; content: string }>,
+  systemPrompt: string,
+  maxTokens?: number,
+): Promise<{ text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] }> {
+  const allMessages: Array<{ role: string; content: string }> = [];
+  if (systemPrompt) {
+    allMessages.push({ role: 'system', content: systemPrompt });
   }
+  allMessages.push(...messages);
 
-  // ── Private: Build Messages ──
-
-  private static buildMessages(
-    messages: Message[],
-    options: RouteOptions
-  ): Array<{ role: string; content: string }> {
-    const result: Array<{ role: string; content: string }> = [];
-
-    for (const msg of messages) {
-      let content = msg.content;
-
-      // Inject document context if available (sanitize each document)
-      if (options.documents && options.documents.length > 0 && msg.role === 'user') {
-        const sanitizedDocs = options.documents.map((doc, i) => {
-          const result = sanitizeDocumentContent(doc, `document_${i}`);
-          return result.sanitized;
-        });
-        const docContext = sanitizedDocs.join('\n\n---\n\n');
-        content = `[Document Context]\n${docContext}\n\n---\n\n${content}`;
-      }
-
-      // Inject agent memory if available (sanitize)
-      if (options.agentMemory && msg.role === 'user') {
-        const memResult = sanitizeExternalContext(options.agentMemory, 'agent_memory');
-        content = `[Client Memory]\n${memResult.sanitized}\n\n---\n\n${content}`;
-      }
-
-      // Handle attachments (sanitize each)
-      if (msg.attachments && msg.attachments.length > 0) {
-        const attachContent = msg.attachments
-          .map((a) => {
-            const result = sanitizeExternalContext(a.content, 'attachment');
-            return `[Attachment: ${a.name}]\n${result.sanitized}`;
-          })
-          .join('\n\n');
-        content = `${attachContent}\n\n---\n\n${content}`;
-      }
-
-      result.push({ role: msg.role, content });
-    }
-
-    return result;
-  }
-
-  // ── Private: Build System Prompt ──
-
-  private static buildSystemPrompt(options: RouteOptions): string {
-    const parts: string[] = [];
-
-    // 1. Explicit prompt versioning (A/B test or specific version)
-    if (options.testId || options.promptVersionId) {
-      const version = options.promptVersionId
-        ? PromptRegistry.getVersion(options.promptVersionId)
-        : PromptRegistry.selectVersion(options.testId);
-      if (version) {
-        parts.push(version.content);
-      }
-    }
-
-    // 2. Caller-provided system prompt
-    if (parts.length === 0 && options.systemPrompt) {
-      parts.push(options.systemPrompt);
-    }
-
-    // 3. Fallback: static identity prompt
-    if (parts.length === 0) {
-      parts.push(
-        'You are ORACLE, the ultimate agency AI agent. You help digital agencies deliver exceptional results for their clients across 40 service domains. Be specific, actionable, and contextually relevant to Indian business scenarios when appropriate.'
-      );
-    }
-
-    return parts.join('\n\n');
-  }
-
-  // ── Private: Anthropic Streaming ──
-
-  private static async *streamAnthropic(
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    systemPrompt: string,
-    options: RouteOptions
-  ): AsyncGenerator<StreamChunk> {
-    const provider = PROVIDERS.find((p) => p.id === 'anthropic');
-    if (!provider) return;
-
-    const body: Record<string, unknown> = {
+  const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
       model,
-      max_tokens: options.maxTokens || 4096,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-      stream: true,
-    };
+      messages: allMessages,
+      max_tokens: maxTokens || 4096,
+    }),
+    timeoutMs: TIMEOUT_STANDARD_MS,
+  });
 
-    if (systemPrompt) {
-      body.system = systemPrompt;
-    }
-
-    // MCP support — only Claude supports this
-    if (options.mcpEnabled && provider.supportsMCP) {
-      body.mcp_servers = [
-        { type: 'url' as const, url: 'https://gmailmcp.googleapis.com/mcp/v1', name: 'Gmail' },
-        { type: 'url' as const, url: 'https://calendarmcp.googleapis.com/mcp/v1', name: 'Calendar' },
-        { type: 'url' as const, url: 'https://drivemcp.googleapis.com/mcp/v1', name: 'Drive' },
-      ];
-    }
-
-    const response = await fetchWithTimeout(`${provider.baseUrl}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(body),
-      streaming: true,
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      yield { chunk: `Anthropic API error (${response.status}): ${error}`, done: true, provider: 'anthropic' };
-      return;
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      yield { chunk: 'Failed to read Anthropic response stream.', done: true, provider: 'anthropic' };
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(data);
-
-            if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-              yield { chunk: parsed.delta.text, done: false, provider: 'anthropic', providerId: 'anthropic', modelId: model };
-              options.streamCallback?.(parsed.delta.text);
-            }
-
-            if (parsed.type === 'message_stop') {
-              yield { chunk: '', done: true, provider: 'anthropic', providerId: 'anthropic', modelId: model };
-            }
-          } catch (e) {
-            console.warn('[Router] Skipping malformed SSE chunk:', e);
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
+  if (!response.ok) {
+    const error = await response.text();
+    return { text: `API error: ${error}`, inputTokens: 0, outputTokens: 0, toolsUsed: [] };
   }
 
-  // ── Private: OpenAI-Compatible Streaming ──
+  const data = await response.json();
+  const text = data.choices?.[0]?.message?.content || '';
 
-  private static async *streamOpenAICompatible(
-    baseUrl: string,
-    apiKey: string,
-    model: string,
-    providerId: string,
-    messages: Array<{ role: string; content: string }>,
-    systemPrompt: string,
-    options: RouteOptions
-  ): AsyncGenerator<StreamChunk> {
-    const allMessages: Array<{ role: string; content: string }> = [];
-
-    if (systemPrompt) {
-      allMessages.push({ role: 'system', content: systemPrompt });
-    }
-    allMessages.push(...messages);
-
-    const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: allMessages,
-        max_tokens: options.maxTokens || 4096,
-        stream: true,
-      }),
-      streaming: true,
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      yield { chunk: `API error (${response.status}): ${error}`, done: true, provider: baseUrl };
-      return;
-    }
-
-    const reader = response.body?.getReader();
-    if (!reader) {
-      yield { chunk: 'Failed to read response stream.', done: true, provider: baseUrl };
-      return;
-    }
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
-          const data = line.slice(6).trim();
-          if (data === '[DONE]') {
-            yield { chunk: '', done: true, provider: baseUrl };
-            continue;
-          }
-
-          try {
-            const parsed = JSON.parse(data);
-            const content = parsed.choices?.[0]?.delta?.content;
-            if (content) {
-              yield { chunk: content, done: false, provider: baseUrl, providerId: providerId, modelId: model };
-              options.streamCallback?.(content);
-            }
-
-            if (parsed.choices?.[0]?.finish_reason) {
-              yield { chunk: '', done: true, provider: baseUrl, providerId: providerId, modelId: model };
-            }
-          } catch (e) {
-            console.warn('[Router] Skipping malformed SSE chunk:', e);
-          }
-        }
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-
-  // ── Private: Anthropic Sync ──
-
-  private static async callAnthropicSync(
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    systemPrompt: string,
-    options: RouteOptions
-  ): Promise<{ text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] }> {
-    const provider = PROVIDERS.find((p) => p.id === 'anthropic');
-    if (!provider) return { text: '', inputTokens: 0, outputTokens: 0, toolsUsed: [] };
-
-    const body: Record<string, unknown> = {
-      model,
-      max_tokens: options.maxTokens || 4096,
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-    };
-
-    if (systemPrompt) {
-      body.system = systemPrompt;
-    }
-
-    const response = await fetchWithTimeout(`${provider.baseUrl}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { text: `Anthropic API error: ${error}`, inputTokens: 0, outputTokens: 0, toolsUsed: [] };
-    }
-
-    const data = await response.json();
-    const textParts: string[] = [];
-    const toolsUsed: string[] = [];
-
-    if (Array.isArray(data.content)) {
-      for (const block of data.content) {
-        if (block.type === 'text') {
-          textParts.push(block.text);
-        } else if (block.type === 'mcp_tool_use') {
-          toolsUsed.push(block.name);
-        }
-      }
-    }
-
-    return {
-      text: textParts.join('\n'),
-      inputTokens: data.usage?.input_tokens || estimateTokens(messages.map((m) => m.content).join('')),
-      outputTokens: data.usage?.output_tokens || estimateTokens(textParts.join('')),
-      toolsUsed,
-    };
-  }
-
-  // ── Private: OpenAI-Compatible Sync ──
-
-  private static async callOpenAISync(
-    baseUrl: string,
-    apiKey: string,
-    model: string,
-    messages: Array<{ role: string; content: string }>,
-    systemPrompt: string
-  ): Promise<{ text: string; inputTokens: number; outputTokens: number; toolsUsed: string[] }> {
-    const allMessages: Array<{ role: string; content: string }> = [];
-    if (systemPrompt) {
-      allMessages.push({ role: 'system', content: systemPrompt });
-    }
-    allMessages.push(...messages);
-
-    const response = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        messages: allMessages,
-        max_tokens: 4096,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      return { text: `API error: ${error}`, inputTokens: 0, outputTokens: 0, toolsUsed: [] };
-    }
-
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '';
-
-    return {
-      text,
-      inputTokens: data.usage?.prompt_tokens || estimateTokens(allMessages.map((m) => m.content).join('')),
-      outputTokens: data.usage?.completion_tokens || estimateTokens(text),
-      toolsUsed: [],
-    };
-  }
+  return {
+    text,
+    inputTokens: data.usage?.prompt_tokens || 0,
+    outputTokens: data.usage?.completion_tokens || 0,
+    toolsUsed: [],
+  };
 }

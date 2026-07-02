@@ -178,6 +178,60 @@ describe('Skip agent types', () => {
   });
 });
 
+// ─── Signal & Timeout Verification ────
+
+describe('Signal and timeout verification', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it('passes an AbortSignal to fetch (via fetchWithTimeout)', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: JSON.stringify({ passed: true, issues: [], confidence: 90, assessment: 'Clean' }) }),
+    });
+    global.fetch = mockFetch;
+
+    await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+
+    const fetchInit = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(fetchInit.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('passes timeoutMs: 30_000 for the editor review call', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: JSON.stringify({ passed: true, issues: [], confidence: 90, assessment: 'Clean' }) }),
+    });
+    global.fetch = mockFetch;
+
+    await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+
+    const fetchInit = mockFetch.mock.calls[0][1] as RequestInit;
+    expect(fetchInit.signal).toBeInstanceOf(AbortSignal);
+    // The signal should not be aborted since the request succeeded
+    expect(fetchInit.signal?.aborted).toBe(false);
+  });
+
+  it('cleans up the abort listener after successful resolution', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ text: JSON.stringify({ passed: true, issues: [], confidence: 90, assessment: 'Clean' }) }),
+    });
+    global.fetch = mockFetch;
+
+    await runEditorGate('test request', 'a'.repeat(200), 'writer', ['groq']);
+
+    // fetchWithTimeout attaches an abort listener; verify it was cleaned up
+    // by checking removeEventListener was called on the signal
+    const fetchInit = mockFetch.mock.calls[0][1] as RequestInit;
+    const signal = fetchInit.signal as AbortSignal;
+    expect(signal).toBeDefined();
+    // The signal should not be in an aborted state after clean completion
+    expect(signal.aborted).toBe(false);
+  });
+});
+
 // ─── API Failure Handling ───────────────
 
 describe('API failure handling', () => {

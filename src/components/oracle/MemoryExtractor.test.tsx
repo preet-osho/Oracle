@@ -21,13 +21,8 @@ vi.mock('react-hot-toast', () => ({
   ) as any,
 }));
 
-// Mock NeverStopRouter
-const mockCallSync = vi.fn();
-vi.mock('@/lib/router', () => ({
-  NeverStopRouter: {
-    callSync: (...args: unknown[]) => mockCallSync(...args),
-  },
-}));
+// Mock global fetch for the component's direct fetch('/api/ai/chat') call
+const mockGlobalFetch = vi.fn();
 
 // Mock memories API
 const mockMemoriesCreate = vi.fn();
@@ -44,14 +39,19 @@ describe('MemoryExtractor', () => {
     vi.clearAllMocks();
     mockToast.mockClear();
     mockToastError.mockClear();
-    mockCallSync.mockResolvedValue({
-      text: JSON.stringify([
-        { content: 'Client prefers formal communication', category: 'preference', importance: 3 },
-        { content: 'Business is based in Mumbai', category: 'fact', importance: 2 },
-      ]),
-      provider: 'openai',
-      model: 'gpt-4o',
+    // Set up global fetch mock for the component's direct fetch('/api/ai/chat') call
+    mockGlobalFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        text: JSON.stringify([
+          { content: 'Client prefers formal communication', category: 'preference', importance: 3 },
+          { content: 'Business is based in Mumbai', category: 'fact', importance: 2 },
+        ]),
+        provider: 'openai',
+        model: 'gpt-4o',
+      }),
     });
+    global.fetch = mockGlobalFetch as unknown as typeof fetch;
     mockMemoriesCreate.mockResolvedValue({ id: 'mem1' });
   });
 
@@ -120,7 +120,7 @@ describe('MemoryExtractor', () => {
   // ── Memory Extraction ──
 
   describe('memory extraction', () => {
-    it('calls NeverStopRouter.callSync when extract is clicked', async () => {
+    it('calls fetch when extract is clicked', async () => {
       const user = userEvent.setup();
       render(<MemoryExtractor />);
       const textarea = screen.getByPlaceholderText(/Paste a conversation transcript here/);
@@ -128,7 +128,8 @@ describe('MemoryExtractor', () => {
       await user.click(screen.getByText('🧠 Extract Memories'));
 
       await waitFor(() => {
-        expect(mockCallSync).toHaveBeenCalledTimes(1);
+        expect(mockGlobalFetch).toHaveBeenCalledTimes(1);
+        expect(mockGlobalFetch).toHaveBeenCalledWith('/api/ai/chat', expect.objectContaining({ method: 'POST' }));
       });
     });
 
@@ -206,13 +207,16 @@ describe('MemoryExtractor', () => {
     });
 
     it('does not auto-select low-importance memories', async () => {
-      mockCallSync.mockResolvedValue({
-        text: JSON.stringify([
-          { content: 'Client name is Alex', category: 'fact', importance: 3 },
-          { content: 'Minor detail about office', category: 'fact', importance: 1 },
-        ]),
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockGlobalFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          text: JSON.stringify([
+            { content: 'Client name is Alex', category: 'fact', importance: 3 },
+            { content: 'Minor detail about office', category: 'fact', importance: 1 },
+          ]),
+          provider: 'openai',
+          model: 'gpt-4o',
+        }),
       });
 
       const user = userEvent.setup();
@@ -234,7 +238,7 @@ describe('MemoryExtractor', () => {
 
     it('shows loading state during extraction', async () => {
       let resolvePromise: ((value: unknown) => void) | undefined;
-      mockCallSync.mockImplementation(() =>
+      mockGlobalFetch.mockImplementation(() =>
         new Promise((resolve) => { resolvePromise = resolve; })
       );
 
@@ -252,7 +256,7 @@ describe('MemoryExtractor', () => {
     });
 
     it('handles extraction failure gracefully', async () => {
-      mockCallSync.mockRejectedValue(new Error('API Error'));
+      mockGlobalFetch.mockRejectedValue(new Error('API Error'));
 
       const user = userEvent.setup();
       render(<MemoryExtractor />);
@@ -269,7 +273,7 @@ describe('MemoryExtractor', () => {
     });
 
     it('renders extraction error in styled error container', async () => {
-      mockCallSync.mockRejectedValue(new Error('Network timeout'));
+      mockGlobalFetch.mockRejectedValue(new Error('Network timeout'));
 
       const user = userEvent.setup();
       render(<MemoryExtractor />);
@@ -291,19 +295,22 @@ describe('MemoryExtractor', () => {
       await user.type(textarea, 'Client conversation');
 
       // First attempt fails
-      mockCallSync.mockRejectedValue(new Error('API Error'));
+      mockGlobalFetch.mockRejectedValue(new Error('API Error'));
       await user.click(screen.getByText('🧠 Extract Memories'));
       await waitFor(() => {
         expect(screen.getByText('API Error')).toBeDefined();
       });
 
       // Second attempt succeeds
-      mockCallSync.mockResolvedValue({
-        text: JSON.stringify([
-          { content: 'Client name is Alex', category: 'fact', importance: 3 },
-        ]),
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockGlobalFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          text: JSON.stringify([
+            { content: 'Client name is Alex', category: 'fact', importance: 3 },
+          ]),
+          provider: 'openai',
+          model: 'gpt-4o',
+        }),
       });
       await user.click(screen.getByText('🧠 Extract Memories'));
       await waitFor(() => {
@@ -313,10 +320,13 @@ describe('MemoryExtractor', () => {
     });
 
     it('handles invalid JSON response', async () => {
-      mockCallSync.mockResolvedValue({
-        text: 'This is not valid JSON',
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockGlobalFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          text: 'This is not valid JSON',
+          provider: 'openai',
+          model: 'gpt-4o',
+        }),
       });
 
       const user = userEvent.setup();
@@ -332,10 +342,13 @@ describe('MemoryExtractor', () => {
     });
 
     it('shows warning toast when JSON parsing fails', async () => {
-      mockCallSync.mockResolvedValue({
-        text: '[broken json content',
-        provider: 'openai',
-        model: 'gpt-4o',
+      mockGlobalFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          text: '[broken json content',
+          provider: 'openai',
+          model: 'gpt-4o',
+        }),
       });
 
       const user = userEvent.setup();
@@ -353,7 +366,7 @@ describe('MemoryExtractor', () => {
     });
 
     it('shows error toast when extraction fails', async () => {
-      mockCallSync.mockRejectedValue(new Error('API Error'));
+      mockGlobalFetch.mockRejectedValue(new Error('API Error'));
 
       const user = userEvent.setup();
       render(<MemoryExtractor />);

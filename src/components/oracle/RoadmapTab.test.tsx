@@ -8,7 +8,6 @@ let mockPlan = 'pro' as string;
 vi.mock('./FeatureGate', () => ({
   useSubscriptionState: () => ({ plan: mockPlan, isValid: true, loading: false }),
   FeatureGate: ({ children, feature, fallback }: { children: React.ReactNode; feature?: string; fallback?: React.ReactNode }) => {
-    // Simulate FeatureGate: if plan doesn't meet required, show fallback
     const requiredPlan = feature === 'proposals' ? 'pro' : 'starter';
     const hierarchy = ['starter', 'pro', 'agency'];
     if (hierarchy.indexOf(mockPlan) >= hierarchy.indexOf(requiredPlan)) {
@@ -29,13 +28,15 @@ vi.mock('./FeatureGate', () => ({
   getRequiredPlanForAgent: () => 'starter' as const,
 }));
 
-import { RoadmapTab } from './RoadmapTab';
+// ─── Mock design-tokens ───
+vi.mock('@/styles/design-tokens', () => ({
+  motionVariants: { fadeUp: {}, tabContent: {}, scaleIn: {} },
+  transitions: { smooth: {}, snappy: {}, popSpring: {} },
+  buttonTapProps: {},
+  cardHoverProps: {},
+}));
 
-// ─── Mocks ─────────────────────────────
-
-
-
-// Mock domains
+// ─── Mock domains ───
 vi.mock('@/data/domains', () => ({
   AGENCY_DOMAINS: [
     { id: 'seo', name: 'SEO', emoji: '🔍', category: 'Digital Marketing' },
@@ -43,15 +44,36 @@ vi.mock('@/data/domains', () => ({
   ],
 }));
 
-// Mock NeverStopRouter
-const mockCallStreaming = vi.fn();
-vi.mock('@/lib/router', () => ({
-  NeverStopRouter: {
-    callStreaming: (...args: unknown[]) => mockCallStreaming(...args),
-  },
+// ─── Mock system-prompt ───
+vi.mock('@/lib/system-prompt', () => ({
+  ROADMAP_GENERATION_PROMPT: 'Generate proposal for {{clientBrief}} in domain {{domain}} with budget {{budget}} and timeline {{timeline}}',
 }));
 
-// Mock API calls
+// ─── Mock csrf ───
+vi.mock('@/lib/csrf', () => ({
+  csrfHeaders: vi.fn().mockReturnValue({}),
+}));
+
+// ─── Mock toast ───
+vi.mock('react-hot-toast', () => ({
+  __esModule: true,
+  default: Object.assign(
+    (...args: unknown[]) => {},
+    { error: (...args: unknown[]) => {}, success: (...args: unknown[]) => {} }
+  ),
+}));
+
+vi.mock('@/lib/toast-config', () => ({
+  TOAST_DEFAULTS: { duration: 3000 },
+}));
+
+// ─── Mock proposal-pdf ───
+vi.mock('@/lib/proposal-pdf', () => ({
+  exportProposalToPDF: vi.fn(),
+  exportProposalToWord: vi.fn(),
+}));
+
+// ─── Mock API calls ───
 const mockProposalsList = vi.fn();
 const mockProposalsCreate = vi.fn();
 
@@ -62,8 +84,10 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
+import { RoadmapTab } from './RoadmapTab';
+
 // ─── Helpers (imported from shared test-utils) ──────────
-import { createStreamingChunks, streamFromChunks } from './test-utils';
+import { createSSEFetchMock } from './test-utils';
 
 // ─── Tests ─────────────────────────────
 
@@ -79,9 +103,11 @@ describe('RoadmapTab', () => {
       output: 'Generated proposal content',
       created_at: Date.now(),
     });
-    mockCallStreaming.mockImplementation(async function* () {
-      yield* streamFromChunks(createStreamingChunks('Generated proposal content'));
-    });
+
+    // Mock global.fetch with SSE streaming for /api/ai/chat
+    global.fetch = createSSEFetchMock([
+      { chunk: 'Generated proposal content', done: false, model: 'gpt-4o' },
+    ]);
   });
 
   // ── Loading & Rendering ──
@@ -168,7 +194,10 @@ describe('RoadmapTab', () => {
       await user.click(screen.getByText('🎯 Generate Proposal'));
 
       await waitFor(() => {
-        expect(mockCallStreaming).toHaveBeenCalledTimes(1);
+        expect(global.fetch).toHaveBeenCalledWith(
+          '/api/ai/chat',
+          expect.objectContaining({ method: 'POST' }),
+        );
       });
     });
 
@@ -185,12 +214,25 @@ describe('RoadmapTab', () => {
     });
 
     it('shows generating state while streaming', async () => {
-      // Make streaming slow
+      // Make streaming slow by using a custom fetch that pauses
       let resolveStream: (() => void) | undefined;
-      mockCallStreaming.mockImplementation(async function* () {
-        yield { chunk: 'Partial', done: false, provider: 'test', providerId: 'openai', modelId: 'gpt-4o' };
-        await new Promise<void>((resolve) => { resolveStream = resolve; });
-        yield { chunk: '', done: true, provider: 'test', providerId: 'openai', modelId: 'gpt-4o' };
+      global.fetch = vi.fn(async (url: URL | Request | string, init?: RequestInit): Promise<any> => {
+        const body = JSON.parse((init?.body as string) || '{}');
+        if (typeof url === 'string' && url.includes('/api/ai/chat') && body.stream === true) {
+          const encoder = new TextEncoder();
+          const stream = new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode('data: {"chunk":"Partial","done":false}\n\n'));
+              // Pause until we manually resolve
+              resolveStream = () => {
+                controller.enqueue(encoder.encode('data: {"chunk":"","done":true}\n\n'));
+                controller.close();
+              };
+            },
+          });
+          return { ok: true, body: stream, json: async () => ({}) };
+        }
+        return { ok: true, json: async () => ({}) };
       });
 
       const user = userEvent.setup();
@@ -203,7 +245,7 @@ describe('RoadmapTab', () => {
         expect(screen.getByText('Generating...')).toBeDefined();
       });
 
-      // Resolve the stream — capture before TypeScript narrows after await
+      // Resolve the stream
       const resolver = resolveStream;
       await act(async () => {
         resolver?.();
@@ -228,9 +270,7 @@ describe('RoadmapTab', () => {
     });
 
     it('displays error when generation fails', async () => {
-      mockCallStreaming.mockImplementation(async function* () {
-        throw new Error('API Error');
-      });
+      global.fetch = vi.fn().mockRejectedValue(new Error('API Error'));
 
       const user = userEvent.setup();
       render(<RoadmapTab />);

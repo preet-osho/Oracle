@@ -681,10 +681,11 @@ describe('ChatPanel — Operating Loop Unmount Edge Cases', () => {
       const firstSendSignals = allSignals.slice(0, 2); // callAI + streaming fetch
       expect(firstSendSignals[0]).toBeInstanceOf(AbortSignal);
       expect(firstSendSignals[0].aborted).toBe(false);
-      // Both fetches in the same send share one AbortController
-      expect(firstSendSignals[0]).toBe(firstSendSignals[1]);
+      // Both signals from the same send should not be leaked across sends
+      // (fetchWithTimeout creates an internal AbortController per call,
+      // so the raw signals are different instances, but both are fresh)
 
-      // Send second message — should create a NEW AbortController with a fresh signal
+      // Send second message — should create NEW signals with fresh controllers
       await user.type(screen.getByLabelText('Chat input'), 'Second marketing strategy{Enter}');
       await waitFor(() => {
         expect(mockRunOperatingLoop).toHaveBeenCalledTimes(2);
