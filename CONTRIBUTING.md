@@ -17,6 +17,7 @@
   - [Coverage Expectations](#coverage-expectations)
   - [Common Pitfalls](#common-pitfalls)
 - [Code Style](#code-style)
+- [Fetch Timeout Tiers](#fetch-timeout-tiers)
 - [Commit Conventions](#commit-conventions)
 - [Pull Request Process](#pull-request-process)
 
@@ -333,6 +334,53 @@ vi.mock('@supabase/supabase-js', () => ({
 - **Zod schemas** for all input validation
 - **Named exports** preferred over default exports
 - **Async/await** over raw Promises
+
+---
+
+## Fetch Timeout Tiers
+
+All network requests must use `fetchWithTimeout` from `@/lib/fetch-utils` with a named tier constant. Raw `timeoutMs` number literals are flagged by the ESLint rule `custom/no-raw-timeout-ms` (set to `warn`).
+
+### Tier Constants
+
+| Constant | Value | Use When |
+|----------|-------|----------|
+| `TIMEOUT_QUICK_MS` | 15s | Validation pings, key checks, lightweight internal `/api/*` endpoints |
+| `TIMEOUT_MODERATE_MS` | 30s | External third-party APIs (Tavily, Serper, OpenAI embeddings, reindex) |
+| `TIMEOUT_STANDARD_MS` | 60s | AI provider sync (non-streaming) generation calls |
+| `TIMEOUT_STREAMING_MS` | 120s | AI provider streaming generation calls |
+
+`FETCH_TIMEOUT_MS` aliases `TIMEOUT_QUICK_MS` (15s) — used as the default when no `timeoutMs` is passed.
+
+### How to Add a New Callsite
+
+```typescript
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
+
+// ✅ Correct — named tier constant
+const res = await fetchWithTimeout('https://api.example.com/data', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ query }),
+  timeoutMs: TIMEOUT_MODERATE_MS,
+});
+
+// ❌ Wrong — raw number literal (ESLint will warn)
+const res = await fetchWithTimeout('https://api.example.com/data', {
+  timeoutMs: 30_000,
+});
+```
+
+### Choosing the Right Tier
+
+1. **Internal `/api/*` endpoint** → `TIMEOUT_QUICK_MS` (15s) — server-side proxies should respond quickly
+2. **External third-party API** → `TIMEOUT_MODERATE_MS` (30s) — account for network variability
+3. **AI provider sync** → `TIMEOUT_STANDARD_MS` (60s) — non-streaming generation needs time
+4. **AI provider streaming** → `TIMEOUT_STREAMING_MS` (120s) — safety net; timer clears once SSE headers arrive
+
+### Updating the Audit
+
+After adding a new callsite, update `TIMEOUT_POLICY.md` with a new row in the appropriate section and increment the summary statistics.
 
 ---
 
