@@ -121,20 +121,26 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 |---|---|---|---|---|---|
 | 530 | `analyzeTask` | `/api/ai/chat` (proxy) | STANDARD | 60s | Multi-agent planning — sync AI call |
 
+### 14. `src/app/api/web-search/route.ts` — Web Search Proxy (Server)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 117 | `searchTavilyServer` | `https://api.tavily.com/search` | MODERATE | 30s | External search API |
+| 147 | `searchSerperServer` | `https://google.serper.dev/search` | MODERATE | 30s | External search API |
+
 ---
 
 ## Summary Statistics
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 14 | 44% |
-| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 6 | 19% |
-| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 25% |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 16 | 48% |
+| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 8 | 24% |
+| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 24% |
 | STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 6% |
-| QUICK (alias) | `FETCH_TIMEOUT_MS` | 15s | 2 | 6% |
-| **Total** | | | **32** | **100%** |
+| **Total** | | | **34** | **100%** |
 
-> Note: `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS`. Server-side and library callsites that use `FETCH_TIMEOUT_MS` implicitly get 15s. Client-side callsites now use explicit tier constants for full consistency.
+> All 32 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
 
 ---
 

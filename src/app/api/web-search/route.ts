@@ -7,6 +7,7 @@
 
 import { NextRequest } from 'next/server';
 import { validateAuth } from '@/lib/supabase/validate';
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import { checkRateLimit, WEB_SEARCH_RATE_LIMIT } from '@/lib/rate-limit';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { decrypt as decryptKey } from '@/lib/encryption';
@@ -114,7 +115,7 @@ export async function POST(request: NextRequest) {
 // ─── Tavily (Server-Side) ─────────────
 
 async function searchTavilyServer(query: string, apiKey: string, maxResults: number) {
-  const response = await fetch('https://api.tavily.com/search', {
+  const response = await fetchWithTimeout('https://api.tavily.com/search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -123,6 +124,7 @@ async function searchTavilyServer(query: string, apiKey: string, maxResults: num
       search_depth: 'basic',
       max_results: maxResults,
     }),
+    timeoutMs: TIMEOUT_MODERATE_MS,
   });
 
   if (!response.ok) {
@@ -144,7 +146,7 @@ async function searchTavilyServer(query: string, apiKey: string, maxResults: num
 // ─── Serper (Server-Side) ─────────────
 
 async function searchSerperServer(query: string, apiKey: string, maxResults: number) {
-  const response = await fetch('https://google.serper.dev/search', {
+  const response = await fetchWithTimeout('https://google.serper.dev/search', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -154,6 +156,7 @@ async function searchSerperServer(query: string, apiKey: string, maxResults: num
       q: query,
       num: maxResults,
     }),
+    timeoutMs: TIMEOUT_MODERATE_MS,
   });
 
   if (!response.ok) {
