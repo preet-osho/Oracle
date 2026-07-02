@@ -1,5 +1,6 @@
 'use client';
 import { csrfHeaders } from "@/lib/csrf";
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
@@ -212,10 +213,11 @@ function ManualQualityScorer({ onScoreSaved }: { onScoreSaved?: () => void }) {
 
     try {
       const score = await scoreResponse(responseText, async (prompt) => {
-        const res = await fetch('/api/ai/chat', {
+        const res = await fetchWithTimeout('/api/ai/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
           body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, maxTokens: 800 }),
+          timeoutMs: TIMEOUT_STANDARD_MS,
         });
         if (!res.ok) {
           const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));

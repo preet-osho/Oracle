@@ -8,6 +8,7 @@ import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { MEMORY_EXTRACTION_PROMPT } from '@/lib/system-prompt';
 import { csrfHeaders } from '@/lib/csrf';
 import { memoriesApi } from '@/lib/api';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 interface ExtractedMemory {
@@ -53,10 +54,11 @@ export function MemoryExtractor({ projectId }: { projectId?: string | null }) {
       .replace('{{conversation}}', conversationText.slice(0, 4000));
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetchWithTimeout('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
         body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: false, maxTokens: 1000 }),
+        timeoutMs: TIMEOUT_STANDARD_MS,
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));

@@ -8,6 +8,7 @@ import { ORACLE_TABS, type OracleTab } from '@/styles/design-tokens';
 import { NeverStopRouter } from '@/lib/router';
 import { useNotificationCount } from '@/components/oracle/NotificationPanel';
 import { useUser, useLogout } from '@/lib/supabase/hooks';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Header Props ──────────────────────
 
@@ -34,7 +35,7 @@ export function Header({ activeTab, onTabChange, onCommandOpen, onNotificationsO
 
   // Fetch emergency stop status on mount
   useEffect(() => {
-    fetch('/api/emergency-stop').then(r => r.ok ? r.json() : null).then(data => {
+    fetchWithTimeout('/api/emergency-stop', { timeoutMs: TIMEOUT_QUICK_MS }).then(r => r.ok ? r.json() : null).then(data => {
       if (data) setEmergencyStop({ active: data.active, reason: data.reason });
     }).catch(() => {});
   }, []);
@@ -51,10 +52,11 @@ export function Header({ activeTab, onTabChange, onCommandOpen, onNotificationsO
     setEmergencyLoading(true);
     try {
       const action = emergencyStop.active ? 'deactivate' : 'activate';
-      const res = await fetch('/api/emergency-stop', {
+      const res = await fetchWithTimeout('/api/emergency-stop', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, reason: action === 'activate' ? 'Manual activation from UI' : undefined }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
       if (res.ok) {
         const data = await res.json();

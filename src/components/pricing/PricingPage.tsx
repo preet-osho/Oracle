@@ -9,6 +9,7 @@ import {
   verifyRazorpayPayment,
 } from "@/lib/razorpay";
 import { Navbar } from "@/components/landing/Navbar";
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 import { Footer } from "@/components/landing/Footer";
 
 // ─── Animation Variants ───────────────
@@ -200,7 +201,7 @@ function useRazorpayCheckout() {
       if (verification.verified) {
         // Record subscription on server
         try {
-          const subResponse = await fetch("/api/subscription/status", {
+          const subResponse = await fetchWithTimeout("/api/subscription/status", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -208,6 +209,7 @@ function useRazorpayCheckout() {
               planId: plan.id,
               orderId: result.razorpay_order_id,
             }),
+            timeoutMs: TIMEOUT_QUICK_MS,
           });
           if (!subResponse.ok) {
             console.warn("Failed to record subscription, but payment was successful");

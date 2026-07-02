@@ -8,6 +8,7 @@ import { DEFAULT_REVENUE_TEMPLATES } from '@/data/revenue-templates';
 import { generateAnnualReport, formatAnnualReportAsText, type AnnualReport } from '@/lib/annual-revenue-report';
 import { loadExpenses, seedExpensesIfEmpty } from '@/lib/expense-tracker';
 import { DEFAULT_EXPENSE_TEMPLATES } from '@/data/expense-templates';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── API Helpers ─────────────────────
 
@@ -61,7 +62,7 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
     async function loadStreams() {
       try {
         // Try seed endpoint first — inserts defaults if user has none
-        const seedRes = await fetch('/api/revenue-streams/seed', { method: 'POST' });
+        const seedRes = await fetchWithTimeout('/api/revenue-streams/seed', { method: 'POST', timeoutMs: TIMEOUT_QUICK_MS });
         if (seedRes.ok) {
           const { streams } = await seedRes.json();
           if (!cancelled && Array.isArray(streams) && streams.length > 0) {
@@ -70,7 +71,7 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
           }
         }
         // Fallback to regular fetch if seed fails
-        const fetchRes = await fetch('/api/revenue-streams');
+        const fetchRes = await fetchWithTimeout('/api/revenue-streams', { timeoutMs: TIMEOUT_QUICK_MS });
         if (!cancelled && fetchRes.ok) {
           const rows = await fetchRes.json();
           if (Array.isArray(rows) && rows.length > 0) {
@@ -96,10 +97,11 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
   const updateStreamStatus = useCallback(async (id: string, status: RevenueStream['status']) => {
     setStreams((prev) => prev.map((s) => s.id === id ? { ...s, status } : s));
     try {
-      await fetch(`/api/revenue-streams/${id}`, {
+      await fetchWithTimeout(`/api/revenue-streams/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
     } catch { /* optimistic update already applied */ }
   }, []);
@@ -107,7 +109,7 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
   const deleteStream = useCallback(async (id: string) => {
     setStreams((prev) => prev.filter((s) => s.id !== id));
     try {
-      await fetch(`/api/revenue-streams/${id}`, { method: 'DELETE' });
+      await fetchWithTimeout(`/api/revenue-streams/${id}`, { method: 'DELETE', timeoutMs: TIMEOUT_QUICK_MS });
     } catch { /* optimistic update already applied */ }
   }, []);
 
@@ -208,7 +210,7 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
                   setStreams((prev) => [newStream, ...prev]);
                   setShowAddStream(false);
                   try {
-                    const res = await fetch('/api/revenue-streams', {
+                    const res = await fetchWithTimeout('/api/revenue-streams', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -218,6 +220,7 @@ export function BusinessTab({ onAskOracle }: { onAskOracle?: (prompt: string) =>
                         status: stream.status, margin: stream.margin, effort: stream.effort,
                         timeline: stream.timeline, tools: stream.tools, notes: stream.notes,
                       }),
+                      timeoutMs: TIMEOUT_QUICK_MS,
                     });
                     if (res.ok) {
                       const saved = await res.json();

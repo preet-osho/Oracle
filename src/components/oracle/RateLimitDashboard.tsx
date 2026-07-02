@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion } from 'framer-motion';
 import {motionVariants} from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Types ─────────────────────────────
 
@@ -137,7 +138,7 @@ export function RateLimitDashboard() {
   const fetchUserDrilldown = useCallback(async (uid: string) => {
     setDrilldownLoading(true);
     try {
-      const res = await fetch(`/api/analytics/rate-limits?range=${range}&userId=${uid}`);
+      const res = await fetchWithTimeout(`/api/analytics/rate-limits?range=${range}&userId=${uid}`, { timeoutMs: TIMEOUT_QUICK_MS });
       if (!res.ok) throw new Error('Failed to load user events');
       setUserDrilldown(await res.json());
     } catch {
@@ -159,7 +160,7 @@ export function RateLimitDashboard() {
       setLoading(true);
     }
     try {
-      const res = await fetch(`/api/analytics/rate-limits?range=${range}`);
+      const res = await fetchWithTimeout(`/api/analytics/rate-limits?range=${range}`, { timeoutMs: TIMEOUT_QUICK_MS });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error || `HTTP ${res.status}`);
@@ -588,10 +589,11 @@ function UserDrilldownPanel({ userId, data, loading, onClose }: { userId: string
     }
     setResetting(true);
     try {
-      const res = await fetch('/api/analytics/rate-limits', {
+      const res = await fetchWithTimeout('/api/analytics/rate-limits', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
       if (!res.ok) throw new Error('Reset failed');
       const result = await res.json();
@@ -773,7 +775,7 @@ function RateLimitConfigPanel({ onClose }: { onClose: () => void }) {
   };
 
   useEffect(() => {
-    fetch('/api/admin/rate-limit-config')
+    fetchWithTimeout('/api/admin/rate-limit-config', { timeoutMs: TIMEOUT_QUICK_MS })
       .then((r) => r.json())
       .then((d) => {
         setConfigs(d.configs || []);
@@ -793,10 +795,11 @@ function RateLimitConfigPanel({ onClose }: { onClose: () => void }) {
     if (!v) return;
     setSaving(endpoint);
     try {
-      const res = await fetch('/api/admin/rate-limit-config', {
+      const res = await fetchWithTimeout('/api/admin/rate-limit-config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint, maxRequests: v.maxRequests, windowSeconds: v.windowSeconds }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
       if (!res.ok) throw new Error('Save failed');
       const updated = await res.json();

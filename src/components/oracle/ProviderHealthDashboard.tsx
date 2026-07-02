@@ -9,6 +9,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 
@@ -86,7 +87,7 @@ export default function ProviderHealthDashboard() {
 
   const fetchOverview = useCallback(async () => {
     try {
-      const res = await fetch('/api/analytics/health');
+      const res = await fetchWithTimeout('/api/analytics/health', { timeoutMs: TIMEOUT_QUICK_MS });
       if (res.ok) setOverview(await res.json());
     } catch {
       // Silently fail — will retry on next interval
@@ -97,7 +98,7 @@ export default function ProviderHealthDashboard() {
 
   const fetchTimeline = useCallback(async (providerId: string) => {
     try {
-      const res = await fetch(`/api/analytics/health?provider=${providerId}&hours=24`);
+      const res = await fetchWithTimeout(`/api/analytics/health?provider=${providerId}&hours=24`, { timeoutMs: TIMEOUT_QUICK_MS });
       if (res.ok) {
         const data = await res.json();
         setTimeline(data.timeline || []);

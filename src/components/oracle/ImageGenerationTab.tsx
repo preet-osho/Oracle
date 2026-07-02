@@ -7,6 +7,7 @@ import { NeverStopRouter } from '@/lib/router';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { nanoid } from 'nanoid';
+import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 
 // ─── Types ─────────────────────────────
 
@@ -66,7 +67,7 @@ export function ImageGenerationTab() {
         return;
       }
 
-      const response = await fetch('https://api.openai.com/v1/images/generations', {
+      const response = await fetchWithTimeout('https://api.openai.com/v1/images/generations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,6 +82,7 @@ export function ImageGenerationTab() {
           quality: 'hd',
           response_format: 'url',
         }),
+        timeoutMs: TIMEOUT_MODERATE_MS,
       });
 
       if (!response.ok) {
@@ -116,7 +118,7 @@ export function ImageGenerationTab() {
 
   const downloadImage = useCallback(async (image: GeneratedImage) => {
     try {
-      const response = await fetch(image.url);
+      const response = await fetchWithTimeout(image.url, { timeoutMs: TIMEOUT_MODERATE_MS });
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

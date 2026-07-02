@@ -23,6 +23,7 @@ import { SkipNav } from './SkipNav';
 import { OfflineBanner } from './OfflineBanner';
 import { setSubscriptionState } from './FeatureGate';
 import { emit, on } from '@/lib/events';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Lazy Load Tabs ───────────────────
 const PromptsTab = lazy(() => import('./PromptsTab').then((m) => ({ default: m.PromptsTab })));
@@ -104,7 +105,7 @@ export function AppShell() {
 
   // ── Load subscription status on mount ──
   useEffect(() => {
-    fetch('/api/subscription/status')
+    fetchWithTimeout('/api/subscription/status', { timeoutMs: TIMEOUT_QUICK_MS })
       .then((r) => r.json())
       .then((data) => {
         if (data.plan) {

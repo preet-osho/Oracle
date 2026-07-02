@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PROVIDERS } from "@/data/providers";
 import { useRouterStore } from "@/stores/router.store";
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 
@@ -116,7 +117,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
     try {
       await setByokKey(selectedProvider, apiKey);
 
-      const proxyResponse = await fetch("/api/ai/chat", {
+      const proxyResponse = await fetchWithTimeout("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -124,6 +125,7 @@ export function OnboardingWizard({ onComplete }: { onComplete: () => void }) {
           stream: false,
           maxTokens: 10,
         }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
 
       if (!proxyResponse.ok) {

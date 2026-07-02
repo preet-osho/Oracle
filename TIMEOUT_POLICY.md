@@ -146,19 +146,106 @@ All constants are defined in `src/lib/fetch-utils.ts` and enforced by the ESLint
 |---|---|---|---|---|---|
 | 77 | `fetchFontCached` | `https://fonts.gstatic.com/*` (Google Fonts) | QUICK | 15s | Font assets — cached after first fetch |
 
+### 18. `src/components/oracle/BusinessTab.tsx` — Revenue Streams CRUD (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 64 | `loadStreams` (seed) | `/api/revenue-streams/seed` | QUICK | 15s | Internal CRUD — seed defaults |
+| 73 | `loadStreams` (list) | `/api/revenue-streams` | QUICK | 15s | Internal CRUD — list streams |
+| 99 | `updateStreamStatus` | `/api/revenue-streams/{id}` (PUT) | QUICK | 15s | Internal CRUD — update status |
+| 110 | `deleteStream` | `/api/revenue-streams/{id}` (DELETE) | QUICK | 15s | Internal CRUD — delete stream |
+| 211 | `onSave` (create) | `/api/revenue-streams` (POST) | QUICK | 15s | Internal CRUD — create stream |
+
+### 19. `src/components/oracle/LeadsTab.tsx` — Leads CRUD (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 190 | `loadLeads` (seed) | `/api/leads/seed` | QUICK | 15s | Internal CRUD — seed defaults |
+| 199 | `loadLeads` (list) | `/api/leads` | QUICK | 15s | Internal CRUD — list leads |
+| 238 | `updateLeadStatus` | `/api/leads/{id}` (PUT) | QUICK | 15s | Internal CRUD — update status |
+| 249 | `deleteLead` | `/api/leads/{id}` (DELETE) | QUICK | 15s | Internal CRUD — delete lead |
+| 347 | `onSave` (create) | `/api/leads` (POST) | QUICK | 15s | Internal CRUD — create lead |
+
+### 20. `src/components/oracle/RateLimitDashboard.tsx` — Rate Limit Analytics (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 140 | `fetchUserDrilldown` | `/api/analytics/rate-limits` | QUICK | 15s | Internal API — user events |
+| 162 | `fetchData` | `/api/analytics/rate-limits` | QUICK | 15s | Internal API — analytics overview |
+| 591 | `handleReset` (DELETE) | `/api/analytics/rate-limits` | QUICK | 15s | Internal API — reset user limits |
+| 796 | `RateLimitConfigPanel` (GET) | `/api/admin/rate-limit-config` | QUICK | 15s | Internal API — fetch config |
+| 816 | `handleSave` (PUT) | `/api/admin/rate-limit-config` | QUICK | 15s | Internal API — save config |
+
+### 21. `src/components/oracle/Header.tsx` — Emergency Stop (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 54 | mount effect | `/api/emergency-stop` (GET) | QUICK | 15s | Internal API — check status |
+| 67 | `toggleEmergencyStop` | `/api/emergency-stop` (POST) | QUICK | 15s | Internal API — toggle stop |
+
+### 22. `src/components/oracle/ProviderHealthDashboard.tsx` — Provider Health (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 89 | `fetchOverview` | `/api/analytics/health` | QUICK | 15s | Internal API — health overview |
+| 100 | `fetchTimeline` | `/api/analytics/health` | QUICK | 15s | Internal API — provider timeline |
+
+### 23. `src/components/oracle/ImageGenerationTab.tsx` — DALL-E 3 Image Generation (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 69 | `generateImage` | `https://api.openai.com/v1/images/generations` | MODERATE | 30s | External API — DALL-E 3 generation |
+| 119 | `downloadImage` | Generated image URL (CDN) | MODERATE | 30s | External CDN — download generated image |
+
+### 24. `src/components/oracle/MemoryExtractor.tsx` — AI Memory Extraction (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 56 | `extractMemories` | `/api/ai/chat` (proxy) | STANDARD | 60s | AI sync — maxTokens:1000 |
+
+### 25. `src/components/oracle/QualityTab.tsx` — AI Quality Scoring (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 215 | `scoreResponseText` | `/api/ai/chat` (proxy) | STANDARD | 60s | AI sync — maxTokens:800 |
+
+### 26. `src/components/oracle/OnboardingWizard.tsx` — API Key Validation (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 119 | `handleTestAndSave` | `/api/ai/chat` (proxy) | QUICK | 15s | Validation "Say ok" with maxTokens:10 |
+
+### 27. `src/components/oracle/RoadmapTab.tsx` — AI Proposal Generation (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 61 | `generateProposal` | `/api/ai/chat` (proxy) | STREAMING | 120s | AI streaming — long proposal generation |
+
+### 28. `src/components/oracle/AppShell.tsx` — Subscription Status (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 107 | mount effect | `/api/subscription/status` | QUICK | 15s | Internal API — check subscription |
+
+### 29. `src/components/pricing/PricingPage.tsx` — Subscription Activation (Client)
+
+| Line | Function | URL | Tier | Timeout | Rationale |
+|---|---|---|---|---|---|
+| 203 | `startCheckout` | `/api/subscription/status` (POST) | QUICK | 15s | Internal API — activate subscription |
+
 ---
 
 ## Summary Statistics
 
 | Tier | Constant | Timeout | Call Sites | % of Total |
 |---|---|---|---|---|
-| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 19 | 51% |
-| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 8 | 22% |
-| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 8 | 22% |
-| STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 2 | 5% |
-| **Total** | | | **37** | **100%** |
+| QUICK | `TIMEOUT_QUICK_MS` / `FETCH_TIMEOUT_MS` | 15s | 37 | 60% |
+| MODERATE | `TIMEOUT_MODERATE_MS` | 30s | 10 | 16% |
+| STANDARD | `TIMEOUT_STANDARD_MS` | 60s | 10 | 16% |
+| STREAMING | `TIMEOUT_STREAMING_MS` | 120s | 3 | 5% |
+| **Total** | | | **60** | **100%** |
 
-> All 37 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
+> All 60 callsites use named tier constants. `FETCH_TIMEOUT_MS` is an alias for `TIMEOUT_QUICK_MS` — both resolve to 15s. The ESLint rule `custom/no-raw-timeout-ms` enforces this at `warn` level.
 
 ---
 

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { motionVariants, transitions, cardHoverProps, buttonTapProps } from '@/styles/design-tokens';
 import type { Lead } from '@/types';
 import { DEFAULT_LEAD_TEMPLATES } from '@/data/lead-templates';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── API Helpers ─────────────────────
 
@@ -187,7 +188,7 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
     async function loadLeads() {
       try {
         // Try seed endpoint first — inserts defaults if user has none
-        const seedRes = await fetch('/api/leads/seed', { method: 'POST' });
+        const seedRes = await fetchWithTimeout('/api/leads/seed', { method: 'POST', timeoutMs: TIMEOUT_QUICK_MS });
         if (seedRes.ok) {
           const { leads } = await seedRes.json();
           if (!cancelled && Array.isArray(leads) && leads.length > 0) {
@@ -196,7 +197,7 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
           }
         }
         // Fallback to regular fetch if seed fails
-        const fetchRes = await fetch('/api/leads');
+        const fetchRes = await fetchWithTimeout('/api/leads', { timeoutMs: TIMEOUT_QUICK_MS });
         if (!cancelled && fetchRes.ok) {
           const rows = await fetchRes.json();
           if (Array.isArray(rows) && rows.length > 0) {
@@ -235,10 +236,11 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
   const updateLeadStatus = useCallback(async (id: string, status: Lead['status']) => {
     setLeads((prev) => prev.map((l) => l.id === id ? { ...l, status, updatedAt: Date.now() } : l));
     try {
-      await fetch(`/api/leads/${id}`, {
+      await fetchWithTimeout(`/api/leads/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
+        timeoutMs: TIMEOUT_QUICK_MS,
       });
     } catch { /* optimistic update already applied */ }
   }, []);
@@ -246,7 +248,7 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
   const deleteLead = useCallback(async (id: string) => {
     setLeads((prev) => prev.filter((l) => l.id !== id));
     try {
-      await fetch(`/api/leads/${id}`, { method: 'DELETE' });
+      await fetchWithTimeout(`/api/leads/${id}`, { method: 'DELETE', timeoutMs: TIMEOUT_QUICK_MS });
     } catch { /* optimistic update already applied */ }
   }, []);
 
@@ -344,10 +346,11 @@ export function LeadsTab({ onAskOracle }: { onAskOracle?: (prompt: string) => vo
                   setLeads((prev) => [newLead, ...prev]);
                   setShowAddLead(false);
                   try {
-                    const res = await fetch('/api/leads', {
+                    const res = await fetchWithTimeout('/api/leads', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify(leadToRow(newLead)),
+                      timeoutMs: TIMEOUT_QUICK_MS,
                     });
                     if (res.ok) {
                       const saved = await res.json();

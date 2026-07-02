@@ -11,6 +11,7 @@ import { ROADMAP_GENERATION_PROMPT } from '@/lib/system-prompt';
 import { csrfHeaders } from '@/lib/csrf';
 import { exportProposalToPDF, exportProposalToWord } from '@/lib/proposal-pdf';
 import { FeatureGate, UpgradePrompt } from './FeatureGate';
+import { fetchWithTimeout, TIMEOUT_STREAMING_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 interface Proposal {
@@ -58,10 +59,11 @@ export function RoadmapTab({ onAskOracle }: { onAskOracle?: (prompt: string) => 
       .replace('{{timeline}}', '12 weeks standard');
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await fetchWithTimeout('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
         body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], stream: true }),
+        timeoutMs: TIMEOUT_STREAMING_MS,
       });
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'AI request failed' }));
