@@ -816,7 +816,7 @@ function RateLimitConfigPanel({ onClose }: { onClose: () => void }) {
     if (historyOpen && history.length === 0) {
       setHistoryLoading(true);
       try {
-        const res = await fetch('/api/admin/rate-limit-config?history=true');
+        const res = await fetchWithTimeout('/api/admin/rate-limit-config?history=true', { timeoutMs: TIMEOUT_QUICK_MS });
         const d = await res.json();
         setHistory(d.history || []);
       } catch {

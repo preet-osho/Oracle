@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 
 // ─── Types ────────────────────────────
 
@@ -86,9 +87,9 @@ export default function CostDashboard() {
   const fetchData = useCallback(async () => {
     try {
       const [overviewRes, dailyRes, providerRes] = await Promise.all([
-        fetch('/api/analytics/costs?view=overview'),
-        fetch('/api/analytics/costs?view=daily&days=30'),
-        fetch('/api/analytics/costs?view=by-provider&days=30'),
+        fetchWithTimeout('/api/analytics/costs?view=overview', { timeoutMs: TIMEOUT_QUICK_MS }),
+        fetchWithTimeout('/api/analytics/costs?view=daily&days=30', { timeoutMs: TIMEOUT_QUICK_MS }),
+        fetchWithTimeout('/api/analytics/costs?view=by-provider&days=30', { timeoutMs: TIMEOUT_QUICK_MS }),
       ]);
 
        
