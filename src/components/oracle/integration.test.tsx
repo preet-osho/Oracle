@@ -446,9 +446,11 @@ describe('Integration: Cross-component workflows', () => {
       const onAskOracle = vi.fn();
       const user = userEvent.setup();
 
-      mockCallStreaming.mockImplementation(async function* () {
-        yield* streamFromChunks(createStreamingChunks('Proposal output here'));
-      });
+      // RoadmapTab uses raw fetch(), not NeverStopRouter — override global.fetch
+      // to stream the expected output text.
+      global.fetch = createSSEFetchMock([
+        { chunk: 'Proposal output here', done: false, model: 'gpt-4o' },
+      ]);
 
       render(<RoadmapTab onAskOracle={onAskOracle} />);
 
