@@ -7,6 +7,7 @@ import { AGENCY_DOMAINS } from '@/data/domains';
 import type { ClientProject, TimeEntry } from '@/types';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { copyToClipboard } from '@/lib/utils';
 import jsPDF from 'jspdf';
 
 // ─── API Helpers ─────────────────────
@@ -15,6 +16,7 @@ import { calculateGST } from '@/lib/tax-calculator';
 import { generateContract, CONTRACT_TEMPLATES, type ContractDetails } from '@/lib/contract-generator';
 import { addExpense, deleteExpense, updateExpense, getExpensesByProject, getExpenseSummary, EXPENSE_CATEGORIES, type Expense, type ExpenseCategory } from '@/lib/expense-tracker';
 import { useSubscriptionState, UpgradeModal } from './FeatureGate';
+import { downloadBlob } from '@/lib/download-blob';
 import type { PlanId } from '@/lib/subscription';
 
 async function loadProjects(): Promise<ClientProject[]> {
@@ -673,7 +675,7 @@ function InvoiceModal({ project, entries, onClose, onExportPDF }: { project: Cli
         <div className="mt-4 flex justify-end gap-2">
           <motion.button {...buttonTapProps} onClick={onClose} className="rounded-lg px-4 py-2 text-[13px] text-[var(--oracle-text-3)] hover:bg-[var(--oracle-card-hover)]">Close</motion.button>
           <motion.button {...buttonTapProps} onClick={onExportPDF} className="rounded-lg bg-[var(--oracle-success)]/10 border border-[var(--oracle-success)]/30 px-4 py-2 text-[13px] font-semibold text-[var(--oracle-success)] hover:bg-[var(--oracle-success)]/20 transition-colors">📥 Export PDF</motion.button>
-          <motion.button {...buttonTapProps} onClick={() => { navigator.clipboard.writeText(`Invoice for ${project.clientName}\n${entries.map((e) => `${e.description}: ${e.hours}h × ₹${e.rate} = ₹${e.hours * e.rate}`).join('\n')}\nSubtotal: ${formatINR(subtotal)}\nGST: ${formatINR(gst)}\nTotal: ${formatINR(total)}`); }} className="rounded-lg oracle-gradient-bg px-4 py-2 text-[13px] font-semibold text-white">📋 Copy Invoice</motion.button>
+          <motion.button {...buttonTapProps} onClick={() => { copyToClipboard(`Invoice for ${project.clientName}\n${entries.map((e) => `${e.description}: ${e.hours}h × ₹${e.rate} = ₹${e.hours * e.rate}`).join('\n')}\nSubtotal: ${formatINR(subtotal)}\nGST: ${formatINR(gst)}\nTotal: ${formatINR(total)}`).then((ok) => ok ? toast.success('✅ Invoice copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }} className="rounded-lg oracle-gradient-bg px-4 py-2 text-[13px] font-semibold text-white">📋 Copy Invoice</motion.button>
         </div>
       </motion.div>
     </motion.div>
@@ -989,13 +991,7 @@ function ContractGeneratorModal({ project, onClose }: { project: ClientProject; 
   };
 
   const handleDownload = () => {
-    const blob = new Blob([generated], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `contract-${project.clientName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(generated, `contract-${project.clientName.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}.txt`, 'text/plain');
     toast.success('✅ Contract downloaded', TOAST_DEFAULTS);
   };
 

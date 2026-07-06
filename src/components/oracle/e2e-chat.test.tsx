@@ -102,6 +102,7 @@ vi.mock('@/lib/system-prompt', () => ({
   VIDEO_SPECIALIST_AGENT_PROMPT: 'You are a video specialist',
   WEB_DESIGNER_AGENT_PROMPT: 'You are a web designer',
   AGENT_BUILDER_AGENT_PROMPT: 'You are an agent builder',
+  SOCIAL_MEDIA_TOOL_CONTEXT: 'Social media tools available',
 }));
 
 vi.mock('@/lib/editor-gate', () => ({

@@ -47,6 +47,12 @@ vi.mock('framer-motion', () => {
   };
 });
 
+// ── ScrollArea viewport.getAnimations polyfill ──
+// base-ui's ScrollAreaViewport calls viewportRef.current.getAnimations() which isn't in jsdom.
+Element.prototype.getAnimations = function () {
+  return [];
+};
+
 // ── design-tokens mock ──
 vi.mock('@/styles/design-tokens', () => ({
   motionVariants: { fadeUp: {} },

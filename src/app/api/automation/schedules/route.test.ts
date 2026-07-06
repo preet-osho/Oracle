@@ -74,14 +74,14 @@ describe('Automation Schedules API /api/automation/schedules', () => {
       expect(res.body.schedules).toEqual(schedules);
       expect(res.body.available).toBeDefined();
       expect(Array.isArray(res.body.available)).toBe(true);
-      expect(res.body.available.length).toBe(6);
+      expect(res.body.available.length).toBe(10);
     });
 
     it('returns empty schedules when no data', async () => {
       setupChain({ data: [] });
       const res = castMockResponse(await GET()) as any;
       expect(res.body.schedules).toEqual([]);
-      expect(res.body.available.length).toBe(6);
+      expect(res.body.available.length).toBe(10);
     });
 
     it('returns empty schedules when query returns null', async () => {

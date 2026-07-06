@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import type { InvoiceItem, TimeEntry } from '@/types';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Types ─────────────────────────────
 
@@ -231,12 +232,7 @@ export async function downloadInvoicePDF(data: InvoiceData, filename?: string): 
   if (!blob) return;
 
   const name = filename || `invoice-${data.invoiceNumber.toLowerCase()}.pdf`;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, name, 'application/pdf');
 }
 
 // ─── Format Invoice as Text ────────────

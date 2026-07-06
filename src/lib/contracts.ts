@@ -386,6 +386,8 @@ Name: _______________________
 Date: _______________________`;
 }
 
+import { downloadBlob } from '@/lib/download-blob';
+
 // ─── Export Contract as PDF ────────────
 
 export async function exportContractPDF(contractText: string, filename: string): Promise<void> {
@@ -428,12 +430,6 @@ export async function exportContractPDF(contractText: string, filename: string):
   } catch (e) {
     console.warn('[Contracts] PDF export failed, falling back to text download:', e);
     // Fallback: download as text
-    const blob = new Blob([contractText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.replace('.pdf', '.txt');
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(contractText, filename.replace('.pdf', '.txt'), 'text/plain');
   }
 }

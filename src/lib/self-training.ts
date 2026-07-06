@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import type { QualityScore } from '@/types';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Types ─────────────────────────────
 
@@ -240,12 +241,5 @@ export function generateLearningsMarkdown(): string {
 
 export function exportLearnings(): void {
   const markdown = generateLearningsMarkdown();
-  const blob = new Blob([markdown], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'LEARNINGS.md';
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  downloadBlob(markdown, 'LEARNINGS.md', 'text/markdown');
 }

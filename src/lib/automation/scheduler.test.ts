@@ -75,8 +75,8 @@ describe('estimateNextRun', () => {
 // ─── Schedule Definitions ──────────────
 
 describe('SCHEDULE_DEFINITIONS', () => {
-  it('has all 6 schedule types', () => {
-    expect(Object.keys(SCHEDULE_DEFINITIONS)).toHaveLength(6);
+  it('has all 10 schedule types', () => {
+    expect(Object.keys(SCHEDULE_DEFINITIONS)).toHaveLength(10);
   });
 
   it('each definition has required fields', () => {
@@ -95,9 +95,9 @@ describe('SCHEDULE_DEFINITIONS', () => {
 // ─── Available Schedules ───────────────
 
 describe('getAvailableSchedules', () => {
-  it('returns all schedule definitions', () => {
+  it('returns all 10 schedule definitions', () => {
     const schedules = getAvailableSchedules();
-    expect(schedules).toHaveLength(6);
+    expect(schedules).toHaveLength(10);
   });
 });
 

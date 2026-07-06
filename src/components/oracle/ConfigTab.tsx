@@ -15,6 +15,7 @@ import { useSubscriptionState, UpgradeModal, getRequiredPlanForFeature } from '.
 import type { PlanId } from '@/lib/subscription';
 import { PRESETS, loadCustomPresets, saveCustomPreset, deleteCustomPreset, type ThresholdConfig, type PresetName, type CustomPreset } from '@/lib/output-quality-evaluator';
 import { loadEditorConfig, saveEditorConfig, DEFAULT_EDITOR_CONFIG, type EditorGateConfig } from '@/lib/editor-gate';
+import { downloadBlob } from '@/lib/download-blob';
 import { ALL_AGENT_NAMES } from '@/lib/agents/registry';
 
 
@@ -273,14 +274,7 @@ export function ConfigTab() {
   }, []);
 
   const handleExportGuardConfig = useCallback(() => {
-    const blob = new Blob([JSON.stringify(guardConfig, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'oracle-guard-config.json';
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadBlob(JSON.stringify(guardConfig, null, 2), 'oracle-guard-config.json', 'application/json');
     toast.success('✅ Guard config exported', TOAST_DEFAULTS);
   }, [guardConfig]);
 

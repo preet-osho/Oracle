@@ -15,6 +15,7 @@ import { DependencyGraph, parseCycleEdges } from '@/components/oracle/Dependency
 import { recogniseTaskPatterns, getKnowledgeHints, getTaskMeta, recordTask, type TaskCategory } from '@/lib/pattern-recognition';
 import { on } from '@/lib/events';
 import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Types ────────────────────────────
 interface AgentPlan {
@@ -362,13 +363,7 @@ export function OrchestratorPanel({ onAskOracle }: { onAskOracle?: (prompt: stri
       toast('No custom presets to export', TOAST_DEFAULTS);
       return;
     }
-    const blob = new Blob([JSON.stringify(customPresets, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `oracle-presets-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(JSON.stringify(customPresets, null, 2), `oracle-presets-${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
     toast(`Exported ${customPresets.length} preset(s)`, { ...TOAST_DEFAULTS, icon: '📥' });
   }, [customPresets]);
 

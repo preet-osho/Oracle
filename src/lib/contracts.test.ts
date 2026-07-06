@@ -387,6 +387,8 @@ describe('exportContractPDF', () => {
     const clickMock = vi.fn();
 
     const originalCreateElement = document.createElement;
+    const originalAppendChild = document.body.appendChild;
+    const originalRemoveChild = document.body.removeChild;
     document.createElement = vi.fn((tag: string) => {
       if (tag === 'a') {
         return { href: '', download: '', click: clickMock } as unknown as HTMLAnchorElement;
@@ -401,6 +403,8 @@ describe('exportContractPDF', () => {
       }
       return originalCreateElement.call(document, tag);
     }) as typeof document.createElement;
+    document.body.appendChild = vi.fn() as typeof document.body.appendChild;
+    document.body.removeChild = vi.fn() as typeof document.body.removeChild;
 
     const originalCreateObjectURL = URL.createObjectURL;
     const originalRevokeObjectURL = URL.revokeObjectURL;
@@ -416,6 +420,8 @@ describe('exportContractPDF', () => {
       expect(revokeObjectURLMock).toHaveBeenCalled();
     } finally {
       document.createElement = originalCreateElement;
+      document.body.appendChild = originalAppendChild;
+      document.body.removeChild = originalRemoveChild;
       URL.createObjectURL = originalCreateObjectURL;
       URL.revokeObjectURL = originalRevokeObjectURL;
     }
