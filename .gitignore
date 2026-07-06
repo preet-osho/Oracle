@@ -52,3 +52,9 @@ next-env.d.ts
 *_SESSION_TEST_SUMMARY.md
 *_IMPLEMENTATION_SUMMARY.md
 *_USER_RESEARCH.md
+
+# windows reserved filenames
+nul
+
+# eslint demo artifacts
+eslint/demo-bad-callsite.ts
