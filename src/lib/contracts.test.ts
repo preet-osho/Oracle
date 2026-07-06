@@ -377,10 +377,20 @@ describe('edge case data', () => {
 
 // ─── exportContractPDF ──────────────────
 
+vi.mock('html2canvas', () => ({
+  default: vi.fn(() => Promise.resolve({ toDataURL: vi.fn(() => 'data:image/png;base64,mock') })),
+}));
+vi.mock('jspdf', () => ({
+  default: vi.fn(() => ({
+    internal: { pageSize: { getWidth: () => 210 } },
+    addImage: vi.fn(),
+    save: vi.fn(),
+  })),
+}));
+
 describe('exportContractPDF', () => {
   it('does not throw when jsPDF and html2canvas are available', async () => {
     const { exportContractPDF } = await import('./contracts');
-    // In test environment, dynamic imports will fail so it falls back to text download
     const blobMock = { type: '', size: 0 };
     const createObjectURLMock = vi.fn(() => 'blob:mock');
     const revokeObjectURLMock = vi.fn();
