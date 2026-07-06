@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { PlanId } from '@/lib/subscription';
+import { createAnchorClickMock } from "@/test-utils";
 
 let mockPlan: PlanId = 'starter';
 

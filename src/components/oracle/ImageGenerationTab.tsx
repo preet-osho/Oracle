@@ -8,6 +8,8 @@ import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { nanoid } from 'nanoid';
 import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
+import { copyToClipboard } from '@/lib/utils';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Types ─────────────────────────────
 
@@ -120,14 +122,7 @@ export function ImageGenerationTab() {
     try {
       const response = await fetchWithTimeout(image.url, { timeoutMs: TIMEOUT_MODERATE_MS });
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `oracle-image-${image.id}.png`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      downloadBlob(blob, `oracle-image-${image.id}.png`, 'image/png');
       toast.success('✅ Image downloaded', TOAST_DEFAULTS);
     } catch {
       toast.error('❌ Failed to download image', TOAST_DEFAULTS);
@@ -344,7 +339,7 @@ Examples:
                 </span>
                 <div className="ml-auto flex gap-2">
                   <button
-                    onClick={() => { navigator.clipboard.writeText(selectedImage.url); toast.success('URL copied', TOAST_DEFAULTS); }}
+                    onClick={() => { copyToClipboard(selectedImage.url).then((ok) => ok ? toast.success('URL copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }}
                     className="rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[11px] text-[var(--oracle-text-3)] hover:bg-[var(--oracle-card-hover)] transition-colors"
                   >
                     📋 Copy URL

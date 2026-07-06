@@ -9,6 +9,9 @@ import { generateAnnualReport, formatAnnualReportAsText, type AnnualReport } fro
 import { loadExpenses, seedExpensesIfEmpty } from '@/lib/expense-tracker';
 import { DEFAULT_EXPENSE_TEMPLATES } from '@/data/expense-templates';
 import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
+import toast from 'react-hot-toast';
+import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { copyToClipboard } from '@/lib/utils';
 
 // ─── API Helpers ─────────────────────
 
@@ -800,7 +803,7 @@ function AnnualReportView({ streams }: { streams: RevenueStream[] }) {
           {showText ? '📊 Hide Text' : '📋 Show Text Report'}
         </motion.button>
         <motion.button {...buttonTapProps} onClick={() => {
-          navigator.clipboard.writeText(formatAnnualReportAsText(report));
+          copyToClipboard(formatAnnualReportAsText(report)).then((ok) => ok ? toast.success('📋 Report copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS));
         }} className="rounded-lg oracle-gradient-bg px-4 py-2 text-[12px] font-semibold text-white">
           📋 Copy Report
         </motion.button>

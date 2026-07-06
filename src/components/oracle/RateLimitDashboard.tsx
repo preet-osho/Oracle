@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {motionVariants} from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Types ─────────────────────────────
 
@@ -66,13 +67,7 @@ function escapeCsv(val: string | number | null): string {
 
 function downloadCsv(filename: string, rows: string[][]): void {
   const csv = rows.map((r) => r.map(escapeCsv).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadBlob(csv, filename, 'text/csv;charset=utf-8;');
 }
 
 function exportDashboardCsv(data: AnalyticsData): void {

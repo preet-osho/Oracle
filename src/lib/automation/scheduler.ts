@@ -15,7 +15,11 @@ export type ScheduleType =
   | 'report-weekly'
   | 'report-monthly'
   | 'quality-review'
-  | 'memory-extraction';
+  | 'memory-extraction'
+  | 'client-report-weekly'
+  | 'client-report-monthly'
+  | 'social-analytics-daily'
+  | 'social-analytics-weekly';
 
 export interface ScheduleDefinition {
   type: ScheduleType;
@@ -113,6 +117,46 @@ export const SCHEDULE_DEFINITIONS: Record<ScheduleType, ScheduleDefinition> = {
     description: 'Process pending conversations and extract client memories',
     defaultFrequency: 'daily',
     cronExpression: '0 2 * * *', // Every day at 02:00 UTC
+    requiresOrg: false,
+    requiresUserId: true,
+    enabledByDefault: false,
+  },
+  'client-report-weekly': {
+    type: 'client-report-weekly',
+    name: 'Weekly Client Report',
+    description: 'Generate and send weekly performance reports to clients',
+    defaultFrequency: 'weekly',
+    cronExpression: '0 7 * * 5', // Friday 07:00 UTC
+    requiresOrg: false,
+    requiresUserId: true,
+    enabledByDefault: false,
+  },
+  'client-report-monthly': {
+    type: 'client-report-monthly',
+    name: 'Monthly Client Report',
+    description: 'Generate and send comprehensive monthly performance reports to clients',
+    defaultFrequency: 'monthly',
+    cronExpression: '0 7 1 * *', // 1st of month 07:00 UTC
+    requiresOrg: false,
+    requiresUserId: true,
+    enabledByDefault: true,
+  },
+  'social-analytics-daily': {
+    type: 'social-analytics-daily',
+    name: 'Daily Social Analytics',
+    description: 'Collect engagement data from LinkedIn, Instagram, and Facebook daily',
+    defaultFrequency: 'daily',
+    cronExpression: '0 6 * * *', // Every day at 06:00 UTC
+    requiresOrg: false,
+    requiresUserId: true,
+    enabledByDefault: false,
+  },
+  'social-analytics-weekly': {
+    type: 'social-analytics-weekly',
+    name: 'Weekly Social Analytics',
+    description: 'Deep analytics collection with trend analysis across all platforms',
+    defaultFrequency: 'weekly',
+    cronExpression: '0 8 * * 1', // Monday 08:00 UTC
     requiresOrg: false,
     requiresUserId: true,
     enabledByDefault: false,
@@ -272,6 +316,10 @@ export function getScheduleEventType(type: ScheduleType): string | null {
     'report-monthly': 'app/report.generate',
     'quality-review': 'app/quality.score',
     'memory-extraction': 'app/memory.extract',
+    'client-report-weekly': 'app/client.report',
+    'client-report-monthly': 'app/client.report',
+    'social-analytics-daily': 'app/social.analytics',
+    'social-analytics-weekly': 'app/social.analytics',
   };
   return mapping[type] ?? null;
 }

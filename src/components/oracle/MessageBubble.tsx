@@ -6,6 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { motionVariants, transitions } from '@/styles/design-tokens';
+import { copyToClipboard } from '@/lib/utils';
 import { loadGuardConfig, recordLearning } from '@/lib/hallucination-guard';
 import { recordGuardVerdict } from '@/lib/feedback-bridge';
 import { mdComponents } from './MarkdownComponents';
@@ -14,6 +15,7 @@ import type { QualityScore, HallucinationCheckResult } from '@/types';
 import type { EvalResult } from '@/lib/output-quality-evaluator';
 import type { EditorGateResult } from '@/lib/editor-gate';
 import type { QualityGateResult, OperatingLoopResult } from '@/lib/agency-operations';
+import type { ToolResult as SocialToolResult } from '@/lib/mcp/social-media-executor';
 
 // ─── ChatMessage Type ──────────────────
 
@@ -44,6 +46,7 @@ interface MessageBubbleProps {
   editorResult?: EditorGateResult;
   qualityGateResult?: QualityGateResult;
   operatingLoopResult?: OperatingLoopResult[];
+  toolResults?: SocialToolResult[];
   feedback?: 'good' | 'bad';
   isStarred?: boolean;
   onRegenerate?: () => void;
@@ -54,16 +57,19 @@ interface MessageBubbleProps {
 }
 
 export const MessageBubble = memo(function MessageBubble({
-  message, qualityScore, guardResult, evalResult, editorResult, qualityGateResult, operatingLoopResult, feedback, isStarred,
+  message, qualityScore, guardResult, evalResult, editorResult, qualityGateResult, operatingLoopResult, toolResults, feedback, isStarred,
   onRegenerate, onBranch, onStar, onGood, onBad,
 }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === 'user';
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    copyToClipboard(message.content).then((ok) => {
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    });
   };
 
   return (
@@ -149,6 +155,9 @@ export const MessageBubble = memo(function MessageBubble({
             )}
             {editorResult && (
               <EditorBadge result={editorResult} />
+            )}
+            {toolResults && toolResults.length > 0 && (
+              <ToolInvocationBadge results={toolResults} />
             )}
             {operatingLoopResult && operatingLoopResult.length > 0 && (
               <OperatingLoopBadge results={operatingLoopResult} />
@@ -553,6 +562,56 @@ function OperatingLoopBadge({ results }: { results: OperatingLoopResult[] }) {
                     ) : (
                       r.output.slice(0, 300) + (r.output.length > 300 ? '...' : '')
                     )}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ─── Tool Invocation Badge ─────────────
+
+function ToolInvocationBadge({ results }: { results: SocialToolResult[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.length - successCount;
+  const emoji = failCount > 0 ? '⚠️' : '📱';
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1 rounded-full border border-[var(--oracle-primary)]/20 bg-[var(--oracle-primary)]/5 px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-primary-l)] hover:bg-[var(--oracle-primary)]/10 transition-colors"
+        title={`${results.length} social media action(s) executed`}
+      >
+        {emoji} {results.length} social action{results.length > 1 ? 's' : ''}{failCount > 0 ? ` · ${failCount} failed` : ''}
+        <span className="text-[8px]">▾</span>
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ opacity: 0, y: -5, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -5, scale: 0.95 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full z-50 mt-1 w-80 max-h-72 overflow-y-auto rounded-xl border border-[var(--oracle-border)] bg-[var(--oracle-bg)] shadow-xl p-3"
+          >
+            <p className="text-[12px] font-semibold text-[var(--oracle-text-1)] mb-2">📱 Social Media Actions</p>
+            <div className="space-y-2">
+              {results.map((r, i) => (
+                <div key={i} className="border-t border-[var(--oracle-border)] pt-2 first:border-0 first:pt-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span>{r.success ? '✅' : '❌'}</span>
+                    <span className="text-[11px] font-medium text-[var(--oracle-text-1)]">
+                      {r.tool.replace('social_', '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[var(--oracle-text-3)] line-clamp-3 ml-5 whitespace-pre-wrap">
+                    {r.output.slice(0, 300)}{r.output.length > 300 ? '...' : ''}
                   </p>
                 </div>
               ))}

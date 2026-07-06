@@ -12,6 +12,7 @@ import { csrfHeaders } from '@/lib/csrf';
 import { exportProposalToPDF, exportProposalToWord } from '@/lib/proposal-pdf';
 import { FeatureGate, UpgradePrompt } from './FeatureGate';
 import { fetchWithTimeout, TIMEOUT_STREAMING_MS } from '@/lib/fetch-utils';
+import { copyToClipboard } from '@/lib/utils';
 
 // ─── Types ────────────────────────────
 interface Proposal {
@@ -112,7 +113,7 @@ export function RoadmapTab({ onAskOracle }: { onAskOracle?: (prompt: string) => 
     }
   }, [brief, domain]);
 
-  const copyAll = useCallback(() => { navigator.clipboard.writeText(output); }, [output]);
+  const copyAll = useCallback(() => { copyToClipboard(output).then((ok) => ok ? toast.success('📋 Copied to clipboard', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }, [output]);
 
   const loadFromHistory = useCallback((p: Proposal) => {
     setBrief(p.brief);

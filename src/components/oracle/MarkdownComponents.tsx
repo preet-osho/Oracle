@@ -2,6 +2,9 @@
 
 import React from 'react';
 import type { Components } from 'react-markdown';
+import { copyToClipboard } from '@/lib/utils';
+import toast from 'react-hot-toast';
+import { TOAST_DEFAULTS } from '@/lib/toast-config';
 
 // ─── Markdown Components ─────────────
 // Custom ReactMarkdown component renderers for chat message rendering
@@ -19,7 +22,7 @@ export const mdComponents: Components = {
         <div className="flex items-center justify-between bg-[var(--oracle-surface-2)] px-3 py-1.5">
           <span className="text-[10px] font-medium text-[var(--oracle-text-muted)]">{match[1]}</span>
           <button
-            onClick={() => { navigator.clipboard.writeText(String(children).replace(/\n$/, '')); }}
+            onClick={() => { copyToClipboard(String(children).replace(/\n$/, '')).then((ok) => ok ? toast.success('Copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }}
             className="text-[10px] text-[var(--oracle-text-muted)] hover:text-[var(--oracle-text-3)] transition-colors"
           >
             Copy

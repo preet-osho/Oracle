@@ -6,6 +6,7 @@ import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tok
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { nanoid } from 'nanoid';
+import { copyToClipboard } from '@/lib/utils';
 
 // ─── Types ─────────────────────────────
 
@@ -210,7 +211,7 @@ export function VoiceAgentTab() {
                       </div>
                       <div className="mb-3"><p className="text-[10px] text-[var(--oracle-text-muted)] mb-1">Tools</p><div className="flex flex-wrap gap-1">{agent.tools.map((t) => <span key={t} className="rounded-full bg-[var(--oracle-surface-2)] px-2 py-0.5 text-[9px] text-[var(--oracle-text-muted)]">{t}</span>)}</div></div>
                       <div className="flex gap-2">
-                        <button onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(`npx vapi create --agent ${agent.id}`); toast.success('Command copied', TOAST_DEFAULTS); }} className="rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[10px] text-[var(--oracle-text-3)]">📋 Copy Deploy Cmd</button>
+                        <button onClick={(e) => { e.stopPropagation(); copyToClipboard(`npx vapi create --agent ${agent.id}`).then((ok) => ok ? toast.success('Command copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }} className="rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[10px] text-[var(--oracle-text-3)]">📋 Copy Deploy Cmd</button>
                         <button onClick={(e) => { e.stopPropagation(); toast.success('Test call initiated (simulated)', TOAST_DEFAULTS); }} className="rounded-lg oracle-gradient-bg px-3 py-1.5 text-[10px] font-medium text-white">📞 Test Call</button>
                       </div>
                     </motion.div>

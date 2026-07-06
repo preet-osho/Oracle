@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import jsPDF from 'jspdf';
+import { downloadBlob } from '@/lib/download-blob';
 
 // ─── Branding ─────────────────────────
 
@@ -271,15 +272,7 @@ ${subtitle ? `<div class="subtitle">${subtitle}</div>` : ''}
 </body>
 </html>`;
 
-  const blob = new Blob([html], { type: 'application/msword' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${(fileName || title).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.doc`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadBlob(html, `${(fileName || title).replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.doc`, 'application/msword');
 }
 
 // ─── CSV Export ────────────────────────
@@ -309,15 +302,7 @@ export function exportToCSV(options: CSVExportOptions): void {
   ];
 
   const csv = lines.join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${fileName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadBlob(csv, `${fileName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.csv`, 'text/csv;charset=utf-8;');
 }
 
 // ─── Markdown Export ───────────────────
@@ -345,15 +330,7 @@ export function exportToMarkdown(options: MarkdownExportOptions): void {
     lines.push(`## ${section.heading}`, '', section.content, '');
   }
 
-  const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${fileName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.md`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  downloadBlob(lines.join('\n'), `${fileName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}-${Date.now()}.md`, 'text/markdown');
 }
 
 // ─── Copy as Text ──────────────────────

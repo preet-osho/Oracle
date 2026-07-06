@@ -221,3 +221,111 @@ export async function dispatchAutomationTick(params: {
     return null;
   }
 }
+
+// ─── Dispatch: Lead Capture Workflow ───
+
+/**
+ * Dispatch the lead capture workflow when a new lead is added.
+ * Steps: Research → Score → Generate Outreach → Schedule Follow-Up
+ */
+export async function dispatchLeadCapture(params: {
+  leadId: string;
+  userId: string;
+  businessName: string;
+  industry?: string;
+  city?: string;
+  website?: string;
+  channel?: 'WhatsApp' | 'Email' | 'LinkedIn' | 'Phone';
+  source?: string;
+}): Promise<string | null> {
+  if (!isInngestConfigured()) {
+    log.warn('Inngest not configured — lead capture will run synchronously');
+    return null;
+  }
+
+  try {
+    const event = await inngest.send({
+      name: 'app/lead.capture',
+      data: params,
+    });
+    log.info('Lead capture dispatched', { leadId: params.leadId, eventId: event.ids?.[0] });
+    return event.ids?.[0] || null;
+  } catch (err) {
+    log.error('Failed to dispatch lead capture', {
+      error: err instanceof Error ? err.message : 'Unknown',
+      leadId: params.leadId,
+    });
+    return null;
+  }
+}
+
+// ─── Dispatch: Client Onboarding Workflow ──
+
+/**
+ * Dispatch the client onboarding workflow when a new project is created.
+ * Steps: Create Checklist → Init Memory → Generate Welcome → Create Task Plan
+ */
+export async function dispatchClientOnboarding(params: {
+  projectId: string;
+  userId: string;
+  clientName: string;
+  industry?: string;
+  service?: string;
+  value?: string;
+  contactEmail?: string;
+  contactPhone?: string;
+}): Promise<string | null> {
+  if (!isInngestConfigured()) {
+    log.warn('Inngest not configured — onboarding will run synchronously');
+    return null;
+  }
+
+  try {
+    const event = await inngest.send({
+      name: 'app/client.onboard',
+      data: params,
+    });
+    log.info('Client onboarding dispatched', { projectId: params.projectId, eventId: event.ids?.[0] });
+    return event.ids?.[0] || null;
+  } catch (err) {
+    log.error('Failed to dispatch client onboarding', {
+      error: err instanceof Error ? err.message : 'Unknown',
+      projectId: params.projectId,
+    });
+    return null;
+  }
+}
+
+// ─── Dispatch: Client Reporting Workflow ──
+
+/**
+ * Dispatch the client reporting workflow for periodic performance reports.
+ * Steps: Gather Data → Generate Insights → Build Report → Send to Client
+ */
+export async function dispatchClientReport(params: {
+  projectId: string;
+  userId: string;
+  clientName: string;
+  period?: 'weekly' | 'monthly';
+  sendEmail?: boolean;
+}): Promise<string | null> {
+  if (!isInngestConfigured()) {
+    log.warn('Inngest not configured — report will run synchronously');
+    return null;
+  }
+
+  try {
+    const event = await inngest.send({
+      name: 'app/client.report',
+      data: params,
+    });
+    log.info('Client report dispatched', { projectId: params.projectId, eventId: event.ids?.[0] });
+    return event.ids?.[0] || null;
+  } catch (err) {
+    log.error('Failed to dispatch client report', {
+      error: err instanceof Error ? err.message : 'Unknown',
+      projectId: params.projectId,
+    });
+    return null;
+  }
+}

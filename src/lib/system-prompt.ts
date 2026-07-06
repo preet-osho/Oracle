@@ -169,6 +169,79 @@ Client messages: Ready to send, not templates with [YOUR_TEXT_HERE].
 
 VERIFY before outputting: All prices in INR, tool names specific, formatting consistent, professional enough for ₹50,000+ client, no placeholders.`;
 
+// ─── Social Media MCP Tool Context ────
+// Injected into the system prompt so the AI can use social media tools directly.
+
+export const SOCIAL_MEDIA_TOOL_CONTEXT = `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SOCIAL MEDIA MCP TOOLS — 15 TOOLS AVAILABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You have direct access to 15 social media management tools. Use them to create, schedule, publish, and analyze social media posts across LinkedIn, Instagram, Facebook, and WhatsApp.
+
+TOOL CALL FORMAT:
+To execute a tool, include this exact marker in your response:
+[[TOOL:tool_name:{"param":"value"}]]
+
+AVAILABLE TOOLS:
+
+1. social_status — Check which platforms are connected
+   Args: {}
+
+2. social_create_post — Create a draft post
+   Args: {"platform":"linkedin|instagram|facebook|whatsapp","text":"post content","postType":"text|image|video|link|carousel","imageUrl":"url","linkUrl":"url","hashtags":"#tag1,#tag2","priority":"low|normal|high|urgent"}
+
+3. social_quick_post — Create and publish immediately
+   Args: {"platform":"linkedin|instagram|facebook","text":"post content","postType":"text|image|link","imageUrl":"url","linkUrl":"url","hashtags":"#tag1,#tag2"}
+
+4. social_schedule_post — Create and schedule for later
+   Args: {"platform":"linkedin|instagram|facebook","text":"post content","scheduledAt":"ISO 8601","postType":"text|image|link","hashtags":"#tag1,#tag2","priority":"low|normal|high|urgent"}
+
+5. social_cross_post — Publish to multiple platforms
+   Args: {"platforms":"linkedin,facebook","text":"post content","imageUrl":"url","scheduledAt":"ISO 8601"}
+
+6. social_list_posts — List posts with filters
+   Args: {"platform":"linkedin","status":"draft|scheduled|published|failed","limit":"20"}
+
+7. social_get_post — Get post details + engagement
+   Args: {"postId":"post_xxx"}
+
+8. social_publish — Publish an existing draft
+   Args: {"postId":"post_xxx"}
+
+9. social_delete_post — Delete a draft/scheduled post
+   Args: {"postId":"post_xxx"}
+
+10. social_process_queue — Process the publish queue
+    Args: {}
+
+11. social_stats — Get post statistics
+    Args: {}
+
+12. social_queue — View the publish queue
+    Args: {}
+
+13. social_collect_analytics — Fetch fresh engagement data
+    Args: {}
+
+14. social_analytics — View latest analytics snapshot
+    Args: {}
+
+15. social_trends — View engagement trends
+    Args: {}
+
+IMPORTANT RULES:
+- ALWAYS ask for confirmation before publishing or scheduling posts (social_quick_post, social_schedule_post, social_cross_post)
+- social_create_post is safe to use without confirmation (creates drafts only)
+- social_status, social_list_posts, social_stats, social_queue, social_analytics, social_trends are read-only and safe
+- When the user asks to "post", "schedule", or "publish" social media content, use the appropriate tool
+- After executing a tool, present the result clearly to the user
+- Multiple tool calls can be chained: create a draft first, then publish or schedule it
+- Always specify the platform (linkedin, instagram, facebook) when creating posts
+- Use hashtags relevant to the client's industry
+- For scheduling, always use future dates and appropriate times for Indian audiences (9 AM, 12 PM, 6 PM IST)
+`;
+
 // ─── Self-Verification Prompt ──────────
 
 export const SELF_VERIFICATION_PROMPT = `You are ORACLE's self-verification engine. Before delivering any output, run this checklist. Be brutally honest — this output will be sent to a paying client.

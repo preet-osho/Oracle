@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps, cardHoverProps } from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { copyToClipboard } from '@/lib/utils';
 import { formatINR } from '@/lib/tax-calculator';
 import {calculateLateFee, getReminderTemplate} from '@/lib/late-fee-calculator';
 
@@ -103,8 +104,7 @@ export function PaymentFollowUpManager() {
       .replace('{dueDate}', item.dueDate)
       .replace('{invoiceId}', item.id.slice(0, 8));
 
-    navigator.clipboard.writeText(message);
-    toast.success(`📋 ${template.name} copied to clipboard`, TOAST_DEFAULTS);
+    copyToClipboard(message).then((ok) => ok ? toast.success(`📋 ${template.name} copied to clipboard`, TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS));
 
     const now = new Date().toISOString().split('T')[0];
     setFollowUps((prev) => prev.map((f) => f.id === id ? {
@@ -222,8 +222,7 @@ export function PaymentFollowUpManager() {
                   <button
                     onClick={() => {
                       const msg = getReminderTemplate(breakdown.escalationLevel, item.clientName, item.id.slice(0, 8), item.invoiceAmount, breakdown.daysOverdue, breakdown.lateFee);
-                      navigator.clipboard.writeText(msg);
-                      toast.success(`📋 Escalated reminder copied (${breakdown.escalationLevel})`, TOAST_DEFAULTS);
+                      copyToClipboard(msg).then((ok) => ok ? toast.success(`📋 Escalated reminder copied (${breakdown.escalationLevel})`, TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS));
                     }}
                     className="mt-2 rounded-lg bg-[var(--oracle-primary)]/10 px-3 py-1 text-[11px] font-medium text-[var(--oracle-primary-l)] hover:bg-[var(--oracle-primary)]/20"
                   >

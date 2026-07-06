@@ -60,6 +60,13 @@ export default defineConfig({
           include: ['src/components/ui/**/*.test.{ts,tsx}'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'emails',
+          include: ['src/emails/**/*.test.{ts,tsx}'],
+        },
+      },
     ],
   },
   resolve: {

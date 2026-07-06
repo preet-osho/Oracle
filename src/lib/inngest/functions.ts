@@ -11,21 +11,13 @@
 // ═══════════════════════════════════════
 
 import { inngest } from '@/lib/inngest/client';
+import { getInngestServiceClient } from '@/lib/inngest/supabase';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Inngest');
 
-// ─── Helper: create Supabase service-role client ──
-
-async function getServiceClient() {
-  const { createClient } = await import('@supabase/supabase-js');
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
-}
+// Alias for backward compatibility within this file
+const getServiceClient = getInngestServiceClient;
 
 // ─── 1. Task Execution Function ────────
 // Runs swarm agents for a client task. Durable steps survive Vercel timeouts.
@@ -558,6 +550,10 @@ function getScheduleEventType(type: string): string | null {
     'report-monthly': 'app/report.generate',
     'quality-review': 'app/quality.batch-review',
     'memory-extraction': 'app/memory.batch-extract',
+    'client-report-weekly': 'app/client.report',
+    'client-report-monthly': 'app/client.report',
+    'social-analytics-daily': 'app/social.analytics',
+    'social-analytics-weekly': 'app/social.analytics',
   };
   return mapping[type] ?? null;
 }
@@ -623,6 +619,16 @@ async function buildEventPayload(type: string, orgId: string, config: Record<str
       return { orgId, maxItems: 10 };
     case 'memory-extraction':
       return { orgId, maxItems: 10 };
+    case 'client-report-weekly': {
+      const userId = await resolveOrgUserId(orgId);
+      if (!userId) return { projectId: orgId, userId: orgId, clientName: 'Unknown', period: 'weekly' as const };
+      return { projectId: orgId, userId, clientName: 'Client', period: 'weekly' as const };
+    }
+    case 'client-report-monthly': {
+      const userId = await resolveOrgUserId(orgId);
+      if (!userId) return { projectId: orgId, userId: orgId, clientName: 'Unknown', period: 'monthly' as const };
+      return { projectId: orgId, userId, clientName: 'Client', period: 'monthly' as const };
+    }
     default:
       return { orgId };
   }
@@ -864,6 +870,28 @@ export const cleanupDailyUsage = inngest.createFunction(
   }
 );
 
+// ─── 11. Daily Research Findings Cleanup Function ─────────
+// Cron-triggered daily cleanup of expired research findings.
+// Prevents unbounded table growth from TTL-based findings.
+
+export const cleanupExpiredResearchFindings = inngest.createFunction(
+  {
+    id: 'cleanup-expired-research-findings',
+    name: 'Cleanup Expired Research Findings',
+    retries: 2,
+    triggers: [{ cron: '30 3 * * *' }], // Every day at 03:30 UTC (after daily usage cleanup)
+  },
+  async ({ step }) => {
+    const result = await step.run('cleanup-expired-findings', async () => {
+      const { cleanupExpiredFindings } = await import('@/lib/research/memory');
+      return cleanupExpiredFindings();
+    });
+
+    log.info('Research findings cleanup completed', { rowsDeleted: result });
+    return { rowsDeleted: result };
+  }
+);
+
 // ─── Export all functions for the serve endpoint ──
 
 export const inngestFunctions = [
@@ -877,4 +905,21 @@ export const inngestFunctions = [
   batchQualityReview,
   batchMemoryExtraction,
   cleanupDailyUsage,
+  cleanupExpiredResearchFindings,
+];
+
+// ─── Re-export workflow functions for the serve endpoint ──
+// These are defined in a separate file to keep functions.ts manageable.
+import {
+  leadCaptureWorkflow,
+  clientOnboardingWorkflow,
+  clientReportingWorkflow,
+} from '@/lib/inngest/workflows';
+import { collectSocialAnalytics } from '@/lib/inngest/social-analytics';
+
+export const workflowFunctions = [
+  leadCaptureWorkflow,
+  clientOnboardingWorkflow,
+  clientReportingWorkflow,
+  collectSocialAnalytics,
 ];

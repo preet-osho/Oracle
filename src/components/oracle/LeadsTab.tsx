@@ -6,6 +6,9 @@ import { motionVariants, transitions, cardHoverProps, buttonTapProps } from '@/s
 import type { Lead } from '@/types';
 import { DEFAULT_LEAD_TEMPLATES } from '@/data/lead-templates';
 import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
+import toast from 'react-hot-toast';
+import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { copyToClipboard } from '@/lib/utils';
 
 // ─── API Helpers ─────────────────────
 
@@ -468,7 +471,7 @@ function LeadsTracker({
                           <div className="rounded-xl bg-[var(--oracle-primary)]/5 border border-[var(--oracle-primary)]/20 p-3">
                             <h4 className="mb-1 text-[11px] font-semibold text-[var(--oracle-primary-l)]">Personalised Message</h4>
                             <p className="text-[12px] text-[var(--oracle-text-2)]">{lead.personalisedMessage}</p>
-                            <button onClick={() => navigator.clipboard.writeText(lead.personalisedMessage || '')} className="mt-2 text-[10px] text-[var(--oracle-primary-l)] underline">📋 Copy message</button>
+                            <button onClick={() => copyToClipboard(lead.personalisedMessage || '').then((ok) => ok ? toast.success('📋 Message copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS))} className="mt-2 text-[10px] text-[var(--oracle-primary-l)] underline">📋 Copy message</button>
                           </div>
                         )}
 

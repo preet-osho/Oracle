@@ -273,3 +273,94 @@ export const UpdateRateLimitConfigSchema = z.object({
   maxRequests: z.number().int().min(1).max(10000).optional(),
   windowSeconds: z.number().int().min(1).max(86400).optional(),
 });
+
+// ─── Communication ─────────────────────
+
+export const SendMessageSchema = z.object({
+  channel: z.enum(['whatsapp', 'email']),
+  to: z.string().min(1).max(200),
+  subject: z.string().max(500).optional(),
+  body: z.string().min(1).max(10000),
+  templateId: z.string().max(100).optional(),
+  templateVariables: z.record(z.string()).optional(),
+  clientId: z.string().uuid().optional(),
+  leadId: z.string().uuid().optional(),
+});
+
+export const BulkSendSchema = z.object({
+  channel: z.enum(['whatsapp', 'email']),
+  recipients: z.array(z.object({
+    to: z.string().min(1).max(200),
+    subject: z.string().max(500).optional(),
+    body: z.string().min(1).max(10000),
+  })).min(1).max(50),
+  clientId: z.string().uuid().optional(),
+  leadId: z.string().uuid().optional(),
+  delayMs: z.number().int().min(100).max(5000).optional(),
+});
+
+// ─── Research Search ───────────────────
+
+export const ResearchSearchSchema = z.object({
+  query: z.string().min(1, 'Query is required').max(500),
+  sources: z.array(z.enum(['tavily', 'serper', 'brave'])).optional(),
+  maxResultsPerSource: z.number().int().min(1).max(10).optional(),
+  totalMaxResults: z.number().int().min(1).max(50).optional(),
+  language: z.string().max(10).optional(),
+  region: z.string().max(10).optional(),
+  freshness: z.enum(['day', 'week', 'month', 'year']).optional(),
+});
+
+// ─── Competitor Analysis ───────────────
+
+export const CompetitorAnalysisSchema = z.object({
+  url: z.string().url().max(500).optional(),
+  urls: z.array(z.string().url().max(500)).min(2).max(5).optional(),
+  clientId: z.string().uuid().optional(),
+  includeSubpages: z.boolean().optional(),
+  generateReport: z.boolean().optional(),
+}).refine((data) => data.url || (data.urls && data.urls.length > 0), {
+  message: 'Provide either url or urls array',
+});
+
+// ─── Research Memory ──────────────────
+
+export const StoreResearchFindingSchema = z.object({
+  clientId: z.string().uuid().optional(),
+  researchType: z.enum(['competitor', 'market', 'website-audit', 'lead-intel', 'content-extract']),
+  targetUrl: z.string().url().max(500).optional(),
+  targetQuery: z.string().max(500).optional(),
+  findings: z.record(z.unknown()),
+  reportMarkdown: z.string().max(100000).optional(),
+  ttlMs: z.number().int().min(60000).max(365 * 24 * 60 * 60 * 1000).optional(),
+});
+
+export const ListResearchFindingsSchema = z.object({
+  userId: z.string().min(1),
+  clientId: z.string().uuid().optional(),
+  researchType: z.enum(['competitor', 'market', 'website-audit', 'lead-intel', 'content-extract']).optional(),
+  targetUrl: z.string().url().max(500).optional(),
+  limit: z.number().int().min(1).max(100).optional(),
+  offset: z.number().int().min(0).optional(),
+  includeExpired: z.boolean().optional(),
+});
+
+export const DeleteResearchFindingSchema = z.object({
+  id: z.string().uuid(),
+});
+
+export const WhatsAppWebhookSchema = z.object({
+  entry: z.array(z.object({
+    id: z.string(),
+    changes: z.array(z.object({
+      value: z.object({
+        messaging_product: z.string(),
+        metadata: z.object({
+          display_phone_number: z.string(),
+          phone_number_id: z.string(),
+        }),
+      }),
+      field: z.string(),
+    })),
+  })).optional(),
+});

@@ -8,7 +8,7 @@ import { conversationsApi, knowledgeDocsApi, projectsApi, memoriesApi } from '@/
 import { processDocument, retrieveRelevant, chunkText, indexDocument } from '@/lib/rag';
 import { sanitizeDocumentContent, sanitizeSearchResults, sanitizeExternalContext } from '@/lib/prompt-sanitizer';
 import { getMemories, formatMemoryForContext } from '@/lib/memory';
-import { QUALITY_SCORING_PROMPT } from '@/lib/system-prompt';
+import { QUALITY_SCORING_PROMPT, SOCIAL_MEDIA_TOOL_CONTEXT } from '@/lib/system-prompt';
 import { saveQualityScore } from '@/lib/quality';
 import {runHallucinationGuard, loadGuardConfig} from '@/lib/hallucination-guard';
 import { evaluateOutput, type EvalResult, type ThresholdConfig } from '@/lib/output-quality-evaluator';
@@ -29,6 +29,7 @@ import { runQualityGates, runOperatingLoop, type QualityGateResult, type Operati
 import { analyzeTask } from '@/lib/task-analyzer';
 import { OperatingLoopStepDots, OperatingLoopFloatingProgress } from '@/components/oracle/OperatingLoopDashboard';
 import { emit, on } from '@/lib/events';
+import { executeToolCalls, type ToolResult as SocialToolResult } from '@/lib/mcp/social-media-executor';
 
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
@@ -106,6 +107,9 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   const [activeLoopProgress, setActiveLoopProgress] = useState<OperatingLoopResult[]>([]);
   const [activeLoopTask, setActiveLoopTask] = useState('');
   const [isLoopActive, setIsLoopActive] = useState(false);
+
+  // Social media tool execution state
+  const [toolResults, setToolResults] = useState<Record<string, SocialToolResult[]>>({});
 
   // Feedback state (persisted in localStorage)
   const [feedback, setFeedback] = useState<Record<string, 'good' | 'bad'>>(() => {
@@ -193,6 +197,22 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   useEffect(() => {
     fetchDailyUsage();
   }, [fetchDailyUsage]);
+
+  // ── Execute social media tool calls from AI response ──
+  const executeSocialTools = useCallback(async (text: string, msgId: string): Promise<string> => {
+    const { results, cleanedText } = await executeToolCalls(text);
+    if (results.length > 0) {
+      setToolResults((prev) => ({ ...prev, [msgId]: results }));
+      const hasErrors = results.some((r) => r.isError);
+      if (hasErrors) {
+        toast(`⚠️ Some social media actions failed — check details below`, { ...TOAST_DEFAULTS, duration: 4000 });
+      } else {
+        toast.success(`✅ ${results.length} social media action(s) completed`, TOAST_DEFAULTS);
+      }
+      return cleanedText;
+    }
+    return text;
+  }, []);
 
   // ── Load conversations on mount ──
   useEffect(() => {
@@ -488,6 +508,9 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       const agentInfo = AGENT_TYPES.find((a) => a.id === agentType);
       parts.push(`## Agent Mode: ${agentInfo?.label || agentType}\n\n${agentSystemPrompt}`);
     }
+
+    // Inject social media MCP tool context so the AI can use social media tools
+    parts.push(SOCIAL_MEDIA_TOOL_CONTEXT);
 
     if (webSearchEnabled && userMessage.length > 5) {
       try {
@@ -967,9 +990,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         const finalProvider = capturedProviderId || 'unknown';
         const finalModel = capturedModelId || 'unknown';
 
+        // Execute social media tool calls if present
+        const processedText = await executeSocialTools(fullText, assistantMessage.id);
+
         const completedAssistant = {
           ...assistantMessage,
-          content: fullText,
+          content: processedText,
           provider: finalProvider,
           model: finalModel,
           tokensUsed: inputTokens + outputTokens,
@@ -1069,9 +1095,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
           costUSD: proxyResult.costUSD || 0,
         };
 
+        // Execute social media tool calls if present
+        const processedText = await executeSocialTools(result.text, assistantMessage.id);
+
         const completedAssistant = {
           ...assistantMessage,
-          content: result.text,
+          content: processedText,
           provider: result.provider,
           model: result.model,
           tokensUsed: result.inputTokens + result.outputTokens,
@@ -1300,6 +1329,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
                   onRegenerate={msg.role === 'assistant' && !isStreaming ? () => handleRegenerate(msg.id) : undefined}
                   onBranch={msg.role === 'user' && !isStreaming ? () => handleBranch(msg.id) : undefined}
                   onStar={() => handleStar(msg.id)}
+                  toolResults={toolResults[msg.id]}
                   onGood={msg.role === 'assistant' ? () => handleFeedback(msg.id, 'good') : undefined}
                   onBad={msg.role === 'assistant' ? () => handleFeedback(msg.id, 'bad') : undefined}
                 />

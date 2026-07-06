@@ -103,5 +103,50 @@ export const inngest = new Inngest({
         maxItems?: number;
       },
     },
+    // ── Phase 13: Multi-step automation workflows ──
+    {
+      name: 'app/lead.capture' as const,
+      data: {} as {
+        leadId: string;
+        userId: string;
+        businessName: string;
+        industry?: string;
+        city?: string;
+        website?: string;
+        channel?: 'WhatsApp' | 'Email' | 'LinkedIn' | 'Phone';
+        source?: string;
+      },
+    },
+    {
+      name: 'app/client.onboard' as const,
+      data: {} as {
+        projectId: string;
+        userId: string;
+        clientName: string;
+        industry?: string;
+        service?: string;
+        value?: string;
+        contactEmail?: string;
+        contactPhone?: string;
+      },
+    },
+    {
+      name: 'app/client.report' as const,
+      data: {} as {
+        projectId: string;
+        userId: string;
+        clientName: string;
+        period?: 'weekly' | 'monthly';
+        sendEmail?: boolean;
+      },
+    },
+    {
+      name: 'app/social.analytics' as const,
+      data: {} as {
+        platform?: 'linkedin' | 'instagram' | 'facebook';
+        collectAll?: boolean;
+        userId?: string;
+      },
+    },
   ],
 });

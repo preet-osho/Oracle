@@ -236,6 +236,9 @@ export const ORACLE_TABS = [
   { id: 'rate-limit-audit', label: 'Rate Limits', emoji: '🛡️' },
   { id: 'agent-performance', label: 'Performance', emoji: '📊' },
   { id: 'multi-client', label: 'Multi-Client', emoji: '🎯' },
+  { id: 'command-center', label: 'Command Center', emoji: '🏢' },
+  { id: 'communication', label: 'Comm Hub', emoji: '📡' },
+  { id: 'social-media', label: 'Social', emoji: '📱' },
 ] as const;
 
 export type OracleTab = (typeof ORACLE_TABS)[number]['id'];
@@ -299,6 +302,9 @@ export const TAB_METADATA: Record<OracleTab, { title: string; description: strin
   'rate-limit-audit': { title: 'Rate Limit Dashboard',  description: 'Real-time rate limit monitoring, analytics, and configuration.', image: `${OG_BASE}rate-limit-audit` },
   'agent-performance': { title: 'Agent Performance',  description: 'Agent success rates, token usage, cost breakdown, and model tier distribution.', image: `${OG_BASE}agent-performance` },
   'multi-client':     { title: 'Multi-Client Orchestrator', description: 'Manage tasks from multiple clients with classification, isolation, and batch analysis.', image: `${OG_BASE}multi-client` },
+  'command-center':   { title: 'Agency Command Center', description: 'Real-time overview of agency operations — clients, leads, revenue, agents, quality, and system health.', image: `${OG_BASE}command-center` },
+  communication:      { title: 'Communication Hub', description: 'Delivery stats, channel analytics, message history, and provider health for Email and WhatsApp.', image: `${OG_BASE}communication` },
+  'social-media':     { title: 'Social Media Hub', description: 'Content calendar, post scheduling, cross-platform publishing, and social analytics.', image: `${OG_BASE}social-media` },
 };
 
 // ─── Quick Actions ─────────────────────

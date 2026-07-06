@@ -9,6 +9,7 @@ import { nanoid } from 'nanoid';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import { favouritesApi, customPromptsApi } from '@/lib/api';
+import { copyToClipboard } from '@/lib/utils';
 
 // ─── PromptsTab ───────────────────────
 export function PromptsTab({ onUsePrompt }: { onUsePrompt?: (prompt: string) => void }) {
@@ -92,9 +93,14 @@ export function PromptsTab({ onUsePrompt }: { onUsePrompt?: (prompt: string) => 
   }, [favourites]);
 
   const handleCopy = useCallback((prompt: string, id: string) => {
-    navigator.clipboard.writeText(prompt);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    copyToClipboard(prompt).then((ok) => {
+      if (ok) {
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 2000);
+      } else {
+        toast.error('❌ Clipboard access denied', TOAST_DEFAULTS);
+      }
+    });
   }, []);
 
   const handleUse = useCallback((prompt: string) => {

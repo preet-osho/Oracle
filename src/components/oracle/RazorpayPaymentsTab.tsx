@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
+import { copyToClipboard } from '@/lib/utils';
 import {
   openRazorpayCheckout,
   createRazorpayOrder,
@@ -313,8 +314,7 @@ function UPIQRView({codes, onRefresh}: { codes: UPIQRData[]; config: RazorpayCon
   }, [upiId, amount, description, onRefresh]);
 
   const copyUPILink = useCallback((link: string) => {
-    navigator.clipboard.writeText(link);
-    toast.success('📋 UPI link copied', TOAST_DEFAULTS);
+    copyToClipboard(link).then((ok) => ok ? toast.success('📋 UPI link copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS));
   }, []);
 
   const sendViaWhatsApp = useCallback((qr: UPIQRData) => {
@@ -414,8 +414,7 @@ function PaymentLinksView({links, onRefresh}: { links: PaymentLink[]; config: Ra
   }, [amount, description, agencyName, onRefresh]);
 
   const copyLink = useCallback((link: string) => {
-    navigator.clipboard.writeText(link);
-    toast.success('📋 Link copied', TOAST_DEFAULTS);
+    copyToClipboard(link).then((ok) => ok ? toast.success('📋 Link copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS));
   }, []);
 
   const shareViaWhatsApp = useCallback((link: PaymentLink) => {
@@ -483,7 +482,7 @@ function RecordsView({ payments, onRefresh }: { payments: PaymentRecord[]; onRef
       <div className="oracle-glass rounded-2xl p-5">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-[15px] font-bold text-[var(--oracle-text-1)]">📋 Payment History ({payments.length})</h3>
-          <button onClick={() => { navigator.clipboard.writeText(payments.map((p) => `${p.customerName}\t₹${p.amount}\t${p.status}\t${new Date(p.createdAt).toLocaleDateString()}`).join('\n')); toast.success('Copied', TOAST_DEFAULTS); }} className="text-[11px] text-[var(--oracle-primary-l)] hover:underline">📋 Export CSV</button>
+          <button onClick={() => { copyToClipboard(payments.map((p) => `${p.customerName}\t₹${p.amount}\t${p.status}\t${new Date(p.createdAt).toLocaleDateString()}`).join('\n')).then((ok) => ok ? toast.success('Copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }} className="text-[11px] text-[var(--oracle-primary-l)] hover:underline">📋 Export CSV</button>
         </div>
 
         {payments.length === 0 ? (
@@ -501,7 +500,7 @@ function RecordsView({ payments, onRefresh }: { payments: PaymentRecord[]; onRef
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-bold text-[var(--oracle-text-1)]">₹{p.amount.toLocaleString('en-IN')}</span>
-                  {p.paymentId && <button onClick={() => { navigator.clipboard.writeText(p.paymentId); toast.success('Payment ID copied', TOAST_DEFAULTS); }} className="text-[10px] text-[var(--oracle-text-muted)] hover:text-[var(--oracle-primary-l)]" title={p.paymentId}>📋</button>}
+                  {p.paymentId && <button onClick={() => { copyToClipboard(p.paymentId).then((ok) => ok ? toast.success('Payment ID copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }} className="text-[10px] text-[var(--oracle-text-muted)] hover:text-[var(--oracle-primary-l)]" title={p.paymentId}>📋</button>}
                   <button onClick={() => { deletePayment(p.id); onRefresh(); }} className="text-[10px] text-[var(--oracle-text-muted)] hover:text-[var(--oracle-error)]">🗑</button>
                 </div>
               </div>
