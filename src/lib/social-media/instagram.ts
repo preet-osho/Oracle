@@ -50,13 +50,15 @@ function getConfig(): InstagramConfig | null {
   return { accessToken, igAccountId, facebookPageId: process.env.FACEBOOK_PAGE_ID };
 }
 
-function buildParams(config: InstagramConfig, extra?: Record<string, string>): string {
+function _buildParams(config: InstagramConfig, extra?: Record<string, string>): string {
   const base = new URLSearchParams({ access_token: config.accessToken });
   if (extra) {
     for (const [k, v] of Object.entries(extra)) base.set(k, v);
   }
   return base.toString();
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+void _buildParams;
 
 // ─── Public API ───────────────────────
 

@@ -292,10 +292,11 @@ export async function extractBatch(
 
     for (let j = 0; j < batchResults.length; j++) {
       const r = batchResults[j];
+      if (!r) continue;
       if (r.status === 'fulfilled') {
-        results.push({ url: batch[j], result: r.value });
+        results.push({ url: batch[j]!, result: r.value });
       } else {
-        results.push({ url: batch[j], error: r.reason?.message || 'Extraction failed' });
+        results.push({ url: batch[j]!, error: r.reason?.message || 'Extraction failed' });
       }
     }
   }

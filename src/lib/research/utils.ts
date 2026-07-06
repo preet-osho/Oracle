@@ -66,8 +66,8 @@ export function isPrivateHost(hostname: string): boolean {
 function isPrivateCidr(hostname: string): boolean {
   const parts = hostname.split('.');
   if (parts.length !== 4) return false;
-  const first = parseInt(parts[0], 10);
-  const second = parseInt(parts[1], 10);
+  const first = parseInt(parts[0]!, 10);
+  const second = parseInt(parts[1]!, 10);
   return first === 172 && second >= 16 && second <= 31;
 }
 

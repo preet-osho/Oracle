@@ -214,6 +214,7 @@ export async function bulkSend(
 
   for (let i = 0; i < recipients.length; i++) {
     const recipient = recipients[i];
+    if (!recipient) continue;
     const result = await sendMessage(userId, {
       channel,
       to: recipient.to,

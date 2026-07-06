@@ -83,11 +83,12 @@ export async function multiSourceSearch(query: ResearchQuery): Promise<ResearchR
   const providerResults: ProviderResult[] = [];
   for (let i = 0; i < settled.length; i++) {
     const result = settled[i];
+    if (!result) continue;
     if (result.status === 'fulfilled') {
       providerResults.push(result.value);
     } else {
       providerResults.push({
-        provider: availableProviders[i],
+        provider: availableProviders[i]!,
         results: [],
         durationMs: 0,
         error: result.reason?.message || 'Provider query failed',
@@ -240,7 +241,7 @@ async function querySerper(
   if (opts.language) body.gl = opts.language;
   if (opts.region) body.hl = opts.region;
   if (opts.freshness && freshnessMap[opts.freshness]) {
-    body.tbs = freshnessMap[opts.freshness];
+    body.tbs = freshnessMap[opts.freshness]!;
   }
 
   const response = await fetchWithTimeout('https://google.serper.dev/search', {
@@ -266,7 +267,7 @@ async function querySerper(
     position?: number;
   }>;
 
-  return results.map((r, i) => ({
+  return results.map((r) => ({
     title: r.title || '',
     url: r.link || '',
     snippet: r.snippet || '',
@@ -305,7 +306,7 @@ async function queryBrave(
   if (opts.language) params.set('search_lang', opts.language);
   if (opts.region) params.set('country', opts.region);
   if (opts.freshness && freshnessMap[opts.freshness]) {
-    params.set('freshness', freshnessMap[opts.freshness]);
+    params.set('freshness', freshnessMap[opts.freshness]!);
   }
 
   const response = await fetchWithTimeout(
@@ -334,12 +335,12 @@ async function queryBrave(
     meta_url?: { hostname?: string };
   }>;
 
-  return results.map((r, i) => ({
+  return results.map((r, idx) => ({
     title: r.title || '',
     url: r.url || '',
     snippet: r.description || '',
     // Brave doesn't expose a score, use inverse position
-    score: Math.max(10, 100 - i * 10),
+    score: Math.max(10, 100 - idx * 10),
     source: 'brave' as const,
     publishedDate: r.age || undefined,
   }));

@@ -12,7 +12,7 @@ import type {
 import { isLinkedInConfigured, getPageAnalytics as linkedinPageAnalytics, getPostEngagement as linkedinPostEngagement, listRecentPosts as linkedinListPosts } from './linkedin';
 import { isInstagramConfigured, getPageAnalytics as instagramPageAnalytics, getPostEngagement as instagramPostEngagement, listRecentMedia as instagramListMedia } from './instagram';
 import { isFacebookConfigured, getPageAnalytics as facebookPageAnalytics, getPostEngagement as facebookPostEngagement, listRecentPosts as facebookListPosts } from './facebook';
-import { listPosts, updatePost } from './scheduler';
+import { listPosts } from './scheduler';
 
 const log = createLogger('AnalyticsCollector');
 
@@ -391,7 +391,7 @@ export async function collectPlatformAnalytics(platform: SocialPlatform): Promis
  * Get the latest analytics snapshot.
  */
 export function getLatestSnapshot(): AnalyticsSnapshot | null {
-  return snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  return snapshots.length > 0 ? snapshots[snapshots.length - 1]! : null;
 }
 
 /**
@@ -416,8 +416,8 @@ export function getRecentSnapshots(count = 30): AnalyticsSnapshot[] {
 export function getTrends(): AnalyticsTrend[] {
   if (snapshots.length < 2) return [];
 
-  const current = snapshots[snapshots.length - 1];
-  const previous = snapshots[snapshots.length - 2];
+  const current = snapshots[snapshots.length - 1]!;
+  const previous = snapshots[snapshots.length - 2]!;
 
   const trends: AnalyticsTrend[] = [];
   const platforms: SocialPlatform[] = ['linkedin', 'instagram', 'facebook'];

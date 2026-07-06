@@ -56,21 +56,21 @@ export function normalizeSearchUrl(url: string): string {
     }
 
     // Strip trailing slash from pathname
-    let pathname = parsed.pathname;
+    let pathname = parsed.pathname || '/';
     if (pathname.endsWith('/') && pathname.length > 1) {
       pathname = pathname.slice(0, -1);
     }
 
     // Rebuild without search params or hash
-    return pathname === '/' ? host : `${host}${pathname}`;
+    return pathname === '/' ? host : `${host}${pathname!}`;
   } catch {
     // If URL parsing fails, do basic normalization
     return url
       .toLowerCase()
       .replace(/^https?:\/\/(www\.)?/, '')
       .replace(/\/+$/, '')
-      .split('?')[0]
-      .split('#')[0];
+      .split('?')[0]!
+      .split('#')[0]!;
   }
 }
 
@@ -104,7 +104,7 @@ function mergeGroups(
   for (const [, group] of groups) {
     if (group.length === 1) {
       // Single result — apply relevance boost and keep
-      const result = { ...group[0] };
+      const result = { ...group[0]! };
       result.score = applyRelevanceBoost(result.score, result, queryTerms);
       merged.push(result);
     } else {
@@ -124,7 +124,7 @@ function mergeGroups(
 function mergeGroup(group: RankedResult[], queryTerms: string[]): RankedResult {
   // Sort by score to find the best base result (copy to avoid mutating input)
   const sorted = [...group].sort((a, b) => b.score - a.score);
-  const best = sorted[0];
+  const best = sorted[0]!;
 
   // Collect all unique sources
   const sources = [...new Set(group.map((r) => r.source))];
@@ -133,23 +133,23 @@ function mergeGroup(group: RankedResult[], queryTerms: string[]): RankedResult {
   const crossSourceBoost = Math.min((sources.length - 1) * 15, 30);
 
   // Use the longest snippet (most information)
-  const longestSnippet = sorted.reduce((best, r) =>
-    r.snippet.length > best.snippet.length ? r : best,
+  const longestSnippet = sorted.reduce((acc, r) =>
+    r.snippet.length > acc.snippet.length ? r : acc,
   );
 
   // Use the best title (longest is usually most descriptive)
-  const bestTitle = sorted.reduce((best, r) =>
-    r.title.length > best.title.length ? r : best,
+  const bestTitle = sorted.reduce((acc, r) =>
+    r.title.length > acc.title.length ? r : acc,
   );
 
   // Use the most recent published date
   const mostRecent = sorted
     .filter((r) => r.publishedDate)
-    .sort((a, b) => (b.publishedDate || '').localeCompare(a.publishedDate || ''))[0];
+    .sort((a, b) => (b.publishedDate ?? '').localeCompare(a.publishedDate ?? ''))[0];
 
   const mergedScore = best.score + crossSourceBoost;
 
-  return {
+  const result: RankedResult = {
     title: bestTitle.title,
     url: best.url,
     snippet: longestSnippet.snippet,
@@ -158,6 +158,7 @@ function mergeGroup(group: RankedResult[], queryTerms: string[]): RankedResult {
     publishedDate: mostRecent?.publishedDate || best.publishedDate,
     duplicateOf: group.length > 1 ? best.url : undefined,
   };
+  return result;
 }
 
 // ─── Query Relevance Boost ────────────

@@ -6,7 +6,6 @@
 import { createLogger } from '@/lib/logger';
 import type {
   SocialPlatform,
-  SocialPlatformConfig,
   SocialMediaPost,
   PostType,
   PostPriority,

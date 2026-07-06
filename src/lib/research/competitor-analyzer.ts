@@ -240,16 +240,16 @@ export function generateSwot(analysis: CompetitorAnalysis): SwotAnalysis {
   // ── Generate Summary ──
   const summaryParts: string[] = [];
   if (strengths.length > 0) {
-    summaryParts.push(`${analysis.domain} has ${strengths.length} key strengths including ${strengths[0].toLowerCase()}`);
+    summaryParts.push(`${analysis.domain} has ${strengths.length} key strengths including ${strengths[0]!.toLowerCase()}`);
   }
   if (weaknesses.length > 0) {
-    summaryParts.push(`${weaknesses.length} exploitable weaknesses such as ${weaknesses[0].toLowerCase()}`);
+    summaryParts.push(`${weaknesses.length} exploitable weaknesses such as ${weaknesses[0]!.toLowerCase()}`);
   }
   if (opportunities.length > 0) {
-    summaryParts.push(`${opportunities.length} strategic opportunities including ${opportunities[0].toLowerCase()}`);
+    summaryParts.push(`${opportunities.length} strategic opportunities including ${opportunities[0]!.toLowerCase()}`);
   }
   if (threats.length > 0) {
-    summaryParts.push(`${threats.length} competitive threats like ${threats[0].toLowerCase()}`);
+    summaryParts.push(`${threats.length} competitive threats like ${threats[0]!.toLowerCase()}`);
   }
 
   return {
@@ -299,12 +299,12 @@ export async function compareCompetitors(
 
     for (let j = 0; j < batchResults.length; j++) {
       const result = batchResults[j];
-      analyses.push({
-        url: batch[j],
-        ...(result.status === 'fulfilled'
-          ? { status: 'fulfilled' as const, value: result.value }
-          : { status: 'rejected' as const, reason: result.reason }),
-      });
+      if (!result) continue;
+      if (result.status === 'fulfilled') {
+        analyses.push({ url: batch[j]!, status: 'fulfilled' as const, value: result.value });
+      } else {
+        analyses.push({ url: batch[j]!, status: 'rejected' as const, reason: result.reason });
+      }
     }
   }
 
@@ -410,7 +410,7 @@ function extractStructure($: cheerio.CheerioAPI, url: string): WebsiteStructure 
 
 // ─── HTML Parsing: SEO ────────────────
 
-function extractSeoSignals($: cheerio.CheerioAPI, url: string): SeoSignals {
+function extractSeoSignals($: cheerio.CheerioAPI, _url: string): SeoSignals {
   const titleTag = $('title').first().text().trim() || undefined;
   const metaDescription = $('meta[name="description"]').attr('content')?.trim() || undefined;
 
@@ -505,7 +505,7 @@ function extractContentSignals($: cheerio.CheerioAPI): ContentSignals {
       .filter((d) => !isNaN(d.getTime()))
       .sort((a, b) => b.getTime() - a.getTime());
     if (parsedDates.length > 0) {
-      lastBlogDate = parsedDates[0].toISOString();
+      lastBlogDate = parsedDates[0]!.toISOString();
     }
   }
 
@@ -554,8 +554,8 @@ function extractPricingSignals($: cheerio.CheerioAPI): PricingInfo {
   // Try to pair plan names with prices
   for (let i = 0; i < Math.min(planNames.length, prices.length, 5); i++) {
     plans.push({
-      name: planNames[i],
-      price: prices[i],
+      name: planNames[i]!,
+      price: prices[i]!,
       features: [],
     });
   }
@@ -589,7 +589,7 @@ function extractPricingDetails($: cheerio.CheerioAPI): {
 
   if (pricingSections.length > 0) {
     pricingSections.each((_, section) => {
-      const $section = $(section);
+      const $section = $(section!);
       const name = $section.find('h2, h3, h4, [class*="name"], [class*="title"]').first().text().trim();
       const price = $section.find('[class*="price"], [class*="amount"], [class*="cost"]').first().text().trim();
       const features = $section.find('li, [class*="feature"]')
@@ -615,7 +615,7 @@ function extractPricingDetails($: cheerio.CheerioAPI): {
 
 // ─── Tech Stack Detection ─────────────
 
-function detectTechStack($: cheerio.CheerioAPI, html: string): TechStack {
+function detectTechStack(_$: cheerio.CheerioAPI, html: string): TechStack {
   // Framework detection
   let framework: string | undefined;
   if (html.includes('__next') || html.includes('_next/static')) framework = 'Next.js';
@@ -685,7 +685,7 @@ function countBlogPosts($: cheerio.CheerioAPI): { count: number; lastDate?: stri
 
   return {
     count: posts.length,
-    lastDate: dates.length > 0 ? dates[0].toISOString() : undefined,
+    lastDate: dates.length > 0 ? dates[0]!.toISOString() : undefined,
   };
 }
 
@@ -698,7 +698,7 @@ function findPricingUrl($: cheerio.CheerioAPI, baseUrl: string): string | null {
     .filter((l: { href: string; text: string }) => /pric|plan|tier/i.test(l.text) || /pric|plan|tier/i.test(l.href));
 
   if (links.length === 0) return null;
-  return resolveUrl(links[0].href, baseUrl);
+  return resolveUrl(links[0]!.href, baseUrl);
 }
 
 function findBlogUrl($: cheerio.CheerioAPI, baseUrl: string): string | null {
@@ -708,7 +708,7 @@ function findBlogUrl($: cheerio.CheerioAPI, baseUrl: string): string | null {
     .filter((l: { href: string; text: string }) => /blog|article|post|news/i.test(l.text) || /blog|article|news/i.test(l.href));
 
   if (links.length === 0) return null;
-  return resolveUrl(links[0].href, baseUrl);
+  return resolveUrl(links[0]!.href, baseUrl);
 }
 
 function resolveUrl(href: string, baseUrl: string): string {

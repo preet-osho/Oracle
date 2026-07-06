@@ -8,7 +8,6 @@ import { nanoid } from 'nanoid';
 import type {
   SocialMediaPost,
   SocialPlatform,
-  PostType,
   PostStatus,
   PostPriority,
   PostQueueItem,
@@ -205,10 +204,9 @@ export async function processQueue(): Promise<{
   }
 
   // Cleanup completed/failed items older than 24h
-  const cutoff = now - 24 * 60 * 60 * 1000;
-  for (let i = queue.length - 1; i >= 0; i--) {
+  const cutoff = now - 24 * 60 * 60 * 1000;    for (let i = queue.length - 1; i >= 0; i--) {
     const q = queue[i];
-    if (['completed', 'failed'].includes(q.status) && q.lastAttemptAt && q.lastAttemptAt < cutoff) {
+    if (q && ['completed', 'failed'].includes(q.status) && q.lastAttemptAt && q.lastAttemptAt < cutoff) {
       queue.splice(i, 1);
     }
   }
@@ -321,8 +319,10 @@ export function scheduleBulk(
   for (let i = 0; i < postData.length; i++) {
     const scheduledAt = options.startAt + i * options.intervalMinutes * 60 * 1000;
 
+    const item = postData[i];
+    if (!item) continue;
     const post = createPost({
-      ...postData[i],
+      ...item,
       scheduledAt,
     });
 
