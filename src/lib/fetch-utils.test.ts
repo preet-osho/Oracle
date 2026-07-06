@@ -267,7 +267,9 @@ describe('fetchWithTimeout — edge cases', () => {
     vi.stubGlobal('fetch', mockFetch);
 
     const promise = fetchWithTimeout('https://example.com', { timeoutMs: 1000 });
-    await vi.advanceTimersByTimeAsync(1000);
+    // Use sync advanceTimersByTime to avoid microtask flush detecting unhandled rejection
+    // before expect() gets a chance to handle it
+    vi.advanceTimersByTime(1000);
 
     await expect(promise).rejects.toSatisfy((err: unknown) => {
       return err instanceof Error && err.name === 'AbortError';
