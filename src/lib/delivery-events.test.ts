@@ -484,4 +484,382 @@ describe('Delivery Events Storage', () => {
       });
     });
   });
+
+  // ─── Edge Case & Coverage Tests ───────
+
+  describe('Edge Cases', () => {
+    it('respects MAX_EVENTS cap of 500', () => {
+      // Store 510 events — only the last 500 should remain
+      for (let i = 0; i < 510; i++) {
+        storeDeliveryEvent({
+          provider: 'resend',
+          channel: 'email',
+          eventType: 'email.sent',
+          messageId: `msg-${String(i).padStart(3, '0')}`,
+          metadata: {},
+        });
+      }
+
+      const events = getDeliveryEvents();
+      expect(events).toHaveLength(500);
+      // Most recent event should be first
+      expect(events[0].messageId).toBe('msg-509');
+      // Oldest retained should be msg-010
+      expect(events[events.length - 1].messageId).toBe('msg-010');
+    });
+
+    it('classifies queued events as pending', () => {
+      storeDeliveryEvent({
+        provider: 'twilio',
+        channel: 'whatsapp',
+        eventType: 'whatsapp.queued',
+        messageId: 'SM-Q1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.pending).toBe(1);
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.byStatus.failed).toBe(0);
+    });
+
+    it('classifies sent events as pending', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.sent',
+        messageId: 'msg-S1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.pending).toBe(1);
+    });
+
+    it('classifies scheduled events as pending', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.scheduled',
+        messageId: 'msg-SC1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.pending).toBe(1);
+    });
+
+    it('classifies delivery_delayed as pending (not delivered)', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivery_delayed',
+        messageId: 'msg-DL1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.pending).toBe(1);
+      expect(stats.byStatus.delivered).toBe(0);
+    });
+
+    it('classifies bounced and undelivered as failed', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.bounced',
+        messageId: 'msg-B1',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'twilio',
+        channel: 'whatsapp',
+        eventType: 'whatsapp.undelivered',
+        messageId: 'SM-UD1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.failed).toBe(2);
+    });
+
+    it('classifies complained as neither delivered nor failed (no match)', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.complained',
+        messageId: 'msg-C1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.byStatus.failed).toBe(0);
+      expect(stats.byStatus.pending).toBe(0);
+      expect(stats.totalEvents).toBe(1);
+    });
+
+    it('classifies suppressed as neither delivered nor failed', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.suppressed',
+        messageId: 'msg-SP1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.byStatus.failed).toBe(0);
+    });
+
+    it('classifies received as neither delivered nor failed', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.received',
+        messageId: 'msg-RC1',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.byStatus.failed).toBe(0);
+    });
+
+    it('stores subject and errorCode/errorMessage fields', () => {
+      const event = storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.bounced',
+        messageId: 'msg-ERR1',
+        recipient: 'bad@example.com',
+        subject: 'Weekly Report',
+        errorCode: '550',
+        errorMessage: 'Mailbox not found',
+        metadata: {},
+      });
+
+      expect(event.subject).toBe('Weekly Report');
+      expect(event.errorCode).toBe('550');
+      expect(event.errorMessage).toBe('Mailbox not found');
+    });
+
+    it('combines channel and eventType filters', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivered',
+        messageId: 'msg-001',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.opened',
+        messageId: 'msg-002',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'twilio',
+        channel: 'whatsapp',
+        eventType: 'whatsapp.delivered',
+        messageId: 'SM-001',
+        metadata: {},
+      });
+
+      const result = getDeliveryEvents({ channel: 'email', eventType: 'email.opened' });
+      expect(result).toHaveLength(1);
+      expect(result[0].messageId).toBe('msg-002');
+    });
+
+    it('returns empty array when no events match filter', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivered',
+        messageId: 'msg-001',
+        metadata: {},
+      });
+
+      const result = getDeliveryEvents({ channel: 'whatsapp' });
+      expect(result).toHaveLength(0);
+    });
+
+    it('handles corrupted localStorage in getDeliveryEvents', () => {
+      localStorage.setItem('oracle_delivery_events', 'invalid-json!');
+      const events = getDeliveryEvents();
+      expect(events).toEqual([]);
+    });
+
+    it('handles corrupted localStorage in getDeliveryStats', () => {
+      localStorage.setItem('oracle_delivery_events', 'not-json');
+      const stats = getDeliveryStats();
+      expect(stats.totalEvents).toBe(0);
+      expect(stats.emailEvents).toBe(0);
+      expect(stats.whatsappEvents).toBe(0);
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.recentEvents).toHaveLength(0);
+    });
+
+    it('returns all events when no filters are provided', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivered',
+        messageId: 'msg-001',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'twilio',
+        channel: 'whatsapp',
+        eventType: 'whatsapp.sent',
+        messageId: 'SM-001',
+        metadata: {},
+      });
+
+      const all = getDeliveryEvents();
+      expect(all).toHaveLength(2);
+    });
+
+    it('returns correct stats for empty storage', () => {
+      const stats = getDeliveryStats();
+      expect(stats.totalEvents).toBe(0);
+      expect(stats.emailEvents).toBe(0);
+      expect(stats.whatsappEvents).toBe(0);
+      expect(stats.byType).toEqual({});
+      expect(stats.byStatus.delivered).toBe(0);
+      expect(stats.byStatus.failed).toBe(0);
+      expect(stats.byStatus.pending).toBe(0);
+      expect(stats.byStatus.opened).toBe(0);
+      expect(stats.byStatus.clicked).toBe(0);
+      expect(stats.recentEvents).toHaveLength(0);
+    });
+
+    it('tracks byType counts for all event types', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivered',
+        messageId: 'msg-001',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.delivered',
+        messageId: 'msg-002',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.opened',
+        messageId: 'msg-001',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'twilio',
+        channel: 'whatsapp',
+        eventType: 'whatsapp.read',
+        messageId: 'SM-001',
+        metadata: {},
+      });
+
+      const stats = getDeliveryStats();
+      expect(stats.byType['email.delivered']).toBe(2);
+      expect(stats.byType['email.opened']).toBe(1);
+      expect(stats.byType['whatsapp.read']).toBe(1);
+    });
+
+    it('returns most recent events first', () => {
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.sent',
+        messageId: 'msg-first',
+        metadata: {},
+      });
+      storeDeliveryEvent({
+        provider: 'resend',
+        channel: 'email',
+        eventType: 'email.sent',
+        messageId: 'msg-second',
+        metadata: {},
+      });
+
+      const events = getDeliveryEvents();
+      expect(events[0].messageId).toBe('msg-second');
+      expect(events[1].messageId).toBe('msg-first');
+    });
+
+    it('clearTestEvents and countTestEvents work with empty storage', () => {
+      expect(clearTestEvents()).toBe(0);
+      expect(countTestEvents()).toBe(0);
+    });
+
+    it('handles localStorage.removeItem throwing', () => {
+      const orig = localStorage.removeItem;
+      try {
+        localStorage.removeItem = () => { throw new Error('blocked'); };
+        // Should not throw
+        expect(() => clearDeliveryEvents()).not.toThrow();
+      } finally {
+        localStorage.removeItem = orig;
+      }
+    });
+
+    it('handles localStorage.getItem throwing in getDeliveryEvents', () => {
+      const orig = localStorage.getItem;
+      try {
+        localStorage.getItem = () => { throw new Error('blocked'); };
+        const events = getDeliveryEvents();
+        expect(events).toEqual([]);
+      } finally {
+        localStorage.getItem = orig;
+      }
+    });
+
+    it('handles localStorage.setItem throwing in storeDeliveryEvent', () => {
+      const orig = localStorage.setItem;
+      try {
+        localStorage.setItem = () => { throw new Error('blocked'); };
+        // Should not throw — silently fails
+        const event = storeDeliveryEvent({
+          provider: 'resend',
+          channel: 'email',
+          eventType: 'email.delivered',
+          messageId: 'msg-ERR',
+          metadata: {},
+        });
+        expect(event.id).toBeTruthy();
+        expect(event.receivedAt).toBeGreaterThan(0);
+      } finally {
+        localStorage.setItem = orig;
+      }
+    });
+
+    it('handles setTestEventTTL with corrupted localStorage', () => {
+      const orig = localStorage.setItem;
+      try {
+        localStorage.setItem = () => { throw new Error('blocked'); };
+        // Should not throw
+        expect(() => setTestEventTTL(5000)).not.toThrow();
+      } finally {
+        localStorage.setItem = orig;
+      }
+    });
+
+    it('handles getTestEventTTL with corrupted localStorage', () => {
+      const orig = localStorage.getItem;
+      try {
+        localStorage.getItem = () => { throw new Error('blocked'); };
+        // Should fall back to default TTL
+        const ttl = getTestEventTTL();
+        expect(ttl).toBe(60 * 60 * 1000);
+      } finally {
+        localStorage.getItem = orig;
+      }
+    });
+  });
 });
