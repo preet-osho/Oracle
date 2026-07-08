@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════
 // ORACLE — WhatsApp Service Tests
-// Tests for sendBulkWhatsApp (100ms delay verification)
+// Tests for sendWhatsAppMessage, sendBulkWhatsApp, utilities
 // Uses vi.resetModules() for twilioClient singleton isolation
 // ═══════════════════════════════════════
 
@@ -53,6 +53,355 @@ function stubEnv(overrides: Record<string, string> = {}) {
   vi.stubEnv('TWILIO_AUTH_TOKEN', overrides.TWILIO_AUTH_TOKEN ?? 'auth-token-12345');
   vi.stubEnv('TWILIO_WHATSAPP_FROM', overrides.TWILIO_WHATSAPP_FROM ?? 'whatsapp:+14155238886');
 }
+
+// ═══════════════════════════════════════
+// sendWhatsAppMessage Tests
+// ═══════════════════════════════════════
+
+describe('sendWhatsAppMessage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockSendMessage.mockResolvedValue({
+      sid: 'SM1234567890',
+      status: 'queued',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends a text message successfully', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Hello!',
+    });
+
+    expect(result.status).toBe('queued');
+    expect(result.id).toBe('SM1234567890');
+    expect(result.to).toBe('whatsapp:+919876543210');
+    expect(result.from).toBe('whatsapp:+14155238886');
+    expect(result.body).toBe('Hello!');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+        from: 'whatsapp:+14155238886',
+        body: 'Hello!',
+      }),
+    );
+  });
+
+  it('sends a template message with contentSid', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      templateSid: 'HX1234567890abcdef',
+      templateVariables: { name: 'Alice', order: '12345' },
+    });
+
+    expect(result.status).toBe('queued');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+        contentSid: 'HX1234567890abcdef',
+        contentVariables: JSON.stringify({ name: 'Alice', order: '12345' }),
+      }),
+    );
+  });
+
+  it('sends a template message without variables', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      templateSid: 'HX1234567890abcdef',
+    });
+
+    expect(result.status).toBe('queued');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentSid: 'HX1234567890abcdef',
+      }),
+    );
+    // No contentVariables when templateVariables is undefined
+    const callArgs = mockSendMessage.mock.calls[0][0];
+    expect(callArgs.contentVariables).toBeUndefined();
+  });
+
+  it('sends a media message with mediaUrl', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Check this out!',
+      mediaUrl: ['https://example.com/image.png'],
+    });
+
+    expect(result.status).toBe('queued');
+    expect(result.mediaUrl).toEqual(['https://example.com/image.png']);
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+        body: 'Check this out!',
+        mediaUrl: ['https://example.com/image.png'],
+      }),
+    );
+  });
+
+  it('sends a media message without body', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    await sendWhatsAppMessage({
+      to: '+919876543210',
+      mediaUrl: ['https://example.com/doc.pdf'],
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaUrl: ['https://example.com/doc.pdf'],
+        body: '',
+      }),
+    );
+  });
+
+  it('formats number already prefixed with whatsapp:', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    await sendWhatsAppMessage({
+      to: 'whatsapp:+919876543210',
+      body: 'Test',
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+      }),
+    );
+  });
+
+  it('formats number with + prefix', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    await sendWhatsAppMessage({
+      to: '+14155551234',
+      body: 'Test',
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+14155551234',
+      }),
+    );
+  });
+
+  it('formats 10-digit number with +91 prefix (Indian)', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    await sendWhatsAppMessage({
+      to: '9876543210',
+      body: 'Test',
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+      }),
+    );
+  });
+
+  it('formats plain number with + prefix', async () => {
+    const { sendWhatsAppMessage } = await freshImport();
+    await sendWhatsAppMessage({
+      to: '141555512345',
+      body: 'Test',
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+141555512345',
+      }),
+    );
+  });
+
+  it('returns failed status when credentials are not configured', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: '', TWILIO_AUTH_TOKEN: '' });
+
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Test',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.id).toBe('');
+    expect(result.error).toBe('Twilio credentials not configured');
+    expect(result.to).toBe('+919876543210');
+    expect(result.from).toBe('whatsapp:+14155238886');
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns failed status when auth token is missing', async () => {
+    stubEnv({ TWILIO_AUTH_TOKEN: '' });
+
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Test',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe('Twilio credentials not configured');
+  });
+
+  it('returns failed status when Twilio client throws an Error', async () => {
+    mockSendMessage.mockRejectedValueOnce(new Error('Twilio rate limit exceeded'));
+
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Test',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.id).toBe('');
+    expect(result.error).toBe('Twilio rate limit exceeded');
+    expect(result.to).toBe('whatsapp:+919876543210');
+  });
+
+  it('handles non-Error throw from Twilio client', async () => {
+    mockSendMessage.mockRejectedValueOnce('string error');
+
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Test',
+    });
+
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe('Unknown error');
+  });
+
+  it('uses custom from number from env', async () => {
+    stubEnv({ TWILIO_WHATSAPP_FROM: 'whatsapp:+15551234567' });
+
+    const { sendWhatsAppMessage } = await freshImport();
+    const result = await sendWhatsAppMessage({
+      to: '+919876543210',
+      body: 'Custom from',
+    });
+
+    expect(result.from).toBe('whatsapp:+15551234567');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'whatsapp:+15551234567',
+      }),
+    );
+  });
+});
+
+// ═══════════════════════════════════════
+// sendWhatsAppMedia Tests
+// ═══════════════════════════════════════
+
+describe('sendWhatsAppMedia', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockSendMessage.mockResolvedValue({
+      sid: 'SM_MEDIA_001',
+      status: 'queued',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends media message with URL', async () => {
+    const { sendWhatsAppMedia } = await freshImport();
+    const result = await sendWhatsAppMedia(
+      '+919876543210',
+      'https://example.com/image.png',
+    );
+
+    expect(result.status).toBe('queued');
+    expect(result.id).toBe('SM_MEDIA_001');
+    expect(result.mediaUrl).toEqual(['https://example.com/image.png']);
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaUrl: ['https://example.com/image.png'],
+        body: '',
+      }),
+    );
+  });
+
+  it('sends media message with caption', async () => {
+    const { sendWhatsAppMedia } = await freshImport();
+    const result = await sendWhatsAppMedia(
+      '+919876543210',
+      'https://example.com/doc.pdf',
+      'Here is your invoice',
+    );
+
+    expect(result.status).toBe('queued');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mediaUrl: ['https://example.com/doc.pdf'],
+        body: 'Here is your invoice',
+      }),
+    );
+  });
+});
+
+// ═══════════════════════════════════════
+// sendWhatsAppTemplate Tests
+// ═══════════════════════════════════════
+
+describe('sendWhatsAppTemplate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockSendMessage.mockResolvedValue({
+      sid: 'SM_TMPL_001',
+      status: 'queued',
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends template message with SID and variables', async () => {
+    const { sendWhatsAppTemplate } = await freshImport();
+    const result = await sendWhatsAppTemplate(
+      '+919876543210',
+      'HX_TEMPLATE_SID',
+      { name: 'Bob', amount: '5000' },
+    );
+
+    expect(result.status).toBe('queued');
+    expect(result.id).toBe('SM_TMPL_001');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentSid: 'HX_TEMPLATE_SID',
+        contentVariables: JSON.stringify({ name: 'Bob', amount: '5000' }),
+      }),
+    );
+  });
+
+  it('sends template message without variables', async () => {
+    const { sendWhatsAppTemplate } = await freshImport();
+    const result = await sendWhatsAppTemplate(
+      '+919876543210',
+      'HX_TEMPLATE_SID',
+    );
+
+    expect(result.status).toBe('queued');
+    expect(mockSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        contentSid: 'HX_TEMPLATE_SID',
+      }),
+    );
+    const callArgs = mockSendMessage.mock.calls[0][0];
+    expect(callArgs.contentVariables).toBeUndefined();
+  });
+});
 
 // ═══════════════════════════════════════
 // sendBulkWhatsApp Tests
