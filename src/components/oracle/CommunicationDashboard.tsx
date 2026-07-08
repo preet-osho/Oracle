@@ -7,9 +7,9 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   getCommunicationStats,
-  checkCommunicationHealth,
   type CommunicationStats,
 } from '@/lib/communication-hub';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 import {
   getCommunications,
   getCommunicationStats as getLogStats,
@@ -1723,8 +1723,12 @@ export function CommunicationDashboard() {
       // ── Delivery stats from communication hub (localStorage) ──
       const deliveryStats = getCommunicationStats();
 
-      // ── Provider health (check env vars / config) ──
-      const healthData = await checkCommunicationHealth();
+      // ── Provider health (via API to avoid bundling server-only packages) ──
+      let healthData = { email: { resend: false, sendgrid: false, preferred: 'resend' }, whatsapp: { configured: false, fromNumber: '' } };
+      try {
+        const res = await fetchWithTimeout('/api/communication/send', { method: 'GET', timeoutMs: TIMEOUT_QUICK_MS });
+        if (res.ok) healthData = await res.json();
+      } catch { /* health check unavailable — show defaults */ }
 
       // ── Communication log entries (localStorage) ──
       const allEntries = getCommunications();

@@ -13,10 +13,17 @@ vi.mock('@/lib/communication-hub', () => ({
     failed: 4,
     lastSentAt: Date.now() - 3600000,
   })),
-  checkCommunicationHealth: vi.fn(async () => ({
-    email: { resend: true, sendgrid: false, preferred: 'resend' },
-    whatsapp: { configured: true, fromNumber: '+919876543210' },
+}));
+
+vi.mock('@/lib/fetch-utils', () => ({
+  fetchWithTimeout: vi.fn(async () => ({
+    ok: true,
+    json: async () => ({
+      email: { resend: true, sendgrid: false, preferred: 'resend' },
+      whatsapp: { configured: true, fromNumber: '+919876543210' },
+    }),
   })),
+  TIMEOUT_QUICK_MS: 5000,
 }));
 
 vi.mock('@/lib/communication-log', () => ({

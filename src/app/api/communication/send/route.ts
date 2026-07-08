@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server';
 import { validateAuth } from '@/lib/supabase/validate';
 import { checkRateLimit, API_WRITE_RATE_LIMIT } from '@/lib/rate-limit';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
-import { sendMessage, sendBulkMessages, isValidEmail, isValidWhatsAppNumber, type CommunicationChannel } from '@/lib/communication-hub';
+import { sendMessage, sendBulkMessages, isValidEmail, isValidWhatsAppNumber, type CommunicationChannel } from '@/lib/communication-hub-server';
 
 // ─── Request Types ──────────────────────
 
@@ -296,7 +296,7 @@ export async function GET() {
   const auth = await validateAuth();
   if ('error' in auth) return auth.error;
 
-  const { checkCommunicationHealth } = await import('@/lib/communication-hub');
+  const { checkCommunicationHealth } = await import('@/lib/communication-hub-server');
   const health = await checkCommunicationHealth();
 
   return Response.json(health);

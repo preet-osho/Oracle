@@ -5,6 +5,14 @@ const nextConfig = {
   // Enable React Strict Mode for better error detection
   reactStrictMode: true,
 
+  // Server-only packages that use Node.js built-ins (fs, net, tls)
+  // Must not be bundled for the client
+  serverExternalPackages: [
+    '@sendgrid/mail',
+    'twilio',
+    'playwright',
+  ],
+
   // Optimize imports for heavy packages (tree-shaking)
   experimental: {
     optimizePackageImports: [

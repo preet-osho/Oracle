@@ -1,14 +1,10 @@
 // ═══════════════════════════════════════
-// ORACLE — Communication Hub
-// Unified interface for Email, WhatsApp, and future channels
-// Orchestrates providers, tracks delivery, and enforces limits
+// ORACLE — Communication Hub (Client-Safe)
+// Client-side utilities: types, validation, stats tracking.
+// This file is safe to import from 'use client' components.
+// Server-side send/health functions live in communication-hub-server.ts
+// and should be called via API routes (e.g. /api/communication/send).
 // ═══════════════════════════════════════
-
-import { sendEmail, sendTemplateEmail, sendBulkEmail, checkEmailServiceHealth, type EmailSendResult, type SendEmailOptions } from '@/lib/email-service';
-import { sendWhatsAppMessage, sendBulkWhatsApp, sendWhatsAppTemplate, checkWhatsAppHealth, type WhatsAppMessage, type SendWhatsAppOptions } from '@/lib/whatsapp';
-import { createLogger } from '@/lib/logger';
-
-const log = createLogger('CommunicationHub');
 
 // ─── Types ─────────────────────────────
 
@@ -17,11 +13,11 @@ export type CommunicationChannel = 'email' | 'whatsapp';
 export interface SendMessageRequest {
   channel: CommunicationChannel;
   to: string | string[];
-  subject?: string;       // Email only
+  subject?: string;
   body: string;
-  html?: string;          // Email only
-  mediaUrl?: string[];    // WhatsApp only
-  templateId?: string;    // For template-based sends
+  html?: string;
+  mediaUrl?: string[];
+  templateId?: string;
   templateVariables?: Record<string, string>;
   tags?: Record<string, string>;
   priority?: 'low' | 'normal' | 'high';
@@ -60,7 +56,7 @@ function getStoredStats(): CommunicationStats {
   }
 }
 
-function updateStoredStats(channel: CommunicationChannel, success: boolean): void {
+export function updateStoredStats(channel: CommunicationChannel, success: boolean): void {
   if (typeof window === 'undefined') return;
   try {
     const stats = getStoredStats();
@@ -78,231 +74,13 @@ function updateStoredStats(channel: CommunicationChannel, success: boolean): voi
   }
 }
 
-// ─── Communication Hub ──────────────────
+// ─── Client-Safe Exports ───────────────
 
 /**
- * Send a message through the appropriate channel.
- * Handles provider selection, fallback, and tracking.
- */
-export async function sendMessage(request: SendMessageRequest): Promise<CommunicationResult> {
-  const startTime = Date.now();
-  log.info('Sending message', { channel: request.channel, to: request.to });
-
-  try {
-    let result: CommunicationResult;
-
-    if (request.channel === 'email') {
-      result = await sendEmailMessage(request);
-    } else if (request.channel === 'whatsapp') {
-      result = await sendWhatsAppMessageHub(request);
-    } else {
-      return {
-        success: false,
-        channel: request.channel,
-        provider: 'unknown',
-        error: `Unsupported channel: ${request.channel}`,
-        timestamp: Date.now(),
-      };
-    }
-
-    updateStoredStats(request.channel, result.success);
-
-    log.info('Message sent', {
-      channel: request.channel,
-      success: result.success,
-      duration: Date.now() - startTime,
-    });
-
-    return result;
-  } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    log.error('Message send failed', { channel: request.channel, error: errorMsg });
-
-    updateStoredStats(request.channel, false);
-
-    return {
-      success: false,
-      channel: request.channel,
-      provider: 'unknown',
-      error: errorMsg,
-      timestamp: Date.now(),
-    };
-  }
-}
-
-/**
- * Send email message through the hub.
- */
-async function sendEmailMessage(request: SendMessageRequest): Promise<CommunicationResult> {
-  const recipients = Array.isArray(request.to) ? request.to : [request.to];
-
-  if (request.templateId) {
-    const result = await sendTemplateEmail({
-      to: recipients,
-      templateId: request.templateId,
-      dynamicData: request.templateVariables || {},
-      replyTo: process.env.EMAIL_REPLY_TO,
-    });
-
-    return {
-      success: result.success,
-      channel: 'email',
-      messageId: result.messageId,
-      provider: result.provider,
-      error: result.error,
-      timestamp: Date.now(),
-    };
-  }
-
-  const result = await sendEmail({
-    to: recipients,
-    subject: request.subject || 'Message from Oracle',
-    html: request.html || `<p>${escapeHtml(request.body)}</p>`,
-    text: request.body,
-    replyTo: process.env.EMAIL_REPLY_TO,
-    tags: request.tags,
-  });
-
-  return {
-    success: result.success,
-    channel: 'email',
-    messageId: result.messageId,
-    provider: result.provider,
-    error: result.error,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Send WhatsApp message through the hub.
- */
-async function sendWhatsAppMessageHub(request: SendMessageRequest): Promise<CommunicationResult> {
-  const recipients = Array.isArray(request.to) ? request.to : [request.to];
-  const results: WhatsAppMessage[] = [];
-
-  if (request.templateId) {
-    // Template-based bulk send
-    for (const recipient of recipients) {
-      const result = await sendWhatsAppTemplate(
-        recipient,
-        request.templateId,
-        request.templateVariables,
-      );
-      results.push(result);
-    }
-  } else if (recipients.length > 1) {
-    // Bulk text message
-    const bulkResults = await sendBulkWhatsApp(recipients, request.body);
-    results.push(...bulkResults);
-  } else {
-    // Single text message
-    const options: SendWhatsAppOptions = {
-      to: recipients[0],
-      body: request.body,
-      mediaUrl: request.mediaUrl,
-    };
-    const result = await sendWhatsAppMessage(options);
-    results.push(result);
-  }
-
-  const successCount = results.filter((r) => r.status !== 'failed').length;
-  const allFailed = successCount === 0;
-  const firstError = results.find((r) => r.error)?.error || results.find((r) => r.status === 'failed')?.errorMessage;
-
-  return {
-    success: !allFailed,
-    channel: 'whatsapp',
-    messageId: results[0]?.id,
-    provider: 'twilio',
-    error: allFailed ? firstError : undefined,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Send bulk emails to multiple recipients.
- */
-export async function sendBulkMessages(
-  channel: CommunicationChannel,
-  recipients: string[],
-  subject: string,
-  body: string,
-  options?: { html?: string; tags?: Record<string, string> },
-): Promise<CommunicationResult[]> {
-  if (channel === 'email') {
-    const results = await sendBulkEmail(recipients, subject, options?.html || `<p>${body}</p>`, {
-      tags: options?.tags,
-    });
-
-    return results.map((r) => ({
-      success: r.success,
-      channel: 'email' as CommunicationChannel,
-      messageId: r.messageId,
-      provider: r.provider,
-      error: r.error,
-      timestamp: Date.now(),
-    }));
-  }
-
-  if (channel === 'whatsapp') {
-    const results = await sendBulkWhatsApp(recipients, body);
-    return results.map((r) => ({
-      success: r.status !== 'failed',
-      channel: 'whatsapp' as CommunicationChannel,
-      messageId: r.id,
-      provider: 'twilio',
-      error: r.error,
-      timestamp: Date.now(),
-    }));
-  }
-
-  return [];
-}
-
-/**
- * Get communication statistics.
+ * Get communication statistics from localStorage.
  */
 export function getCommunicationStats(): CommunicationStats {
   return getStoredStats();
-}
-
-/**
- * Check health of all communication services.
- */
-export async function checkCommunicationHealth(): Promise<{
-  email: { resend: boolean; sendgrid: boolean; preferred: string };
-  whatsapp: { configured: boolean; fromNumber: string };
-}> {
-  const [emailHealth, whatsappHealth] = await Promise.all([
-    checkEmailServiceHealth(),
-    checkWhatsAppHealth(),
-  ]);
-
-  return {
-    email: {
-      resend: emailHealth.resend,
-      sendgrid: emailHealth.sendgrid,
-      preferred: emailHealth.preferred,
-    },
-    whatsapp: {
-      configured: whatsappHealth.configured,
-      fromNumber: whatsappHealth.fromNumber,
-    },
-  };
-}
-
-// ─── Utilities ──────────────────────────
-
-/**
- * Escape HTML special characters to prevent XSS in email bodies.
- */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
 }
 
 /**
@@ -318,7 +96,6 @@ export function isValidEmail(email: string): boolean {
  */
 export function isValidWhatsAppNumber(phone: string): boolean {
   const cleaned = phone.replace(/[^0-9+]/g, '');
-  // E.164: + followed by country code and number (7-15 digits)
   return /^\+[1-9]\d{6,14}$/.test(cleaned) || /^whatsapp:\+[1-9]\d{6,14}$/.test(phone);
 }
 
@@ -331,4 +108,16 @@ export function getChannelIcon(channel: CommunicationChannel): string {
     case 'whatsapp': return '💬';
     default: return '📋';
   }
+}
+
+/**
+ * Escape HTML special characters to prevent XSS in email bodies.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
