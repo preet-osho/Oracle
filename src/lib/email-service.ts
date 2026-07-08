@@ -127,6 +127,7 @@ async function sendWithResend(
         content: typeof a.content === 'string' ? Buffer.from(a.content) : a.content,
         content_type: a.contentType,
       })),
+      tags: options.tags ? Object.entries(options.tags).map(([name, value]) => ({ name, value: String(value) })) : undefined,
     } as Parameters<typeof client.emails.send>[0]);
 
     if (result.error) {
@@ -156,6 +157,7 @@ async function sendTemplateWithResend(
       from: options.from || config.defaultFrom,
       to: Array.isArray(options.to) ? options.to : [options.to],
       subject: `Template: ${options.templateId}`,
+      reply_to: options.replyTo,
       tags: Object.entries(options.dynamicData).map(([name, value]) => ({
         name,
         value: String(value),
