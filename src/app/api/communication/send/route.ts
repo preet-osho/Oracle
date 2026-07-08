@@ -293,9 +293,8 @@ async function handleBulkSend(
 // ─── GET Handler (Health Check) ────────
 
 export async function GET() {
-  const auth = await validateAuth();
-  if ('error' in auth) return auth.error;
-
+  // Health check is read-only and non-sensitive — no auth required
+  // so the dashboard can show provider status even when unauthenticated.
   const { checkCommunicationHealth } = await import('@/lib/communication-hub-server');
   const health = await checkCommunicationHealth();
 
