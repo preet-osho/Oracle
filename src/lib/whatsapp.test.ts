@@ -774,6 +774,122 @@ describe('listTemplates', () => {
 });
 
 // ═══════════════════════════════════════
+// Utility Function Tests
+// ═══════════════════════════════════════
+
+describe('isValidIndianPhone', () => {
+  it('validates 10-digit Indian mobile numbers', async () => {
+    const { isValidIndianPhone } = await freshImport();
+
+    // Valid: starts with 6-9
+    expect(isValidIndianPhone('9876543210')).toBe(true);
+    expect(isValidIndianPhone('8765432109')).toBe(true);
+    expect(isValidIndianPhone('7654321098')).toBe(true);
+    expect(isValidIndianPhone('6543210987')).toBe(true);
+
+    // Invalid: starts with 0-5
+    expect(isValidIndianPhone('5876543210')).toBe(false);
+    expect(isValidIndianPhone('0876543210')).toBe(false);
+    expect(isValidIndianPhone('4876543210')).toBe(false);
+  });
+
+  it('validates numbers with +91 country code', async () => {
+    const { isValidIndianPhone } = await freshImport();
+
+    expect(isValidIndianPhone('+919876543210')).toBe(true);
+    expect(isValidIndianPhone('+918765432109')).toBe(true);
+  });
+
+  it('validates numbers with 91 prefix (no +)', async () => {
+    const { isValidIndianPhone } = await freshImport();
+
+    expect(isValidIndianPhone('919876543210')).toBe(true);
+    expect(isValidIndianPhone('918765432109')).toBe(true);
+  });
+
+  it('rejects invalid lengths', async () => {
+    const { isValidIndianPhone } = await freshImport();
+
+    expect(isValidIndianPhone('987654321')).toBe(false);  // 9 digits
+    expect(isValidIndianPhone('98765432101')).toBe(false); // 11 digits
+    expect(isValidIndianPhone('')).toBe(false);
+  });
+
+  it('strips non-digit characters before validation', async () => {
+    const { isValidIndianPhone } = await freshImport();
+
+    expect(isValidIndianPhone('+91 98765 43210')).toBe(true);
+    expect(isValidIndianPhone('9876-543-210')).toBe(true);
+    expect(isValidIndianPhone('(987) 654-3210')).toBe(true); // 10 digits, starts with 9 → valid
+  });
+});
+
+describe('getCountryCode', () => {
+  it('returns +91 for Indian numbers with +91 prefix', async () => {
+    const { getCountryCode } = await freshImport();
+
+    expect(getCountryCode('+919876543210')).toBe('+91');
+    expect(getCountryCode('+91 98765 43210')).toBe('+91');
+  });
+
+  it('returns +91 for Indian numbers with 91 prefix (no +)', async () => {
+    const { getCountryCode } = await freshImport();
+
+    expect(getCountryCode('919876543210')).toBe('+91');
+  });
+
+  it('returns +1 for US numbers', async () => {
+    const { getCountryCode } = await freshImport();
+
+    expect(getCountryCode('+14155551234')).toBe('+1');
+  });
+
+  it('defaults to +91 for unknown numbers', async () => {
+    const { getCountryCode } = await freshImport();
+
+    expect(getCountryCode('9876543210')).toBe('+91');
+    expect(getCountryCode('141555512345')).toBe('+91');
+  });
+});
+
+describe('maskPhoneNumber', () => {
+  it('masks a standard 10-digit Indian number', async () => {
+    const { maskPhoneNumber } = await freshImport();
+
+    expect(maskPhoneNumber('9876543210')).toBe('987*****10');
+  });
+
+  it('masks a number with country code', async () => {
+    const { maskPhoneNumber } = await freshImport();
+
+    expect(maskPhoneNumber('+919876543210')).toBe('919*******10');
+  });
+
+  it('returns original if number is too short to mask', async () => {
+    const { maskPhoneNumber } = await freshImport();
+
+    expect(maskPhoneNumber('12345')).toBe('12345');
+    expect(maskPhoneNumber('123')).toBe('123');
+    expect(maskPhoneNumber('')).toBe('');
+  });
+
+  it('masks long international numbers', async () => {
+    const { maskPhoneNumber } = await freshImport();
+
+    // 15 digits: first 3 + 10 asterisks + last 2
+    expect(maskPhoneNumber('123456789012345')).toBe('123**********45');
+  });
+
+  it('preserves first 3 and last 2 digits', async () => {
+    const { maskPhoneNumber } = await freshImport();
+
+    const masked = maskPhoneNumber('9988776655');
+    expect(masked.startsWith('998')).toBe(true);
+    expect(masked.endsWith('55')).toBe(true);
+  });
+});
+
+// ═══════════════════════════════════════
 // sendBulkWhatsApp Tests
 // ═══════════════════════════════════════
 
