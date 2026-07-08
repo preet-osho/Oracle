@@ -9,21 +9,39 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ─── Hoisted mock references ────────────
 // Must be declared before vi.mock() so the factory can reference them.
 
-const { mockSendMessage } = vi.hoisted(() => ({
+const { mockSendMessage, mockFetchMessage, mockListMessages, mockListTemplates } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
+  mockFetchMessage: vi.fn(),
+  mockListMessages: vi.fn(),
+  mockListTemplates: vi.fn(),
 }));
 
 // ─── Module Mocks ──────────────────────
 
-vi.mock('twilio', () => ({
-  default: vi.fn().mockReturnValue({
-    messages: {
+vi.mock('twilio', () => {
+  // messages needs to be both callable (for messages(sid).fetch())
+  // and have .create() and .list() properties.
+  const messages: any = Object.assign(
+    vi.fn().mockReturnValue({ fetch: mockFetchMessage }),
+    {
       create: mockSendMessage,
-      list: vi.fn(),
-      fetch: vi.fn(),
+      list: mockListMessages,
     },
-  }),
-}));
+  );
+
+  return {
+    default: vi.fn().mockReturnValue({
+      messages,
+      content: {
+        v1: {
+          contents: {
+            list: mockListTemplates,
+          },
+        },
+      },
+    }),
+  };
+});
 
 vi.mock('@/lib/logger', () => ({
   createLogger: vi.fn().mockReturnValue({
@@ -400,6 +418,358 @@ describe('sendWhatsAppTemplate', () => {
     );
     const callArgs = mockSendMessage.mock.calls[0][0];
     expect(callArgs.contentVariables).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════
+// checkWhatsAppHealth Tests
+// ═══════════════════════════════════════
+
+describe('checkWhatsAppHealth', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns configured=true when credentials are present', async () => {
+    const { checkWhatsAppHealth } = await freshImport();
+    const health = await checkWhatsAppHealth();
+
+    expect(health.configured).toBe(true);
+    expect(health.fromNumber).toBe('whatsapp:+14155238886');
+    expect(health.accountSid).toBe('AC123456...');
+  });
+
+  it('returns configured=false when accountSid is missing', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: '' });
+    const { checkWhatsAppHealth } = await freshImport();
+    const health = await checkWhatsAppHealth();
+
+    expect(health.configured).toBe(false);
+    expect(health.accountSid).toBe('');
+  });
+
+  it('returns configured=false when authToken is missing', async () => {
+    stubEnv({ TWILIO_AUTH_TOKEN: '' });
+    const { checkWhatsAppHealth } = await freshImport();
+    const health = await checkWhatsAppHealth();
+
+    expect(health.configured).toBe(false);
+  });
+
+  it('masks accountSid to first 8 characters', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: 'AC1234567890abcdef' });
+    const { checkWhatsAppHealth } = await freshImport();
+    const health = await checkWhatsAppHealth();
+
+    expect(health.accountSid).toBe('AC123456...');
+  });
+
+  it('uses default fromNumber when env is not set', async () => {
+    stubEnv({ TWILIO_WHATSAPP_FROM: '' });
+    const { checkWhatsAppHealth } = await freshImport();
+    const health = await checkWhatsAppHealth();
+
+    expect(health.fromNumber).toBe('whatsapp:+14155238886');
+  });
+});
+
+// ═══════════════════════════════════════
+// getMessageStatus Tests
+// ═══════════════════════════════════════
+
+describe('getMessageStatus', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockFetchMessage.mockResolvedValue({
+      sid: 'SM1234567890',
+      to: 'whatsapp:+919876543210',
+      from: 'whatsapp:+14155238886',
+      body: 'Hello!',
+      status: 'delivered',
+      dateCreated: '2026-07-08T10:00:00Z',
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('fetches message status by SID', async () => {
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM1234567890');
+
+    expect(result).not.toBeNull();
+    expect(result!.id).toBe('SM1234567890');
+    expect(result!.to).toBe('whatsapp:+919876543210');
+    expect(result!.from).toBe('whatsapp:+14155238886');
+    expect(result!.body).toBe('Hello!');
+    expect(result!.status).toBe('delivered');
+    expect(result!.timestamp).toBe(new Date('2026-07-08T10:00:00Z').getTime());
+  });
+
+  it('returns null when credentials are not configured', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: '', TWILIO_AUTH_TOKEN: '' });
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM1234567890');
+
+    expect(result).toBeNull();
+    expect(mockFetchMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns null when fetch throws an error', async () => {
+    mockFetchMessage.mockRejectedValueOnce(new Error('Message not found'));
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM_NOT_FOUND');
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when fetch throws a non-Error value', async () => {
+    mockFetchMessage.mockRejectedValueOnce('string error');
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM_NOT_FOUND');
+
+    expect(result).toBeNull();
+  });
+
+  it('includes errorCode and errorMessage when present', async () => {
+    mockFetchMessage.mockResolvedValueOnce({
+      sid: 'SM_FAILED_001',
+      to: 'whatsapp:+919876543210',
+      from: 'whatsapp:+14155238886',
+      body: undefined,
+      status: 'failed',
+      dateCreated: '2026-07-08T10:00:00Z',
+      errorCode: 30005,
+      errorMessage: 'Undeliverable',
+    });
+
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM_FAILED_001');
+
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe('failed');
+    expect(result!.errorCode).toBe('30005');
+    expect(result!.errorMessage).toBe('Undeliverable');
+  });
+
+  it('handles undefined body gracefully', async () => {
+    mockFetchMessage.mockResolvedValueOnce({
+      sid: 'SM_NO_BODY',
+      to: 'whatsapp:+919876543210',
+      from: 'whatsapp:+14155238886',
+      body: null,
+      status: 'sent',
+      dateCreated: '2026-07-08T10:00:00Z',
+      errorCode: undefined,
+      errorMessage: undefined,
+    });
+
+    const { getMessageStatus } = await freshImport();
+    const result = await getMessageStatus('SM_NO_BODY');
+
+    expect(result).not.toBeNull();
+    expect(result!.body).toBeUndefined();
+  });
+});
+
+// ═══════════════════════════════════════
+// getRecentMessages Tests
+// ═══════════════════════════════════════
+
+describe('getRecentMessages', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockListMessages.mockResolvedValue([
+      {
+        sid: 'SM_MSG_001',
+        to: 'whatsapp:+919876543210',
+        from: 'whatsapp:+14155238886',
+        body: 'First message',
+        status: 'delivered',
+        dateCreated: '2026-07-08T10:00:00Z',
+        errorCode: undefined,
+        errorMessage: undefined,
+      },
+      {
+        sid: 'SM_MSG_002',
+        to: 'whatsapp:+919876543210',
+        from: 'whatsapp:+14155238886',
+        body: 'Second message',
+        status: 'queued',
+        dateCreated: '2026-07-08T10:01:00Z',
+        errorCode: undefined,
+        errorMessage: undefined,
+      },
+    ]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('fetches recent messages for a number', async () => {
+    const { getRecentMessages } = await freshImport();
+    const results = await getRecentMessages('+919876543210');
+
+    expect(results).toHaveLength(2);
+    expect(results[0].id).toBe('SM_MSG_001');
+    expect(results[0].body).toBe('First message');
+    expect(results[0].status).toBe('delivered');
+    expect(results[1].id).toBe('SM_MSG_002');
+    expect(results[1].body).toBe('Second message');
+  });
+
+  it('passes limit parameter to Twilio list', async () => {
+    const { getRecentMessages } = await freshImport();
+    await getRecentMessages('+919876543210', 50);
+
+    expect(mockListMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'whatsapp:+919876543210',
+        pageSize: 50,
+      }),
+    );
+  });
+
+  it('uses default limit of 20', async () => {
+    const { getRecentMessages } = await freshImport();
+    await getRecentMessages('+919876543210');
+
+    expect(mockListMessages).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pageSize: 20,
+      }),
+    );
+  });
+
+  it('returns empty array when credentials are not configured', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: '', TWILIO_AUTH_TOKEN: '' });
+    const { getRecentMessages } = await freshImport();
+    const results = await getRecentMessages('+919876543210');
+
+    expect(results).toEqual([]);
+    expect(mockListMessages).not.toHaveBeenCalled();
+  });
+
+  it('returns empty array when list throws an error', async () => {
+    mockListMessages.mockRejectedValueOnce(new Error('API limit exceeded'));
+    const { getRecentMessages } = await freshImport();
+    const results = await getRecentMessages('+919876543210');
+
+    expect(results).toEqual([]);
+  });
+
+  it('returns empty array when list throws a non-Error value', async () => {
+    mockListMessages.mockRejectedValueOnce('string error');
+    const { getRecentMessages } = await freshImport();
+    const results = await getRecentMessages('+919876543210');
+
+    expect(results).toEqual([]);
+  });
+
+  it('maps messages with optional fields', async () => {
+    mockListMessages.mockResolvedValueOnce([
+      {
+        sid: 'SM_WITH_ERRORS',
+        to: 'whatsapp:+919876543210',
+        from: 'whatsapp:+14155238886',
+        body: null,
+        status: 'failed',
+        dateCreated: '2026-07-08T10:00:00Z',
+        errorCode: 30003,
+        errorMessage: 'Destination unreachable',
+      },
+    ]);
+
+    const { getRecentMessages } = await freshImport();
+    const results = await getRecentMessages('+919876543210');
+
+    expect(results).toHaveLength(1);
+    expect(results[0].body).toBeUndefined();
+    expect(results[0].errorCode).toBe('30003');
+    expect(results[0].errorMessage).toBe('Destination unreachable');
+  });
+});
+
+// ═══════════════════════════════════════
+// listTemplates Tests
+// ═══════════════════════════════════════
+
+describe('listTemplates', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv();
+    mockListTemplates.mockResolvedValue([
+      {
+        sid: 'HX_TMPL_001',
+        friendlyName: 'Welcome Message',
+        language: 'en',
+      },
+      {
+        sid: 'HX_TMPL_002',
+        friendlyName: undefined,
+        language: undefined,
+      },
+    ]);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('fetches available templates', async () => {
+    const { listTemplates } = await freshImport();
+    const templates = await listTemplates();
+
+    expect(templates).toHaveLength(2);
+    expect(templates[0].sid).toBe('HX_TMPL_001');
+    expect(templates[0].name).toBe('Welcome Message');
+    expect(templates[0].language).toBe('en');
+    expect(templates[0].category).toBe('dynamic');
+    expect(templates[0].status).toBe('approved');
+  });
+
+  it('falls back to SID when friendlyName is missing', async () => {
+    const { listTemplates } = await freshImport();
+    const templates = await listTemplates();
+
+    expect(templates[1].name).toBe('HX_TMPL_002');
+    expect(templates[1].language).toBe('en');
+  });
+
+  it('returns empty array when credentials are not configured', async () => {
+    stubEnv({ TWILIO_ACCOUNT_SID: '', TWILIO_AUTH_TOKEN: '' });
+    const { listTemplates } = await freshImport();
+    const templates = await listTemplates();
+
+    expect(templates).toEqual([]);
+    expect(mockListTemplates).not.toHaveBeenCalled();
+  });
+
+  it('returns empty array when list throws an error', async () => {
+    mockListTemplates.mockRejectedValueOnce(new Error('Content API error'));
+    const { listTemplates } = await freshImport();
+    const templates = await listTemplates();
+
+    expect(templates).toEqual([]);
+  });
+
+  it('returns empty array when list throws a non-Error value', async () => {
+    mockListTemplates.mockRejectedValueOnce('string error');
+    const { listTemplates } = await freshImport();
+    const templates = await listTemplates();
+
+    expect(templates).toEqual([]);
   });
 });
 
