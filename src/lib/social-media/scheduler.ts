@@ -146,7 +146,7 @@ export async function processQueue(): Promise<{
   const now = Date.now();
   let published = 0;
   let failed = 0;
-  let skipped = 0;
+  const skipped = 0;
 
   const dueItems = queue.filter((q) => q.status === 'pending' && q.scheduledAt <= now);
 
