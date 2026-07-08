@@ -16,9 +16,11 @@ import type {
   CommunicationResult,
   CommunicationHealthStatus,
 } from '@/lib/communication-hub-types';
+import { escapeHtml } from '@/lib/communication-hub-types';
 
-// Re-export shared types for convenience
+// Re-export shared types and utilities for backward compatibility
 export type { CommunicationChannel, SendMessageRequest, CommunicationResult, CommunicationHealthStatus } from '@/lib/communication-hub-types';
+export { isValidEmail, isValidWhatsAppNumber, getChannelIcon } from '@/lib/communication-hub-types';
 
 const log = createLogger('CommunicationHub');
 
@@ -236,45 +238,4 @@ export async function checkCommunicationHealth(): Promise<CommunicationHealthSta
       fromNumber: whatsappHealth.fromNumber,
     },
   };
-}
-
-// ─── Utilities ──────────────────────────
-
-/**
- * Escape HTML special characters to prevent XSS in email bodies.
- */
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
-
-/**
- * Validate email address format.
- */
-export function isValidEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
-/**
- * Validate phone number for WhatsApp (E.164 format).
- */
-export function isValidWhatsAppNumber(phone: string): boolean {
-  const cleaned = phone.replace(/[^0-9+]/g, '');
-  return /^\+[1-9]\d{6,14}$/.test(cleaned) || /^whatsapp:\+[1-9]\d{6,14}$/.test(phone);
-}
-
-/**
- * Get channel icon for display.
- */
-export function getChannelIcon(channel: CommunicationChannel): string {
-  switch (channel) {
-    case 'email': return '📧';
-    case 'whatsapp': return '💬';
-    default: return '📋';
-  }
 }
