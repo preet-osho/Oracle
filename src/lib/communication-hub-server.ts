@@ -10,34 +10,17 @@
 import { createLogger } from '@/lib/logger';
 import { sendEmail, sendTemplateEmail, sendBulkEmail, checkEmailServiceHealth } from '@/lib/email-service';
 import { sendWhatsAppMessage, sendBulkWhatsApp, sendWhatsAppTemplate, checkWhatsAppHealth } from '@/lib/whatsapp';
+import type {
+  CommunicationChannel,
+  SendMessageRequest,
+  CommunicationResult,
+  CommunicationHealthStatus,
+} from '@/lib/communication-hub-types';
+
+// Re-export shared types for convenience
+export type { CommunicationChannel, SendMessageRequest, CommunicationResult, CommunicationHealthStatus } from '@/lib/communication-hub-types';
 
 const log = createLogger('CommunicationHub');
-
-// ─── Types ─────────────────────────────
-
-export type CommunicationChannel = 'email' | 'whatsapp';
-
-export interface SendMessageRequest {
-  channel: CommunicationChannel;
-  to: string | string[];
-  subject?: string;
-  body: string;
-  html?: string;
-  mediaUrl?: string[];
-  templateId?: string;
-  templateVariables?: Record<string, string>;
-  tags?: Record<string, string>;
-  priority?: 'low' | 'normal' | 'high';
-}
-
-export interface CommunicationResult {
-  success: boolean;
-  channel: CommunicationChannel;
-  messageId?: string;
-  provider: string;
-  error?: string;
-  timestamp: number;
-}
 
 // ─── Storage (server-side mirror for stats tracking) ──
 
@@ -236,10 +219,7 @@ export async function sendBulkMessages(
 /**
  * Check health of all communication services.
  */
-export async function checkCommunicationHealth(): Promise<{
-  email: { resend: boolean; sendgrid: boolean; preferred: string };
-  whatsapp: { configured: boolean; fromNumber: string };
-}> {
+export async function checkCommunicationHealth(): Promise<CommunicationHealthStatus> {
   const [emailHealth, whatsappHealth] = await Promise.all([
     checkEmailServiceHealth(),
     checkWhatsAppHealth(),

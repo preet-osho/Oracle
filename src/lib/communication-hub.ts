@@ -1,36 +1,19 @@
 // ═══════════════════════════════════════
 // ORACLE — Communication Hub (Client-Safe)
-// Client-side utilities: types, validation, stats tracking.
+// Client-side utilities: validation, stats tracking.
 // This file is safe to import from 'use client' components.
 // Server-side send/health functions live in communication-hub-server.ts
 // and should be called via API routes (e.g. /api/communication/send).
 // ═══════════════════════════════════════
 
-// ─── Types ─────────────────────────────
+import type {
+  CommunicationChannel,
+  SendMessageRequest,
+  CommunicationResult,
+} from '@/lib/communication-hub-types';
 
-export type CommunicationChannel = 'email' | 'whatsapp';
-
-export interface SendMessageRequest {
-  channel: CommunicationChannel;
-  to: string | string[];
-  subject?: string;
-  body: string;
-  html?: string;
-  mediaUrl?: string[];
-  templateId?: string;
-  templateVariables?: Record<string, string>;
-  tags?: Record<string, string>;
-  priority?: 'low' | 'normal' | 'high';
-}
-
-export interface CommunicationResult {
-  success: boolean;
-  channel: CommunicationChannel;
-  messageId?: string;
-  provider: string;
-  error?: string;
-  timestamp: number;
-}
+// Re-export shared types for convenience
+export type { CommunicationChannel, SendMessageRequest, CommunicationResult } from '@/lib/communication-hub-types';
 
 export interface CommunicationStats {
   totalSent: number;
@@ -53,24 +36,6 @@ function getStoredStats(): CommunicationStats {
     return raw ? JSON.parse(raw) : { totalSent: 0, emailsSent: 0, whatsappSent: 0, failed: 0, lastSentAt: null };
   } catch {
     return { totalSent: 0, emailsSent: 0, whatsappSent: 0, failed: 0, lastSentAt: null };
-  }
-}
-
-export function updateStoredStats(channel: CommunicationChannel, success: boolean): void {
-  if (typeof window === 'undefined') return;
-  try {
-    const stats = getStoredStats();
-    if (success) {
-      stats.totalSent++;
-      stats.lastSentAt = Date.now();
-      if (channel === 'email') stats.emailsSent++;
-      if (channel === 'whatsapp') stats.whatsappSent++;
-    } else {
-      stats.failed++;
-    }
-    localStorage.setItem(COMM_STATS_KEY, JSON.stringify(stats));
-  } catch {
-    // Silent fail
   }
 }
 
