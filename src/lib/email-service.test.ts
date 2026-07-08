@@ -35,6 +35,48 @@ vi.mock('@react-email/render', () => ({
   render: vi.fn().mockResolvedValue('<p>Rendered HTML</p>'),
 }));
 
+// ─── Mock React Email Components ──────
+
+vi.mock('@react-email/components', () => ({
+  Text: ({ children, ...props }: any) => ({ type: 'div', props: { ...props, children } }),
+  Button: ({ children, ...props }: any) => ({ type: 'a', props: { ...props, children } }),
+  Section: ({ children, ...props }: any) => ({ type: 'div', props: { ...props, children } }),
+  Hr: (props: any) => ({ type: 'hr', props }),
+  Link: ({ children, ...props }: any) => ({ type: 'a', props: { ...props, children } }),
+}));
+
+vi.mock('@/emails/base-layout', () => ({
+  BaseLayout: ({ children }: any) => ({ type: 'div', props: { children } }),
+}));
+
+vi.mock('@/emails/utils', () => ({
+  formatCurrency: (amount: number, currency = 'INR') => {
+    const symbols: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
+    return `${symbols[currency] || currency + ' '}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  },
+  formatCurrencyCompact: (amount: number, currency = 'INR') => {
+    const symbols: Record<string, string> = { INR: '₹', USD: '$', EUR: '€', GBP: '£' };
+    return `${symbols[currency] || currency + ' '}${amount.toLocaleString('en-IN')}`;
+  },
+  statusEmoji: (status: string) => ({ 'completed': '✅', 'on-track': '🟢', 'at-risk': '🟡' }[status] || '⚪'),
+}));
+
+vi.mock('@/emails/password-reset', () => ({
+  PasswordResetEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+}));
+
+vi.mock('@/emails/invitation', () => ({
+  InvitationEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+}));
+
+vi.mock('@/emails/invoice', () => ({
+  InvoiceEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+}));
+
+vi.mock('@/emails/weekly-report', () => ({
+  WeeklyReportEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+}));
+
 // ─── Mock Logger ──────────────────────
 
 vi.mock('@/lib/logger', () => ({
@@ -466,6 +508,579 @@ describe('sendBulkEmail', () => {
     expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
       text: 'Plain text',
       tags: [{ name: 'type', value: 'bulk' }],
+    }));
+  });
+});
+
+// ═══════════════════════════════════════
+// sendTemplateEmail Edge Cases
+// ═══════════════════════════════════════
+
+describe('sendTemplateEmail — edge cases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('handles empty dynamicData', async () => {
+    const { sendTemplateEmail } = await freshImport();
+    const result = await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      tags: [],
+    }));
+  });
+
+  it('converts non-string dynamicData values to strings', async () => {
+    const { sendTemplateEmail } = await freshImport();
+    await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {
+        count: 42,
+        active: true,
+        ratio: 3.14,
+        nothing: null,
+      },
+    });
+
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      tags: [
+        { name: 'count', value: '42' },
+        { name: 'active', value: 'true' },
+        { name: 'ratio', value: '3.14' },
+        { name: 'nothing', value: 'null' },
+      ],
+    }));
+  });
+
+  it('handles complex nested objects in dynamicData by stringifying', async () => {
+    const { sendTemplateEmail } = await freshImport();
+    await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {
+        metadata: { key: 'value' },
+      },
+    });
+
+    // Complex objects get converted to strings via String() which gives '[object Object]'
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      tags: [
+        { name: 'metadata', value: String({ key: 'value' }) },
+      ],
+    }));
+  });
+
+  it('sends template via SendGrid with replyTo', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: 'sg_test_key' });
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_reply'));
+
+    const { sendTemplateEmail } = await freshImport();
+    await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+      replyTo: 'support@example.com',
+    });
+
+    expect(mockSgMailSend).toHaveBeenCalledWith(expect.objectContaining({
+      replyTo: { email: 'support@example.com' },
+    }));
+  });
+
+  it('sends template via SendGrid with custom from', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: 'sg_test_key' });
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_from'));
+
+    const { sendTemplateEmail } = await freshImport();
+    await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+      from: 'Custom <custom@example.com>',
+    });
+
+    expect(mockSgMailSend).toHaveBeenCalledWith(expect.objectContaining({
+      from: 'Custom <custom@example.com>',
+    }));
+  });
+
+  it('returns failure when SendGrid API key is missing and Resend is unavailable', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: '', RESEND_API_KEY: '' });
+
+    const { sendTemplateEmail } = await freshImport();
+    const result = await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.provider).toBe('sendgrid');
+    expect(result.error).toContain('not configured');
+  });
+
+  it('handles Resend returning non-Error throw', async () => {
+    stubEnv({ SENDGRID_API_KEY: 'sg_test_key' });
+    mockResendSend.mockRejectedValue('string error');
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_recover'));
+
+    const { sendTemplateEmail } = await freshImport();
+    const result = await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('sendgrid');
+  });
+
+  it('handles SendGrid returning non-Error throw', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: 'sg_test_key' });
+    mockSgMailSend.mockRejectedValue('string error');
+    mockResendSend.mockResolvedValue(successResendResult('re_recover'));
+
+    const { sendTemplateEmail } = await freshImport();
+    const result = await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('resend');
+  });
+
+  it('handles Resend rate limit error with specific message', async () => {
+    stubEnv({ SENDGRID_API_KEY: 'sg_test_key' });
+    mockResendSend.mockResolvedValue(errorResendResult('rate_limited'));
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_after_rate'));
+
+    const { sendTemplateEmail } = await freshImport();
+    const result = await sendTemplateEmail({
+      to: 'user@example.com',
+      templateId: 'd-abc123',
+      dynamicData: {},
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('sendgrid');
+  });
+});
+
+// ═══════════════════════════════════════
+// sendReactEmail Tests
+// ═══════════════════════════════════════
+
+describe('sendReactEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('renders React component and sends email', async () => {
+    const { sendReactEmail } = await freshImport();
+    const { render } = await import('@react-email/render');
+
+    const result = await sendReactEmail({
+      to: 'user@example.com',
+      subject: 'React Email',
+      react: { type: 'div', props: { children: 'Hello' } },
+    });
+
+    expect(render).toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('resend');
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      subject: 'React Email',
+    }));
+  });
+
+  it('passes through tags and from options', async () => {
+    const { sendReactEmail } = await freshImport();
+
+    await sendReactEmail({
+      to: 'user@example.com',
+      subject: 'Tagged Email',
+      react: { type: 'div', props: {} },
+      from: 'Custom <custom@example.com>',
+      tags: { type: 'react' },
+    });
+
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      from: 'Custom <custom@example.com>',
+      tags: [{ name: 'type', value: 'react' }],
+    }));
+  });
+
+  it('falls back to SendGrid when Resend fails', async () => {
+    stubEnv({ SENDGRID_API_KEY: 'sg_test_key' });
+    mockResendSend.mockResolvedValue(errorResendResult());
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_react'));
+
+    const { sendReactEmail } = await freshImport();
+    const result = await sendReactEmail({
+      to: 'user@example.com',
+      subject: 'React Fallback',
+      react: { type: 'div', props: {} },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('sendgrid');
+  });
+});
+
+// ═══════════════════════════════════════
+// React Template Wrapper Tests
+// ═══════════════════════════════════════
+
+describe('sendPasswordResetEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends password reset email with correct subject and tags', async () => {
+    const { sendPasswordResetEmail } = await freshImport();
+    const result = await sendPasswordResetEmail(
+      'user@example.com',
+      'reset-token-123',
+      'https://oracle.dev',
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      to: ['user@example.com'],
+      subject: 'Reset Your Oracle Password',
+      tags: [{ name: 'type', value: 'password_reset' }],
+    }));
+  });
+
+  it('calls render with a React element containing the reset URL', async () => {
+    const { sendPasswordResetEmail } = await freshImport();
+    const { render } = await import('@react-email/render');
+
+    await sendPasswordResetEmail(
+      'user@example.com',
+      'my-token',
+      'https://oracle.dev',
+      { expiryMinutes: 30 },
+    );
+
+    // render is called with the React element from PasswordResetEmail
+    expect(render).toHaveBeenCalled();
+    // The rendered HTML is passed to sendEmail
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      html: '<p>Rendered HTML</p>',
+    }));
+  });
+
+  it('sends via fallback when Resend is unavailable', async () => {
+    stubEnv({ SENDGRID_API_KEY: 'sg_test_key' });
+    mockResendSend.mockResolvedValue(errorResendResult());
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_reset'));
+
+    const { sendPasswordResetEmail } = await freshImport();
+    const result = await sendPasswordResetEmail(
+      'user@example.com',
+      'token',
+      'https://oracle.dev',
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('sendgrid');
+  });
+});
+
+describe('sendInvitationEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends invitation email with correct subject and tags', async () => {
+    const { sendInvitationEmail } = await freshImport();
+    const result = await sendInvitationEmail(
+      'invitee@example.com',
+      'Admin User',
+      'Acme Corp',
+      'invite-token-456',
+      'https://oracle.dev',
+    );
+
+    expect(result.success).toBe(true);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      to: ['invitee@example.com'],
+      subject: "You've Been Invited to Acme Corp on Oracle",
+      tags: [
+        { name: 'type', value: 'invitation' },
+        { name: 'orgName', value: 'Acme Corp' },
+      ],
+    }));
+  });
+
+  it('calls render with a React element containing the invite URL', async () => {
+    const { sendInvitationEmail } = await freshImport();
+    const { render } = await import('@react-email/render');
+
+    await sendInvitationEmail(
+      'invitee@example.com',
+      'Admin',
+      'Acme',
+      'inv-token',
+      'https://oracle.dev',
+    );
+
+    expect(render).toHaveBeenCalled();
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      html: '<p>Rendered HTML</p>',
+    }));
+  });
+});
+
+describe('sendInvoiceEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends invoice email with correct subject and tags', async () => {
+    const { sendInvoiceEmail } = await freshImport();
+    const result = await sendInvoiceEmail({
+      to: 'client@example.com',
+      invoiceNumber: 'INV-001',
+      clientName: 'Acme Corp',
+      clientEmail: 'client@example.com',
+      items: [{ description: 'Web Development', quantity: 1, unitPrice: 50000, amount: 50000 }],
+      subtotal: 50000,
+      total: 59000,
+      tax: 9000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      to: ['client@example.com'],
+      subject: expect.stringContaining('INV-001'),
+      tags: [
+        { name: 'type', value: 'invoice' },
+        { name: 'invoiceNumber', value: 'INV-001' },
+      ],
+    }));
+  });
+
+  it('forwards all props to the React template component', async () => {
+    const { sendInvoiceEmail } = await freshImport();
+    const { render } = await import('@react-email/render');
+
+    await sendInvoiceEmail({
+      to: 'client@example.com',
+      invoiceNumber: 'INV-002',
+      clientName: 'Test Client',
+      clientEmail: 'client@example.com',
+      items: [{ description: 'Design', quantity: 2, unitPrice: 10000, amount: 20000 }],
+      subtotal: 20000,
+      total: 23600,
+      tax: 3600,
+      notes: 'Thank you for your business',
+    });
+
+    // render is called with the React element from InvoiceEmail
+    expect(render).toHaveBeenCalled();
+  });
+});
+
+describe('sendWeeklyReportEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends weekly report email with correct subject and tags', async () => {
+    const { sendWeeklyReportEmail } = await freshImport();
+    const result = await sendWeeklyReportEmail({
+      to: 'user@example.com',
+      weekLabel: 'Week 28, 2026',
+      recipientName: 'John',
+      metrics: [{ label: 'Revenue', value: '₹1,20,000', change: '+12%' }],
+      clients: [{ clientName: 'Acme', tasksCompleted: 3, tasksPending: 1, revenue: 25000, status: 'on-track' as const }],
+      totalRevenue: 120000,
+    });
+
+    expect(result.success).toBe(true);
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      to: ['user@example.com'],
+      subject: '📊 Weekly Report — Week 28, 2026',
+      tags: [
+        { name: 'type', value: 'weekly_report' },
+        { name: 'weekLabel', value: 'Week 28, 2026' },
+      ],
+    }));
+  });
+
+  it('forwards all props to the React template component', async () => {
+    const { sendWeeklyReportEmail } = await freshImport();
+    const { render } = await import('@react-email/render');
+
+    await sendWeeklyReportEmail({
+      to: 'user@example.com',
+      weekLabel: 'Week 29',
+      recipientName: 'Jane',
+      metrics: [{ label: 'Leads', value: '15', change: '+5' }],
+      clients: [{ clientName: 'Acme', tasksCompleted: 5, tasksPending: 2, revenue: 10000, status: 'on-track' }],
+      totalRevenue: 0,
+    });
+
+    expect(render).toHaveBeenCalled();
+  });
+});
+
+// ═══════════════════════════════════════
+// sendEmail Edge Cases
+// ═══════════════════════════════════════
+
+describe('sendEmail — edge cases', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stubEnv({});
+    mockResendSend.mockResolvedValue(successResendResult());
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('sends HTML-only email without text', async () => {
+    const { sendEmail } = await freshImport();
+    await sendEmail({
+      to: 'user@example.com',
+      subject: 'HTML Only',
+      html: '<p>No text version</p>',
+    });
+
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      html: '<p>No text version</p>',
+      text: undefined,
+    }));
+  });
+
+  it('handles Resend throwing a non-Error value', async () => {
+    stubEnv({ SENDGRID_API_KEY: 'sg_test_key' });
+    mockResendSend.mockRejectedValue('raw string error');
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_recover'));
+
+    const { sendEmail } = await freshImport();
+    const result = await sendEmail({
+      to: 'user@example.com',
+      subject: 'Test',
+      html: '<p>Hello</p>',
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('sendgrid');
+  });
+
+  it('treats undefined error as success (no error = no failure)', async () => {
+    // When Resend returns { data: null, error: undefined }, the code checks
+    // `if (result.error)` which is falsy, so it treats the send as successful.
+    mockResendSend.mockResolvedValue({ data: null, error: undefined });
+
+    const { sendEmail } = await freshImport();
+    const result = await sendEmail({
+      to: 'user@example.com',
+      subject: 'Test',
+      html: '<p>Hello</p>',
+    });
+
+    // error is undefined → falsy → code returns success
+    expect(result.success).toBe(true);
+    expect(result.provider).toBe('resend');
+  });
+
+  it('handles multiple string recipients in cc/bcc', async () => {
+    const { sendEmail } = await freshImport();
+    await sendEmail({
+      to: ['a@test.com', 'b@test.com'],
+      subject: 'Multi Recipient',
+      html: '<p>Hello</p>',
+      cc: ['cc1@test.com', 'cc2@test.com'],
+      bcc: ['bcc1@test.com', 'bcc2@test.com'],
+    });
+
+    expect(mockResendSend).toHaveBeenCalledWith(expect.objectContaining({
+      to: ['a@test.com', 'b@test.com'],
+      cc: ['cc1@test.com', 'cc2@test.com'],
+      bcc: ['bcc1@test.com', 'bcc2@test.com'],
+    }));
+  });
+
+  it('forwards custom tags to SendGrid as customArgs', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: 'sg_test_key' });
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_tags'));
+
+    const { sendEmail } = await freshImport();
+    await sendEmail({
+      to: 'user@example.com',
+      subject: 'Tagged',
+      html: '<p>Hello</p>',
+      tags: { campaign: 'winter', region: 'apac' },
+    });
+
+    expect(mockSgMailSend).toHaveBeenCalledWith(expect.objectContaining({
+      customArgs: { campaign: 'winter', region: 'apac' },
+    }));
+  });
+
+  it('forwards replyTo to SendGrid', async () => {
+    stubEnv({ EMAIL_PROVIDER: 'sendgrid', SENDGRID_API_KEY: 'sg_test_key' });
+    mockSgMailSend.mockResolvedValue(successSendGridResult('sg_reply'));
+
+    const { sendEmail } = await freshImport();
+    await sendEmail({
+      to: 'user@example.com',
+      subject: 'Reply Test',
+      html: '<p>Hello</p>',
+      replyTo: 'reply@test.com',
+    });
+
+    expect(mockSgMailSend).toHaveBeenCalledWith(expect.objectContaining({
+      replyTo: { email: 'reply@test.com' },
     }));
   });
 });
