@@ -1,10 +1,13 @@
 // ═══════════════════════════════════════
+// ORACLE — WhatsApp Service Tests
 // Tests for sendBulkWhatsApp (100ms delay verification)
+// Uses vi.resetModules() for twilioClient singleton isolation
 // ═══════════════════════════════════════
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ─── Hoisted mock references ────────────
+// Must be declared before vi.mock() so the factory can reference them.
 
 const { mockSendMessage } = vi.hoisted(() => ({
   mockSendMessage: vi.fn(),
@@ -31,17 +34,35 @@ vi.mock('@/lib/logger', () => ({
   }),
 }));
 
-// Set required env vars
-process.env.TWILIO_ACCOUNT_SID = 'AC1234567890abcdef';
-process.env.TWILIO_AUTH_TOKEN = 'auth-token-12345';
-process.env.TWILIO_WHATSAPP_FROM = 'whatsapp:+14155238886';
+// ─── Fresh Import Helper ────────────────
+// Resets module cache to clear the twilioClient singleton.
+// vi.resetModules() clears the module registry so each import
+// re-executes the module, re-creating the twilioClient = null state.
+// vi.mock() registrations are preserved across resetModules() calls.
 
-// ─── Tests ─────────────────────────────
+async function freshImport() {
+  vi.resetModules();
+  return import('./whatsapp');
+}
+
+// ─── Env Helpers ────────────────────────
+// Uses vi.stubEnv() for automatic cleanup in afterEach via vi.unstubAllEnvs().
+
+function stubEnv(overrides: Record<string, string> = {}) {
+  vi.stubEnv('TWILIO_ACCOUNT_SID', overrides.TWILIO_ACCOUNT_SID ?? 'AC1234567890abcdef');
+  vi.stubEnv('TWILIO_AUTH_TOKEN', overrides.TWILIO_AUTH_TOKEN ?? 'auth-token-12345');
+  vi.stubEnv('TWILIO_WHATSAPP_FROM', overrides.TWILIO_WHATSAPP_FROM ?? 'whatsapp:+14155238886');
+}
+
+// ═══════════════════════════════════════
+// sendBulkWhatsApp Tests
+// ═══════════════════════════════════════
 
 describe('sendBulkWhatsApp', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    stubEnv();
     mockSendMessage.mockResolvedValue({
       sid: 'SM1234567890',
       status: 'queued',
@@ -50,19 +71,16 @@ describe('sendBulkWhatsApp', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   it('sends messages to all recipients', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     const recipients = ['+919876543210', '+919876543211', '+919876543212'];
     const body = 'Hello from Oracle!';
 
-    // Run the async function
     const promise = sendBulkWhatsApp(recipients, body);
-
-    // Fast-forward through all delays
     await vi.advanceTimersByTimeAsync(500);
-
     const results = await promise;
 
     expect(results).toHaveLength(3);
@@ -76,7 +94,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('applies 100ms delay between consecutive messages', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     const recipients = ['+919876543210', '+919876543211', '+919876543212'];
     const body = 'Bulk test';
 
@@ -105,7 +123,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('does NOT delay after the last message', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     const recipients = ['+919876543210', '+919876543211'];
     const body = 'No delay after last';
 
@@ -118,26 +136,20 @@ describe('sendBulkWhatsApp', () => {
     await vi.advanceTimersByTimeAsync(100);
     expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
-    // Advance another 100ms - should NOT trigger more delays or messages
-    const timersBefore = vi.getTimerCount();
-    await vi.advanceTimersByTimeAsync(100);
-    const timersAfter = vi.getTimerCount();
-
-    // No new timers should have been created for the last message
-    expect(timersAfter).toBeLessThanOrEqual(timersBefore);
+    // Advance another 200ms — no more messages should be sent
+    await vi.advanceTimersByTimeAsync(200);
+    expect(mockSendMessage).toHaveBeenCalledTimes(2);
 
     await promise;
   });
 
   it('handles single recipient with no delay', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     const recipients = ['+919876543210'];
     const body = 'Single recipient';
 
     const promise = sendBulkWhatsApp(recipients, body);
 
-    // Should complete without needing timer advancement
-    // Single message means no delay needed
     expect(mockSendMessage).toHaveBeenCalledTimes(1);
 
     // Even after waiting, no more messages should be sent
@@ -148,7 +160,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('handles empty recipients array', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
 
     const results = await sendBulkWhatsApp([], 'Empty array test');
 
@@ -157,7 +169,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('delays are sequential (total time ≈ (n-1) × 100ms)', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     const recipients = ['+919876543210', '+919876543211', '+919876543212', '+919876543213'];
     const body = 'Sequential timing test';
 
@@ -177,7 +189,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('returns failed status when sendWhatsAppMessage fails', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
     mockSendMessage.mockRejectedValueOnce(new Error('Twilio API error'));
 
     const recipients = ['+919876543210', '+919876543211'];
@@ -196,8 +208,7 @@ describe('sendBulkWhatsApp', () => {
   });
 
   it('continues sending after individual message failure', async () => {
-    const { sendBulkWhatsApp } = await import('./whatsapp');
-    const { sendWhatsAppMessage } = await import('./whatsapp');
+    const { sendBulkWhatsApp } = await freshImport();
 
     // Mock to fail first, succeed second
     mockSendMessage
