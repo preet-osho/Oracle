@@ -8,10 +8,10 @@
 
 // ─── Types ─────────────────────────────
 
-export type CommunicationChannel = 'email' | 'whatsapp';
+export type SendChannel = 'email' | 'whatsapp';
 
 export interface SendMessageRequest {
-  channel: CommunicationChannel;
+  channel: SendChannel;
   to: string | string[];
   subject?: string;
   body: string;
@@ -25,7 +25,7 @@ export interface SendMessageRequest {
 
 export interface CommunicationResult {
   success: boolean;
-  channel: CommunicationChannel;
+  channel: SendChannel;
   messageId?: string;
   provider: string;
   error?: string;
@@ -53,17 +53,6 @@ export function isValidEmail(email: string): boolean {
 export function isValidWhatsAppNumber(phone: string): boolean {
   const cleaned = phone.replace(/[^0-9+]/g, '');
   return /^\+[1-9]\d{6,14}$/.test(cleaned) || /^whatsapp:\+[1-9]\d{6,14}$/.test(phone);
-}
-
-/**
- * Get channel icon for display.
- */
-export function getChannelIcon(channel: CommunicationChannel): string {
-  switch (channel) {
-    case 'email': return '📧';
-    case 'whatsapp': return '💬';
-    default: return '📋';
-  }
 }
 
 /**

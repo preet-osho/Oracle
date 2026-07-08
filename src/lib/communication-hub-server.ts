@@ -11,7 +11,7 @@ import { createLogger } from '@/lib/logger';
 import { sendEmail, sendTemplateEmail, sendBulkEmail, checkEmailServiceHealth } from '@/lib/email-service';
 import { sendWhatsAppMessage, sendBulkWhatsApp, sendWhatsAppTemplate, checkWhatsAppHealth } from '@/lib/whatsapp';
 import type {
-  CommunicationChannel,
+  SendChannel,
   SendMessageRequest,
   CommunicationResult,
   CommunicationHealthStatus,
@@ -19,24 +19,11 @@ import type {
 import { escapeHtml } from '@/lib/communication-hub-types';
 
 // Re-export shared types and utilities for backward compatibility
-export type { CommunicationChannel, SendMessageRequest, CommunicationResult, CommunicationHealthStatus } from '@/lib/communication-hub-types';
-export { isValidEmail, isValidWhatsAppNumber, getChannelIcon } from '@/lib/communication-hub-types';
+export type { SendChannel, SendMessageRequest, CommunicationResult, CommunicationHealthStatus } from '@/lib/communication-hub-types';
+export type { SendChannel as CommunicationChannel } from '@/lib/communication-hub-types';
+export { isValidEmail, isValidWhatsAppNumber } from '@/lib/communication-hub-types';
 
 const log = createLogger('CommunicationHub');
-
-// ─── Storage (server-side mirror for stats tracking) ──
-
-const COMM_STATS_KEY = 'oracle_comm_stats';
-
-function getStoredStats(): { totalSent: number; emailsSent: number; whatsappSent: number; failed: number; lastSentAt: number | null } {
-  return { totalSent: 0, emailsSent: 0, whatsappSent: 0, failed: 0, lastSentAt: null };
-}
-
-function updateStoredStats(_channel: CommunicationChannel, _success: boolean): void {
-  // Server-side: stats are tracked in localStorage on the client.
-  // This is a no-op on the server; the client updates its own stats
-  // after receiving the API response.
-}
 
 // ─── Communication Hub ──────────────────
 
@@ -65,8 +52,6 @@ export async function sendMessage(request: SendMessageRequest): Promise<Communic
       };
     }
 
-    updateStoredStats(request.channel, result.success);
-
     log.info('Message sent', {
       channel: request.channel,
       success: result.success,
@@ -77,8 +62,6 @@ export async function sendMessage(request: SendMessageRequest): Promise<Communic
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
     log.error('Message send failed', { channel: request.channel, error: errorMsg });
-
-    updateStoredStats(request.channel, false);
 
     return {
       success: false,
@@ -182,7 +165,7 @@ async function sendWhatsAppMessageHub(request: SendMessageRequest): Promise<Comm
  * Send bulk emails to multiple recipients.
  */
 export async function sendBulkMessages(
-  channel: CommunicationChannel,
+  channel: SendChannel,
   recipients: string[],
   subject: string,
   body: string,
@@ -195,7 +178,7 @@ export async function sendBulkMessages(
 
     return results.map((r) => ({
       success: r.success,
-      channel: 'email' as CommunicationChannel,
+      channel: 'email' as SendChannel,
       messageId: r.messageId,
       provider: r.provider,
       error: r.error,
@@ -207,7 +190,7 @@ export async function sendBulkMessages(
     const results = await sendBulkWhatsApp(recipients, body);
     return results.map((r) => ({
       success: r.status !== 'failed',
-      channel: 'whatsapp' as CommunicationChannel,
+      channel: 'whatsapp' as SendChannel,
       messageId: r.id,
       provider: 'twilio',
       error: r.error,

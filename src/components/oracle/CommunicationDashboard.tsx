@@ -8,6 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   getCommunicationStats,
   type CommunicationStats,
+  type CommunicationHealthStatus,
 } from '@/lib/communication-hub';
 import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 import {
@@ -50,10 +51,7 @@ import { downloadBlob } from '@/lib/download-blob';
 
 interface DashboardData {
   delivery: CommunicationStats;
-  health: {
-    email: { resend: boolean; sendgrid: boolean; preferred: string };
-    whatsapp: { configured: boolean; fromNumber: string };
-  };
+  health: CommunicationHealthStatus;
   log: {
     total: number;
     outbound: number;

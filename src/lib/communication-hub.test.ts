@@ -7,9 +7,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   isValidEmail,
   isValidWhatsAppNumber,
-  getChannelIcon,
   getCommunicationStats,
 } from '@/lib/communication-hub';
+import { getChannelIcon } from '@/lib/communication-log';
 import {
   isValidIndianPhone,
   getCountryCode,

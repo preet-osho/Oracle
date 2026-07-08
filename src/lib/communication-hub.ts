@@ -7,12 +7,13 @@
 // ═══════════════════════════════════════
 
 import type {
-  CommunicationChannel,
+  SendChannel,
 } from '@/lib/communication-hub-types';
 
 // Re-export shared types and utilities for backward compatibility
-export type { CommunicationChannel, SendMessageRequest, CommunicationResult } from '@/lib/communication-hub-types';
-export { isValidEmail, isValidWhatsAppNumber, getChannelIcon, escapeHtml } from '@/lib/communication-hub-types';
+export type { SendChannel, SendMessageRequest, CommunicationResult, CommunicationHealthStatus } from '@/lib/communication-hub-types';
+export type { SendChannel as CommunicationChannel } from '@/lib/communication-hub-types';
+export { isValidEmail, isValidWhatsAppNumber, escapeHtml } from '@/lib/communication-hub-types';
 
 export interface CommunicationStats {
   totalSent: number;
