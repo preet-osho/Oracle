@@ -173,7 +173,7 @@ describe('POST /api/webhooks/resend', () => {
         created_at: '2024-01-15T10:30:00Z',
       },
     };
-    mockVerify.mockReturnValue(mockEvent);
+    mockVerify.mockImplementation(() => mockEvent);
 
     const { POST } = await import('./resend/route');
     const request = createMockRequest({
@@ -229,7 +229,7 @@ describe('POST /api/webhooks/resend', () => {
         created_at: '2024-01-15T10:30:00Z',
       },
     };
-    mockVerify.mockReturnValue(mockEvent);
+    mockVerify.mockImplementation(() => mockEvent);
 
     const { POST } = await import('./resend/route');
     const request = createMockRequest({
@@ -271,7 +271,7 @@ describe('POST /api/webhooks/resend', () => {
         created_at: '2024-01-15T10:30:00Z',
       },
     };
-    mockVerify.mockReturnValue(mockEvent);
+    mockVerify.mockImplementation(() => mockEvent);
 
     const { POST } = await import('./resend/route');
     const request = createMockRequest({
@@ -307,7 +307,7 @@ describe('POST /api/webhooks/resend', () => {
         created_at: '2024-01-15T10:30:00Z',
       },
     };
-    mockVerify.mockReturnValue(mockEvent);
+    mockVerify.mockImplementation(() => mockEvent);
 
     const { POST } = await import('./resend/route');
     const request = createMockRequest({
@@ -346,7 +346,7 @@ describe('POST /api/webhooks/resend', () => {
 
     for (const eventType of validTypes) {
       mockStoreDeliveryEvent.mockClear();
-      mockVerify.mockReturnValue({
+      mockVerify.mockImplementation(() => ({
         type: eventType,
         created_at: '2024-01-15T10:30:00Z',
         data: {
@@ -355,7 +355,7 @@ describe('POST /api/webhooks/resend', () => {
           to: ['user@example.com'],
           created_at: '2024-01-15T10:30:00Z',
         },
-      });
+      }));
 
       const { POST } = await import('./resend/route');
       const request = createMockRequest({
