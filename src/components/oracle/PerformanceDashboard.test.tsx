@@ -59,16 +59,25 @@ const mockBudget = {
   usedToday: 130000,
 };
 
+// Hoisted mock references for targeted clearing
+const { mockGetAgentPerformance, mockGetTokenBudget, mockGetPerformanceHistory, mockSetBudgetDailyLimit, mockExportToCSV } = vi.hoisted(() => ({
+  mockGetAgentPerformance: vi.fn(() => mockPerformance),
+  mockGetTokenBudget: vi.fn(() => mockBudget),
+  mockGetPerformanceHistory: vi.fn(() => mockHistory),
+  mockSetBudgetDailyLimit: vi.fn(),
+  mockExportToCSV: vi.fn(),
+}));
+
 const mockHistory = [
   { agent: 'researcher', quality: 0.85, latencyMs: 1100, costUsd: 0.01, success: true, timestamp: Date.now() - 86400000 },
   { agent: 'writer', quality: 0.90, latencyMs: 750, costUsd: 0.02, success: true, timestamp: Date.now() - 43200000 },
 ];
 
 vi.mock('@/lib/model-selector', () => ({
-  getAgentPerformance: vi.fn(() => mockPerformance),
-  getTokenBudget: vi.fn(() => mockBudget),
-  getPerformanceHistory: vi.fn(() => mockHistory),
-  setBudgetDailyLimit: vi.fn(),
+  getAgentPerformance: (...args: unknown[]) => mockGetAgentPerformance(...args),
+  getTokenBudget: (...args: unknown[]) => mockGetTokenBudget(...args),
+  getPerformanceHistory: (...args: unknown[]) => mockGetPerformanceHistory(...args),
+  setBudgetDailyLimit: (...args: unknown[]) => mockSetBudgetDailyLimit(...args),
   MODEL_TIERS: {
     free: { maxCostPer1k: 0 },
     budget: { maxCostPer1k: 0.001 },
@@ -86,7 +95,7 @@ vi.mock('@/data/providers', () => ({
 }));
 
 vi.mock('@/lib/export-utils', () => ({
-  exportToCSV: vi.fn(),
+  exportToCSV: (...args: unknown[]) => mockExportToCSV(...args),
 }));
 
 // ─── Tests ─────────────────────────────
@@ -94,7 +103,15 @@ vi.mock('@/lib/export-utils', () => ({
 describe('PerformanceDashboard', () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.clearAllMocks();
+    mockGetAgentPerformance.mockClear();
+    mockGetTokenBudget.mockClear();
+    mockGetPerformanceHistory.mockClear();
+    mockSetBudgetDailyLimit.mockClear();
+    mockExportToCSV.mockClear();
+    // Restore default return values after clear
+    mockGetAgentPerformance.mockReturnValue(mockPerformance);
+    mockGetTokenBudget.mockReturnValue(mockBudget);
+    mockGetPerformanceHistory.mockReturnValue(mockHistory);
   });
 
   // ── Header ──
@@ -230,22 +247,20 @@ describe('PerformanceDashboard', () => {
 
   // ── Empty State ──
 
-  it('shows empty state when no performance data', async () => {
-    const { getAgentPerformance } = await import('@/lib/model-selector');
-    vi.mocked(getAgentPerformance).mockReturnValue([]);
+  it('shows empty state when no performance data', () => {
+    mockGetAgentPerformance.mockReturnValue([]);
     render(<PerformanceDashboard />);
     expect(screen.getByText(/No Performance Data/)).toBeTruthy();
   });
 
   // ── Export ──
 
-  it('export button is clickable and enabled', async () => {
+  it('calls exportToCSV on export click', async () => {
     render(<PerformanceDashboard />);
     const exportBtn = screen.getByText(/📥 Export CSV/).closest('button')!;
-    expect(exportBtn).toBeTruthy();
-    expect(exportBtn).toHaveProperty('disabled', false);
     fireEvent.click(exportBtn);
-    // Button should remain enabled after click
-    expect(exportBtn).toHaveProperty('disabled', false);
+    await waitFor(() => {
+      expect(mockExportToCSV).toHaveBeenCalled();
+    });
   });
 });
