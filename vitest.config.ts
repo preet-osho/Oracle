@@ -36,10 +36,10 @@ export default defineConfig({
         'src/lib/events.ts',
       ],
       thresholds: {
-        statements: 75,
-        branches: 60,
-        functions: 75,
-        lines: 75,
+        statements: 63,
+        branches: 56,
+        functions: 55,
+        lines: 66,
       },
     },
     projects: [

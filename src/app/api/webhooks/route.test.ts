@@ -46,9 +46,9 @@ vi.mock('@/lib/logger', () => ({
 }));
 
 vi.mock('svix', () => ({
-  Webhook: vi.fn().mockImplementation(() => ({
-    verify: mockVerify,
-  })),
+  Webhook: vi.fn().mockImplementation(function () {
+    return { verify: mockVerify };
+  }),
 }));
 
 vi.mock('twilio', () => ({
