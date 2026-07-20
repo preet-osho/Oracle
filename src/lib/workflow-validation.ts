@@ -6,7 +6,13 @@
 export const VALID_AGENTS = [
   'researcher', 'writer', 'developer', 'analyst', 'strategist',
   'marketer', 'designer', 'finance', 'voice', 'qa', 'coordinator', 'workflow',
-  'lead-hunter', 'offer-strategist', 'video-specialist', 'web-designer', 'agent-builder',
+  'legal', 'security-auditor', 'data-scientist', 'competitor-intel',
+  'editor', 'localization', 'devops', 'ux-researcher', 'growth-hacker',
+  'seo-specialist', 'content-strategist', 'conversion-optimizer', 'community-manager',
+  'sales-optimizer', 'accessibility-auditor', 'api-docs-writer', 'orchestrator',
+  'agency-brain', 'lead-hunter', 'offer-strategist', 'video-specialist',
+  'web-designer', 'agent-builder',
+  'systems-architect', 'product-engineer', 'intelligence-architect', 'training-architect',
 ] as const;
 
 export type WorkflowAgent = typeof VALID_AGENTS[number];

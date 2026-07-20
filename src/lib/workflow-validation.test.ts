@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ALL_AGENT_NAMES } from '@/lib/agents/registry';
 import {
   extractFirstJson,
   parseWorkflowResponse,
@@ -398,7 +399,14 @@ describe('VALID_AGENTS', () => {
     expect(VALID_AGENTS).toContain('agent-builder');
   });
 
-  it('has 17 agents', () => {
-    expect(VALID_AGENTS.length).toBe(17);
+  it('has the same agents as ALL_AGENT_NAMES from the registry', () => {
+    // If this test fails, you added an agent to ALL_AGENT_NAMES but forgot VALID_AGENTS.
+    // Fix: add the new agent name to VALID_AGENTS in workflow-validation.ts.
+    expect([...VALID_AGENTS]).toEqual([...ALL_AGENT_NAMES]);
+  });
+
+  it('has 39 agents matching ALL_AGENT_NAMES length', () => {
+    expect(VALID_AGENTS.length).toBe(ALL_AGENT_NAMES.length);
+    expect(VALID_AGENTS.length).toBe(39);
   });
 });

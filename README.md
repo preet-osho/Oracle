@@ -29,6 +29,7 @@ Open [http://localhost:3000](http://localhost:3000) to see ORACLE.
 - **Cost Tracking** — Monitor spending across all providers in INR
 
 ### Agency Tools
+- **39 Specialist Agents** — Complete multi-agent workforce across 15 categories (see [AGENTS.md](AGENTS.md))
 - **40+ Service Domains** — Complete expertise across digital marketing, development, finance, and industry verticals
 - **55+ Pre-built Prompts** — Ready-to-use prompts for any agency task
 - **6 Automated Workflows** — Multi-step processes from strategy to execution
@@ -127,6 +128,7 @@ oracle/
 │   │   └── design-tokens.ts   # Design system tokens
 │   └── types/
 │       └── index.ts           # TypeScript types
+├── AGENTS.md                 # All 39 agents: categories, descriptions, use cases
 ├── public/                    # Static assets
 ├── middleware.ts              # Security headers & CSP
 ├── tailwind.config.ts

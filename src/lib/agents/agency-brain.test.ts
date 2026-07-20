@@ -367,8 +367,8 @@ describe('Agency Brain — Registry Metadata', () => {
     expect(focus).toContain('sub-agent');
   });
 
-  it('ALL_AGENT_NAMES count is 34 (was 33 + agency-brain)', () => {
-    expect(ALL_AGENT_NAMES.length).toBe(34);
+  it('ALL_AGENT_NAMES count is 39 (includes all meta/system-level agents)', () => {
+    expect(ALL_AGENT_NAMES.length).toBe(39);
   });
 });
 

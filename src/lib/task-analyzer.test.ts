@@ -937,6 +937,11 @@ describe('analyzeTask', () => {
       'web-designer': 'web-design',
       'agent-builder': 'agent-building',
       'agency-brain': 'strategic-planning',
+      'orchestrator': 'workflow-design',
+      'systems-architect': 'code-generation',
+      'product-engineer': 'code-generation',
+      'intelligence-architect': 'strategic-planning',
+      'training-architect': 'code-generation',
     };
 
     it('every agent in ALL_AGENT_NAMES maps to a valid TaskCategory', () => {
@@ -957,7 +962,7 @@ describe('analyzeTask', () => {
     it('no agent outside ALL_AGENT_NAMES gets a valid category', () => {
       // Non-existent agents should return undefined
       expect(agentToTaskCategory('nonexistent-agent')).toBeUndefined();
-      expect(agentToTaskCategory('orchestrator')).toBeUndefined();
+      expect(agentToTaskCategory('nonexistent-xyz')).toBeUndefined();
       expect(agentToTaskCategory('synthesizer')).toBeUndefined();
     });
 

@@ -247,10 +247,10 @@ describe('AGENT_PROMPTS Registry', () => {
       }
     });
 
-    it('the orchestrator prompt is separately defined (not in AGENT_PROMPTS)', () => {
-      // The orchestrator is not a specialist agent — it dispatches to specialists
-      // Verify it's not accidentally included in the registry
-      expect(AGENT_PROMPTS_MAP['orchestrator']).toBeUndefined();
+    it('the orchestrator prompt is in the registry with orchestration category', () => {
+      // The orchestrator is now a registered agent with orchestration routing
+      expect(AGENT_PROMPTS_MAP['orchestrator']).toBeDefined();
+      expect(AGENT_PROMPTS_MAP['orchestrator']).toContain('ORACLE');
     });
 
     it('the synthesizer is not in AGENT_PROMPTS (handled separately in runSwarm)', () => {

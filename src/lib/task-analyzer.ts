@@ -78,6 +78,7 @@ const CATEGORY_MAP: Record<string, TaskCategory> = {
   'video-production': 'video-production',
   'web-design': 'web-design',
   'agent-building': 'agent-building',
+  'orchestration': 'workflow-design',
 };
 
 /**

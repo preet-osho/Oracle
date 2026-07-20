@@ -82,6 +82,12 @@ describe('AGENT_REGISTRY', () => {
   it('same length as ALL_AGENT_NAMES', () => {
     expect(Object.keys(AGENT_REGISTRY).length).toBe(ALL_AGENT_NAMES.length);
   });
+
+  it('AGENT_REGISTRY stays in sync with ALL_AGENT_NAMES', () => {
+    // If this fails, you added an agent to ALL_AGENT_NAMES but forgot AGENT_REGISTRY,
+    // or vice versa. Use array comparison to also catch reordering.
+    expect(Object.keys(AGENT_REGISTRY)).toEqual([...ALL_AGENT_NAMES]);
+  });
 });
 
 // ─── Metadata Validation ───────────────
@@ -132,7 +138,7 @@ describe('Agent Metadata', () => {
       'research', 'content', 'technical', 'analysis', 'strategy',
       'marketing', 'design', 'finance', 'voice', 'quality',
       'coordination', 'compliance', 'security', 'sales',
-      'technical-writing',
+      'technical-writing', 'orchestration',
     ]);
 
     for (const [name, meta] of entries) {
