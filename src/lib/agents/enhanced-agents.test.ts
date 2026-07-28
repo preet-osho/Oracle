@@ -20,6 +20,7 @@ interface AgentTestConfig {
   domainKeywords: string[];
   outputFormatKeywords: string[];
   descriptionKeywords: string[];
+  domainSections: string[];
 }
 
 const AGENTS: AgentTestConfig[] = [
@@ -30,6 +31,7 @@ const AGENTS: AgentTestConfig[] = [
     domainKeywords: ['codebase', 'production', 'bug', 'test', 'refactor', 'architecture'],
     outputFormatKeywords: ['Project Understanding', 'Current State Diagnosis', 'Priority Issues', 'Recommended Plan'],
     descriptionKeywords: ['codebase', 'production', 'release'],
+    domainSections: ['SCOPE', 'PROJECT DISCOVERY CHECKLIST', 'DIAGNOSTIC QUESTIONS', 'DEFAULT EXECUTION LOOP', 'QUALITY BAR', 'PRODUCTION READINESS CHECKLIST', 'CODE QUALITY STANDARDS', 'TECHNICAL DEBT MANAGEMENT', 'FAILURE RECOVERY'],
   },
   {
     name: 'intelligence-architect',
@@ -38,6 +40,7 @@ const AGENTS: AgentTestConfig[] = [
     domainKeywords: ['competitive', 'superior', 'orchestration', 'memory', 'QA', 'gap analysis'],
     outputFormatKeywords: ['EXECUTIVE SUMMARY', 'GAP ANALYSIS', 'ARCHITECTURE BLUEPRINT', 'RISK REGISTER'],
     descriptionKeywords: ['competitive', 'superior', 'platform'],
+    domainSections: ['COMPETITIVE GAP ANALYSIS', 'DESIGN SUPERIORITY TARGETS', 'ARCHITECTURE BLUEPRINT', 'AGENT MAP', 'MEMORY STRATEGY', 'QA STRATEGY', 'CONTINUOUS IMPROVEMENT STRATEGY'],
   },
   {
     name: 'training-architect',
@@ -46,6 +49,7 @@ const AGENTS: AgentTestConfig[] = [
     domainKeywords: ['training', 'evaluation', 'rubric', 'humanization', 'scenario', 'learning'],
     outputFormatKeywords: ['TRAINING STRATEGY', 'COMPETENCY MAP', 'EVALUATION RUBRIC', 'IMPLEMENTATION ROADMAP'],
     descriptionKeywords: ['training', 'evaluation', 'rubric'],
+    domainSections: ['TRAINING PHILOSOPHY', 'CORE PRINCIPLES', 'TRAINING MODES', 'COMPETENCY MAP', 'SCENARIO LIBRARY', 'EVALUATION RUBRIC', 'HUMANIZATION RULES', 'FAILURE MODE MAP'],
   },
   {
     name: 'product-designer',
@@ -54,6 +58,7 @@ const AGENTS: AgentTestConfig[] = [
     domainKeywords: ['design system', 'component', 'visual', 'accessibility', 'responsive', 'color'],
     outputFormatKeywords: ['DESIGN BRIEF', 'VISUAL SPECIFICATION', 'COMPONENT BREAKDOWN', 'INFORMATION ARCHITECTURE'],
     descriptionKeywords: ['design', 'system', 'component'],
+    domainSections: ['CORE DESIGN PRINCIPLES', 'DESIGN METHODOLOGY', 'DESIGN SPECIALIZATIONS', 'DESIGN SYSTEMS', 'COMPONENT SPECIFICATION FORMAT', 'INDIAN MARKET DESIGN CONSIDERATIONS'],
   },
   {
     name: 'seo-specialist',
@@ -62,6 +67,7 @@ const AGENTS: AgentTestConfig[] = [
     domainKeywords: ['SEO', 'keyword', 'technical', 'on-page', 'local SEO', 'AI SEO', 'schema'],
     outputFormatKeywords: ['CURRENT STATE', 'KEYWORD PLAN', 'CONTENT PLAN', 'TECHNICAL FIXES'],
     descriptionKeywords: ['SEO', 'on-page', 'technical'],
+    domainSections: ['SEO PHILOSOPHY', 'COMPREHENSIVE SEO KNOWLEDGE', 'SEO AUDIT FRAMEWORK', 'KEYWORD RESEARCH METHODOLOGY', 'CONTENT OPTIMIZATION METHODOLOGY', 'TECHNICAL SEO IMPLEMENTATION', 'AI SEO OPTIMIZATION', 'INDIAN MARKET SEO CONSIDERATIONS'],
   },
 ];
 
@@ -125,15 +131,25 @@ describe('Enhanced Agents — Prompt Validation', () => {
           }
         });
 
-      it('has output format with all required sections', () => {
-        const prompt = getPrompt();
-        for (const section of agent.outputFormatKeywords) {
-          expect(
-            prompt.includes(section),
-            `${agent.name} prompt missing output format section: ${section}`,
-          ).toBe(true);
-        }
-      });
+        it('has output format with all required sections', () => {
+          const prompt = getPrompt();
+          for (const section of agent.outputFormatKeywords) {
+            expect(
+              prompt.includes(section),
+              `${agent.name} prompt missing output format section: ${section}`,
+            ).toBe(true);
+          }
+        });
+
+        it('has all domain-specific sections', () => {
+          const prompt = getPrompt();
+          for (const section of agent.domainSections) {
+            expect(
+              prompt.includes(section),
+              `${agent.name} prompt missing domain section: ${section}`,
+            ).toBe(true);
+          }
+        });
       });
 
       describe('no placeholders', () => {
