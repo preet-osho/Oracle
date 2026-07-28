@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ALL_AGENT_NAMES } from '@/lib/agents/registry';
+import { ALL_AGENT_NAMES, getAgentPrompt, AGENT_REGISTRY } from '@/lib/agents/registry';
 import {
   extractFirstJson,
   parseWorkflowResponse,
@@ -408,5 +408,90 @@ describe('VALID_AGENTS', () => {
   it('has 43 agents matching ALL_AGENT_NAMES length', () => {
     expect(VALID_AGENTS.length).toBe(ALL_AGENT_NAMES.length);
     expect(VALID_AGENTS.length).toBe(43);
+  });
+
+  // ─── Prompt Quality Guardrails ─────────
+
+  describe('prompt quality guardrails', () => {
+    it('every agent prompt is at least 1000 chars (prevents empty/stub prompts)', () => {
+      const shortPrompts: { name: string; length: number }[] = [];
+
+      for (const name of ALL_AGENT_NAMES) {
+        const prompt = getAgentPrompt(name);
+        if (prompt.length < 1000) {
+          shortPrompts.push({ name, length: prompt.length });
+        }
+      }
+
+      expect(
+        shortPrompts,
+        `Agent prompts below 1000 chars: ${shortPrompts.map((p) => `${p.name} (${p.length} chars)`).join(', ')}`,
+      ).toHaveLength(0);
+    });
+
+    it('enhanced agents have prompts >= 5000 chars (prevents quality regression)', () => {
+      const enhancedAgents = [
+        'agency-brain', 'systems-architect', 'security-architect',
+        'product-engineer', 'intelligence-architect', 'training-architect',
+        'product-designer', 'seo-specialist',
+      ];
+      const shortEnhanced: { name: string; length: number }[] = [];
+
+      for (const name of enhancedAgents) {
+        const prompt = getAgentPrompt(name);
+        if (prompt.length < 5000) {
+          shortEnhanced.push({ name, length: prompt.length });
+        }
+      }
+
+      expect(
+        shortEnhanced,
+        `Enhanced agent prompts below 5000 chars: ${shortEnhanced.map((p) => `${p.name} (${p.length} chars)`).join(', ')}`,
+      ).toHaveLength(0);
+    });
+
+    it('every agent prompt starts with a role definition', () => {
+      for (const name of ALL_AGENT_NAMES) {
+        const prompt = getAgentPrompt(name);
+        const startsCorrectly = prompt.startsWith('You are ');
+        expect(
+          startsCorrectly,
+          `${name} prompt should start with 'You are' but starts with: '${prompt.substring(0, 40)}'`,
+        ).toBe(true);
+      }
+    });
+
+    it('every agent prompt contains a VERIFY instruction', () => {
+      for (const name of ALL_AGENT_NAMES) {
+        const prompt = getAgentPrompt(name);
+        expect(
+          prompt,
+          `${name} prompt should contain VERIFY before outputting instruction`,
+        ).toContain('VERIFY');
+      }
+    });
+
+    it('no agent prompt contains active placeholder markers', () => {
+      // Only check for standalone placeholder markers, not mentions in 'avoid placeholders' instructions
+      const placeholderRegex = /^\s*\[INSERT\b|^\s*\[TODO\b|^\s*\[TBD\b|^\s*\[YOUR_TEXT_HERE\b/;
+      for (const name of ALL_AGENT_NAMES) {
+        const prompt = getAgentPrompt(name);
+        const lines = prompt.split('\n');
+        const badLines = lines.filter((l) => placeholderRegex.test(l));
+        expect(
+          badLines,
+          `${name} prompt contains active placeholder on lines: ${badLines.join('; ')}`,
+        ).toHaveLength(0);
+      }
+    });
+
+    it('every agent in AGENT_REGISTRY has a non-empty prompt matching the constant', () => {
+      for (const name of ALL_AGENT_NAMES) {
+        const registryEntry = AGENT_REGISTRY[name];
+        expect(registryEntry).toBeDefined();
+        expect(registryEntry.prompt.length).toBeGreaterThan(0);
+        expect(registryEntry.prompt).toBe(getAgentPrompt(name));
+      }
+    });
   });
 });

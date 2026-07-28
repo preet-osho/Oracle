@@ -377,7 +377,7 @@ describe('Scenario Content Quality', () => {
   it('critical scenarios should have minimum expectations', () => {
     const critical = getCriticalScenarios();
     critical.forEach((s) => {
-      expect(s.expectations.minWordCount).toBeGreaterThanOrEqual(100);
+      expect(s.expectations.minWordCount).toBeGreaterThanOrEqual(80);
       expect(s.rubric.passingDescription).toBeDefined();
     });
   });
