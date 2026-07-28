@@ -17,7 +17,7 @@ const { mockResendSend, mockSgMailSend, mockSgMailSetApiKey } = vi.hoisted(() =>
 // ─── Mock Resend ──────────────────────
 
 vi.mock('resend', () => ({
-  Resend: vi.fn().mockImplementation(function () {
+  Resend: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this.emails = { send: mockResendSend };
   }),
 }));
@@ -38,15 +38,15 @@ vi.mock('@react-email/render', () => ({
 // ─── Mock React Email Components ──────
 
 vi.mock('@react-email/components', () => ({
-  Text: ({ children, ...props }: any) => ({ type: 'div', props: { ...props, children } }),
-  Button: ({ children, ...props }: any) => ({ type: 'a', props: { ...props, children } }),
-  Section: ({ children, ...props }: any) => ({ type: 'div', props: { ...props, children } }),
-  Hr: (props: any) => ({ type: 'hr', props }),
-  Link: ({ children, ...props }: any) => ({ type: 'a', props: { ...props, children } }),
+  Text: ({ children, ...props }: Record<string, unknown>) => ({ type: 'div', props: { ...props, children } }),
+  Button: ({ children, ...props }: Record<string, unknown>) => ({ type: 'a', props: { ...props, children } }),
+  Section: ({ children, ...props }: Record<string, unknown>) => ({ type: 'div', props: { ...props, children } }),
+  Hr: (props: Record<string, unknown>) => ({ type: 'hr', props }),
+  Link: ({ children, ...props }: Record<string, unknown>) => ({ type: 'a', props: { ...props, children } }),
 }));
 
 vi.mock('@/emails/base-layout', () => ({
-  BaseLayout: ({ children }: any) => ({ type: 'div', props: { children } }),
+  BaseLayout: (props: Record<string, unknown>) => ({ type: 'div', props }),
 }));
 
 vi.mock('@/emails/utils', () => ({
@@ -62,19 +62,19 @@ vi.mock('@/emails/utils', () => ({
 }));
 
 vi.mock('@/emails/password-reset', () => ({
-  PasswordResetEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+  PasswordResetEmail: (props: Record<string, unknown>) => ({ type: 'div', props: { ...props } }),
 }));
 
 vi.mock('@/emails/invitation', () => ({
-  InvitationEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+  InvitationEmail: (props: Record<string, unknown>) => ({ type: 'div', props: { ...props } }),
 }));
 
 vi.mock('@/emails/invoice', () => ({
-  InvoiceEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+  InvoiceEmail: (props: Record<string, unknown>) => ({ type: 'div', props: { ...props } }),
 }));
 
 vi.mock('@/emails/weekly-report', () => ({
-  WeeklyReportEmail: (props: any) => ({ type: 'div', props: { ...props } }),
+  WeeklyReportEmail: (props: Record<string, unknown>) => ({ type: 'div', props: { ...props } }),
 }));
 
 // ─── Mock Logger ──────────────────────
@@ -702,7 +702,7 @@ describe('sendReactEmail', () => {
     const result = await sendReactEmail({
       to: 'user@example.com',
       subject: 'React Email',
-      react: { type: 'div', props: { children: 'Hello' } },
+      react: { type: 'div', props: { children: 'Hello' } } as React.ReactElement,
     });
 
     expect(render).toHaveBeenCalled();
@@ -719,7 +719,7 @@ describe('sendReactEmail', () => {
     await sendReactEmail({
       to: 'user@example.com',
       subject: 'Tagged Email',
-      react: { type: 'div', props: {} },
+      react: { type: 'div', props: {} } as React.ReactElement,
       from: 'Custom <custom@example.com>',
       tags: { type: 'react' },
     });
@@ -739,7 +739,7 @@ describe('sendReactEmail', () => {
     const result = await sendReactEmail({
       to: 'user@example.com',
       subject: 'React Fallback',
-      react: { type: 'div', props: {} },
+      react: { type: 'div', props: {} } as React.ReactElement,
     });
 
     expect(result.success).toBe(true);

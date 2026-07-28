@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { KeyboardShortcutsProvider } from '@/hooks/keyboard-shortcuts-context';
 
 const inter = Inter({ 
   subsets: ["latin"],
@@ -87,7 +88,9 @@ export default function RootLayout({
         ` }}
       />
       <body className="font-sans antialiased">
-        {children}
+        <KeyboardShortcutsProvider>
+          {children}
+        </KeyboardShortcutsProvider>
       </body>
     </html>
   );

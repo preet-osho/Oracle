@@ -9,6 +9,7 @@
 // ─── Types ─────────────────────────────
 
 export type SendChannel = 'email' | 'whatsapp';
+export type CommunicationChannel = 'email' | 'whatsapp';
 
 export interface SendMessageRequest {
   channel: SendChannel;

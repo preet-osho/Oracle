@@ -2,6 +2,8 @@
 // ORACLE — Complete TypeScript Types
 // ═══════════════════════════════════════
 
+import type { AgentName } from '@/lib/agents/registry';
+
 // ─── AI Providers ──────────────────────
 
 export interface ModelProvider {
@@ -58,7 +60,7 @@ export interface Message {
   costINR?: number;
   isStreaming?: boolean;
   attachments?: Attachment[];
-  agentType?: 'orchestrator' | 'researcher' | 'writer' | 'developer' | 'analyst' | 'strategist' | 'marketer' | 'designer' | 'finance' | 'voice' | 'qa' | 'coordinator' | 'workflow' | 'legal' | 'security-auditor' | 'data-scientist' | 'competitor-intel' | 'editor' | 'localization' | 'lead-hunter' | 'offer-strategist' | 'video-specialist' | 'web-designer' | 'agent-builder';
+  agentType?: AgentName;
 }
 
 export interface Attachment {
@@ -336,6 +338,69 @@ export interface ConversationSummary {
   updatedAt: number;
 }
 
+// ─── Multi-Agent Orchestration ───────
+export type {
+  AgentStatus,
+  AgentTask,
+  WorkflowDefinition,
+  WorkflowTaskDef,
+  OrchestrationConfig,
+  OrchestrationResult,
+  StreamingChunk,
+  StreamingOptions,
+} from '@/lib/agents/orchestration-engine';
+
+// ─── MCP Servers ─────────────────────
+export type {
+  MCPTool,
+  MCPHealthStatus,
+  MCPHealthCheckResult,
+  MCPServerDefinition,
+  MCPToolCall,
+  MCPToolResult,
+} from '@/lib/agents/mcp-servers';
+
+// ─── Memory System ───────────────────
+// Note: 'MemoryItem' is also defined locally for per-client memory (simpler shape).
+// The agent system version with agentId/tags/embedding lives in memory-system.ts.
+export type {
+  MemoryCategory,
+  MemoryImportance,
+  MemorySearchResult,
+  MemoryStats,
+  ShortTermMemory,
+} from '@/lib/agents/memory-system';
+export type { MemoryItem as AgentMemoryItem } from '@/lib/agents/memory-system';
+
+// ─── Learning Loop ───────────────────
+export type {
+  TaskOutcome,
+  TaskScores,
+  LearningEntry,
+  Reflection,
+  ToolPerformance,
+  MistakeReport,
+  SuccessReport,
+  OptimizationPlan,
+} from '@/lib/agents/learning-loop';
+
+// ─── Evaluation Framework ────────────
+export type {
+  EvaluationDimension,
+  EvaluationResult,
+  EvaluationFlag,
+  EvaluationConfig,
+} from '@/lib/agents/evaluation-framework';
+
+// ─── Failure Detection ───────────────
+export type {
+  FailureType,
+  FailureSeverity,
+  FailureDetection,
+  RecoveryAction,
+  FailureReport,
+} from '@/lib/agents/failure-detection';
+
 // ─── Hallucination Guard ──────────────
 
 export interface HallucinationCheckResult {
@@ -412,16 +477,7 @@ export interface ConfidenceThreshold {
   blockThreshold: number; // default 30
 }
 
-export interface LearningEntry {
-  id: string;
-  timestamp: number;
-  originalOutput: string;
-  userVerdict: 'accepted' | 'corrected' | 'rejected';
-  corrections?: string;
-  patternType: string;
-  domain: string;
-  confidenceAtCheck: number;
-}
+
 
 export interface GuardConfig {
   enabled: boolean;

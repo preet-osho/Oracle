@@ -227,6 +227,122 @@ function createControllableLoopMock() {
   };
 }
 
+// ─── ChatPanel mock instance factory ───
+// Creates fresh mock instances for ChatPanel test files.
+// Accepts a vi.fn-compatible function passed from the test file's vi.hoisted() context.
+//
+// Usage in test files:
+//   const m = vi.hoisted(() => {
+//     const SHARED = require('./test-utils.mocks.cjs');
+//     return SHARED.createChatPanelMockInstances(vi.fn);
+//   });
+function createChatPanelMockInstances(viFn) {
+  var counter = 0;
+  var mockNanoidFn = viFn(function () { return 'test-id-' + (++counter); });
+  var mockToastFn = viFn();
+  var mockToastErrorFn = viFn();
+  return {
+    mockNanoid: mockNanoidFn,
+    resetNanoid: function () { counter = 0; mockNanoidFn.mockClear(); },
+    mockToast: mockToastFn,
+    mockToastError: mockToastErrorFn,
+    resetToastMocks: function () { mockToastFn.mockClear(); mockToastErrorFn.mockClear(); },
+    mockRunOperatingLoop: viFn().mockResolvedValue([]),
+    analyzeTask: viFn().mockReturnValue({ complexity: 0.3, agents: [], suggestedTier: 'standard' }),
+    mockLoadGuardConfig: viFn().mockReturnValue({ enabled: false, thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 } }),
+    mockRunHallucinationGuard: viFn().mockResolvedValue({ confidence: 80, assessment: 'Looks good', checks: [], suggestions: [] }),
+    mockRecordLearning: viFn(),
+    mockAddCost: viFn(),
+    mockAddUsageRecord: viFn(),
+    streamingEnabledRef: { current: true },
+    mockRecordProviderHealth: viFn(),
+    mockRunEditorGate: viFn().mockResolvedValue({ passed: true, confidence: 90, assessment: 'OK', issues: [], checkedAt: Date.now() }),
+    mockRunQualityGates: viFn().mockReturnValue({ passed: true, score: 80, checks: [] }),
+  };
+}
+
+// ─── Router store mock factory ───
+// Reads streamingEnabled from the ref at render time (not at factory creation time)
+// so tests can toggle streamingEnabledRef.current and have it take effect.
+function createRouterStoreMock(m) {
+  return {
+    useRouterStore: function () {
+      return {
+        streamingEnabled: m.streamingEnabledRef.current,
+        addCost: m.mockAddCost,
+        addUsageRecord: m.mockAddUsageRecord,
+        configuredProviders: ['groq'],
+      };
+    },
+  };
+}
+
+// ─── ChatPanel vi.mock() factory objects ───
+// Creates all vi.mock() factory objects from mock instances.
+// Each key corresponds to a vi.mock() call in the test file.
+//
+// Usage in test files:
+//   const { m, f } = vi.hoisted(() => {
+//     const SHARED = require('./test-utils.mocks.cjs');
+//     const m = SHARED.createChatPanelMockInstances(vi.fn);
+//     const f = SHARED.createChatPanelMockFactories(m, vi.fn);
+//     return { m, f };
+//   });
+//
+//   vi.mock('nanoid', () => f.nanoid);
+//   vi.mock('@/styles/design-tokens', () => f.designTokens);
+//   vi.mock('@/lib/router', () => f.router);
+//   // ... etc
+function createChatPanelMockFactories(m, viFn) {
+  return {
+    nanoid: { nanoid: m.mockNanoid },
+    designTokens: DESIGN_TOKENS_MOCK,
+    router: ROUTER_MOCK,
+    routerStore: createRouterStoreMock(m),
+    api: API_MOCK,
+    rag: RAG_MOCK,
+    memory: MEMORY_MOCK,
+    quality: QUALITY_MOCK,
+    systemPrompt: SYSTEM_PROMPT_MOCK,
+    hallucinationGuard: createHallucinationGuardMock(m.mockLoadGuardConfig, m.mockRunHallucinationGuard, m.mockRecordLearning),
+    toast: createToastMock(m.mockToast, m.mockToastError),
+    tokenBudget: TOKEN_BUDGET_MOCK,
+    contextManager: CONTEXT_MANAGER_MOCK,
+    utils: UTILS_MOCK,
+    exportUtils: EXPORT_UTILS_MOCK,
+    search: SEARCH_MOCK,
+    csrf: CSRF_MOCK,
+    selfTraining: SELF_TRAINING_MOCK,
+    crossDomainThinking: CROSS_DOMAIN_THINKING_MOCK,
+    patternRecognition: PATTERN_RECOGNITION_MOCK,
+    searchHelpers: SEARCH_HELPERS_MOCK,
+    workflowValidation: WORKFLOW_VALIDATION_MOCK,
+    toastConfig: TOAST_CONFIG_MOCK,
+    taskAnalyzer: { analyzeTask: m.analyzeTask },
+    providerHealth: { recordProviderHealth: m.mockRecordProviderHealth },
+    editorGate: {
+      runEditorGate: m.mockRunEditorGate,
+      loadEditorConfig: EDITOR_GATE_MOCK.loadEditorConfig,
+      saveEditorConfig: EDITOR_GATE_MOCK.saveEditorConfig,
+      DEFAULT_EDITOR_CONFIG: EDITOR_GATE_MOCK.DEFAULT_EDITOR_CONFIG,
+    },
+    outputQualityEvaluator: OUTPUT_QUALITY_EVALUATOR_MOCK,
+    feedbackBridge: FEEDBACK_BRIDGE_MOCK,
+    agencyOperations: {
+      runOperatingLoop: m.mockRunOperatingLoop,
+      runQualityGates: m.mockRunQualityGates,
+      routeAgencyTask: viFn().mockReturnValue({ primary: 'strategist', support: [], workflow: 'strategy' }),
+      detectMistakes: viFn().mockReturnValue([]),
+      rankDecisionOptions: viFn().mockReturnValue([]),
+      runSelfCheck: viFn().mockReturnValue({ score: 7, understood: true, avoidedGeneric: true, coveredChannels: true, assignedRightAgent: true, identifiedFailures: true, gaveNextStep: true, clientReady: true }),
+      runLeadGenPipeline: viFn().mockResolvedValue([]),
+      runClientHuntWorkflow: viFn().mockResolvedValue([]),
+    },
+    promptSanitizer: PROMPT_SANITIZER_MOCK,
+    guardStatsPanel: GUARD_STATS_PANEL_MOCK,
+  };
+}
+
 module.exports = {
   DESIGN_TOKENS_MOCK, ROUTER_MOCK, API_MOCK, RAG_MOCK, MEMORY_MOCK,
   QUALITY_MOCK, SYSTEM_PROMPT_MOCK, OUTPUT_QUALITY_EVALUATOR_MOCK,
@@ -236,5 +352,5 @@ module.exports = {
   PATTERN_RECOGNITION_MOCK, SEARCH_HELPERS_MOCK, WORKFLOW_VALIDATION_MOCK,
   TOAST_CONFIG_MOCK, FEEDBACK_BRIDGE_MOCK, GUARD_STATS_PANEL_MOCK,
   createToastMock, createHallucinationGuardMock, createStoreMock,
-  createControllableLoopMock,
+  createControllableLoopMock, createChatPanelMockInstances, createChatPanelMockFactories,
 };

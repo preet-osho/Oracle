@@ -86,6 +86,20 @@ export default defineConfig({
           include: ['src/emails/**/*.test.{ts,tsx}'],
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'styles',
+          include: ['src/styles/**/*.test.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'hooks',
+          include: ['src/hooks/**/*.test.{ts,tsx}'],
+        },
+      },
     ],
   },
   resolve: {

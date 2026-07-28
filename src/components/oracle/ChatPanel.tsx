@@ -22,6 +22,7 @@ import { csrfHeaders } from '@/lib/csrf';
 import { fetchWithTimeout, TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS, TIMEOUT_STANDARD_MS, TIMEOUT_STREAMING_MS } from '@/lib/fetch-utils';
 import { recordTask } from '@/lib/self-training';
 import { recordProviderHealth } from '@/lib/provider-health';
+import { recordGodModeToggle, recordGodModeMessage, updateGodModeMessageQuality, recordNormalMessageTokens } from '@/lib/god-mode-metrics';
 import { attachQualityToTraining, recordMessageFeedback } from '@/lib/feedback-bridge';
 import { getAdjacentServices } from '@/lib/cross-domain-thinking';
 import { recogniseTaskPatterns } from '@/lib/pattern-recognition';
@@ -35,7 +36,9 @@ import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
 import {useSubscriptionState} from '@/components/oracle/FeatureGate';
 import { GuardStatsPanel } from '@/components/oracle/GuardStatsPanel';
-import { AGENT_TYPES, AGENT_SYSTEM_PROMPTS, type AgentType, type ConversationSummary, type ProjectSummary } from '@/components/oracle/agent-config';
+import { AGENT_TYPES, AGENT_SYSTEM_PROMPTS, getPromptWithGodMode, type AgentType, type ConversationSummary, type ProjectSummary } from '@/components/oracle/agent-config';
+import { useKeyboardShortcuts } from '@/hooks/keyboard-shortcuts-context';
+import { KEYBOARD_SHORTCUTS } from '@/styles/keyboard-shortcuts';
 import { ChatHeader } from '@/components/oracle/ChatHeader';
 import { ChatInputArea } from '@/components/oracle/ChatInputArea';
 import { EmptyState } from '@/components/oracle/EmptyState';
@@ -128,6 +131,37 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
   // Web search state
   const [webSearchEnabled, setWebSearchEnabled] = useState(webSearchProp ?? false);
   const [, setSearchContext] = useState('');
+
+  // GOD MODE state (persisted in localStorage)
+  const [godModeEnabled, setGodModeEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('oracle_god_mode_enabled');
+        return raw === 'true';
+      } catch { return false; }
+    }
+    return false;
+  });
+
+  // ── GOD MODE keyboard shortcut (Ctrl+Shift+G) ──
+  const toggleGodMode = useCallback(() => {
+    setGodModeEnabled((prev) => {
+      const next = !prev;
+      recordGodModeToggle(next, agentType);
+      toast(next ? '⚡ GOD MODE activated' : 'GOD MODE deactivated', {
+        ...TOAST_DEFAULTS,
+        icon: next ? '⚡' : '✓',
+        duration: 2000,
+      });
+      return next;
+    });
+  }, [agentType]);
+
+  useKeyboardShortcuts({
+    id: 'god-mode-toggle',
+    shortcut: KEYBOARD_SHORTCUTS.find((s) => s.id === 'god-mode-toggle')!,
+    handler: toggleGodMode,
+  });
 
   // Cross-domain suggestions state
   const [crossDomainSuggestions, setCrossDomainSuggestions] = useState<Array<{ service: string; relevance: number; rationale: string; value: string }>>([]);
@@ -347,6 +381,13 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     }
   }, [starredMessages]);
 
+  // ── Persist GOD MODE preference ──
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('oracle_god_mode_enabled', JSON.stringify(godModeEnabled));
+    }
+  }, [godModeEnabled]);
+
   // ── Persist selected project to localStorage ──
   useEffect(() => {
     if (selectedProjectId) {
@@ -393,6 +434,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     setActiveConversationId(null);
     setConversationTitle('New Chat');
     setAgentType('orchestrator');
+    setGodModeEnabled(false);
     setQualityScores({});
     setGuardResults({});
     setEvalResults({});
@@ -503,10 +545,12 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       }
     }
 
-    const agentSystemPrompt = AGENT_SYSTEM_PROMPTS[agentType];
+    let agentSystemPrompt = AGENT_SYSTEM_PROMPTS[agentType];
     if (agentSystemPrompt) {
+      // Apply GOD MODE enhancement if enabled
+      agentSystemPrompt = getPromptWithGodMode(agentType, godModeEnabled);
       const agentInfo = AGENT_TYPES.find((a) => a.id === agentType);
-      parts.push(`## Agent Mode: ${agentInfo?.label || agentType}\n\n${agentSystemPrompt}`);
+      parts.push(`## Agent Mode: ${agentInfo?.label || agentType}${godModeEnabled ? ' ⚡ GOD MODE' : ''}\n\n${agentSystemPrompt}`);
     }
 
     // Inject social media MCP tool context so the AI can use social media tools
@@ -545,7 +589,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       documents,
       searchUsed,
     };
-  }, [knowledgeDocs, clientMemories, agentType, webSearchEnabled]);
+  }, [knowledgeDocs, clientMemories, agentType, webSearchEnabled, godModeEnabled]);
 
   // ── Optimize messages for context window ──
   const getOptimizedMessages = useCallback((msgs: ChatMessage[]): Array<{ role: string; content: string }> => {
@@ -823,6 +867,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       timestamp: Date.now(),
       isStreaming: true,
       agentType,
+      godMode: godModeEnabled,
     };
 
     setMessages([...newMessages, assistantMessage]);
@@ -1022,8 +1067,28 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
 
+        // Record GOD MODE metrics if active, else record normal message tokens
+        const tokensUsed = inputTokens + outputTokens;
+        const wasSuccessful = fullText.length > 0;
+        const godModeMessageId = godModeEnabled ? recordGodModeMessage({
+          agentType,
+          provider: finalProvider,
+          model: finalModel,
+          tokensUsed,
+          wasSuccessful,
+        }) : null;
+        if (!godModeEnabled) {
+          recordNormalMessageTokens(tokensUsed, agentType, wasSuccessful);
+        }
+
         scoreResponse(userMessage.content, fullText, assistantMessage.id).then((scoredResult) => {
-          if (scoredResult) attachQualityToTraining(finalProvider, finalModel, agentType, scoredResult);
+          if (scoredResult) {
+            attachQualityToTraining(finalProvider, finalModel, agentType, scoredResult);
+            // Update GOD MODE metrics with quality score after scoring completes
+            if (godModeMessageId && scoredResult.total) {
+              updateGodModeMessageQuality(godModeMessageId, scoredResult.total);
+            }
+          }
         });
 
         runGuardCheck(userMessage.content, fullText, assistantMessage.id, documents);
@@ -1128,8 +1193,28 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
 
+        // Record GOD MODE metrics if active, else record normal message tokens
+        const tokensUsed = result.inputTokens + result.outputTokens;
+        const wasSuccessful = result.text.length > 0;
+        const godModeMessageId = godModeEnabled ? recordGodModeMessage({
+          agentType,
+          provider: result.provider,
+          model: result.model,
+          tokensUsed,
+          wasSuccessful,
+        }) : null;
+        if (!godModeEnabled) {
+          recordNormalMessageTokens(tokensUsed, agentType, wasSuccessful);
+        }
+
         scoreResponse(userMessage.content, result.text, assistantMessage.id).then((scoredResult) => {
-          if (scoredResult) attachQualityToTraining(result.provider, result.model, agentType, scoredResult);
+          if (scoredResult) {
+            attachQualityToTraining(result.provider, result.model, agentType, scoredResult);
+            // Update GOD MODE metrics with quality score after scoring completes
+            if (godModeMessageId && scoredResult.total) {
+              updateGodModeMessageQuality(godModeMessageId, scoredResult.total);
+            }
+          }
         });
 
         runGuardCheck(userMessage.content, result.text, assistantMessage.id, documents);
@@ -1390,6 +1475,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         onFileAttach={handleFileAttach}
         onSidebarToggle={onSidebarToggle}
         sidebarOpen={sidebarOpen}
+        godModeEnabled={godModeEnabled}
+        setGodModeEnabled={setGodModeEnabled}
       />
     </div>
   );

@@ -147,32 +147,21 @@ async function sendTemplateWithResend(
   options: SendTemplateEmailOptions,
   config: EmailServiceConfig,
 ): Promise<EmailSendResult> {
-  const client = getResendClient();
-  if (!client) {
-    return { success: false, provider: 'resend', error: 'Resend API key not configured' };
-  }
-
-  try {
-    const result = await client.emails.send({
-      from: options.from || config.defaultFrom,
-      to: Array.isArray(options.to) ? options.to : [options.to],
+  // Build a SendEmailOptions-compatible object using tags for dynamic data,
+  // then delegate to sendWithResend which handles the Resend SDK type cast.
+  return sendWithResend(
+    {
+      to: options.to,
       subject: `Template: ${options.templateId}`,
-      reply_to: options.replyTo,
-      tags: Object.entries(options.dynamicData).map(([name, value]) => ({
-        name,
-        value: String(value),
-      })),
-    } as Parameters<typeof client.emails.send>[0]);
-
-    if (result.error) {
-      return { success: false, provider: 'resend', error: result.error.message };
-    }
-
-    return { success: true, messageId: result.data?.id, provider: 'resend' };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error';
-    return { success: false, provider: 'resend', error: message };
-  }
+      from: options.from,
+      replyTo: options.replyTo,
+      tags: Object.entries(options.dynamicData).reduce<Record<string, string>>(
+        (acc, [key, val]) => ({ ...acc, [key]: String(val) }),
+        {},
+      ),
+    },
+    config,
+  );
 }
 
 // ─── SendGrid Provider ──────────────────

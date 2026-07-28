@@ -657,7 +657,7 @@ describe('POST /api/webhooks/twilio', () => {
 describe('POST /api/webhooks/test', () => {
   beforeEach(() => {
     mockStoreDeliveryEvent.mockClear();
-    process.env.NODE_ENV = 'test';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'test', writable: true });
   });
 
   it('injects single test event', async () => {
@@ -733,7 +733,7 @@ describe('POST /api/webhooks/test', () => {
   });
 
   it('returns 403 in production', async () => {
-    process.env.NODE_ENV = 'production';
+    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production', writable: true });
 
     const { POST } = await import('./test/route');
     const request = createMockRequest({

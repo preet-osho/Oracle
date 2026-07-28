@@ -239,6 +239,7 @@ export const ORACLE_TABS = [
   { id: 'command-center', label: 'Command Center', emoji: '🏢' },
   { id: 'communication', label: 'Comm Hub', emoji: '📡' },
   { id: 'social-media', label: 'Social', emoji: '📱' },
+  { id: 'training', label: 'Training', emoji: '🧪' },
 ] as const;
 
 export type OracleTab = (typeof ORACLE_TABS)[number]['id'];
@@ -305,6 +306,7 @@ export const TAB_METADATA: Record<OracleTab, { title: string; description: strin
   'command-center':   { title: 'Agency Command Center', description: 'Real-time overview of agency operations — clients, leads, revenue, agents, quality, and system health.', image: `${OG_BASE}command-center` },
   communication:      { title: 'Communication Hub', description: 'Delivery stats, channel analytics, message history, and provider health for Email and WhatsApp.', image: `${OG_BASE}communication` },
   'social-media':     { title: 'Social Media Hub', description: 'Content calendar, post scheduling, cross-platform publishing, and social analytics.', image: `${OG_BASE}social-media` },
+  training:            { title: 'Training Scenarios', description: 'Agent evaluation dashboard — run training scenarios and visualize performance across 29 test cases.', image: `${OG_BASE}training` },
 };
 
 // ─── Quick Actions ─────────────────────

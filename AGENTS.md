@@ -1,6 +1,6 @@
 # ORACLE Agent Directory
 
-> **39 specialist agents** powering the multi-agent AI workforce.  
+> **43 specialist agents** powering the multi-agent AI workforce.  
 > All prompts and metadata defined in `src/lib/agents/registry.ts`.
 
 ---
@@ -32,7 +32,7 @@
 
 ---
 
-## Specialist Domain Agents (14)
+## Specialist Domain Agents (17)
 
 | # | Agent | Category | Description | Use Cases |
 |---|-------|----------|-------------|-----------|
@@ -50,15 +50,16 @@
 | 24 | `conversion-optimizer` | marketing | Funnel analysis, landing page optimization, A/B testing, checkout optimization | Conversion audits, CTA optimization, form optimization, social proof |
 | 25 | `community-manager` | marketing | Community strategy, platform management, engagement tactics, moderation | Discord/Slack management, engagement loops, brand voice, crisis response |
 | 26 | `sales-optimizer` | sales | Sales pipeline, enablement, outbound sequences, demos, revenue operations | Cold email sequences, demo scripts, CRM workflows, pipeline forecasting |
-
----
+| 27 | `seo-strategist` | strategy | High-level SEO strategy, content architecture, competitive positioning, and long-term organic growth planning | SEO roadmaps, competitive positioning, topic cluster design, AI Overview strategy, authority building plans |
+| 28 | `product-designer` | design | End-to-end design authority for design systems, component specifications, visual language, and implementation-ready deliverables | Design systems, component specs, AI-native UI patterns, conversion design, accessibility standards |
+| 29 | `super-orchestrator` | orchestration | GOD MODE universal AI operating partner — invisible complexity, goal-first intelligence, zero-click automation | Universal task completion, invisible routing, goal-first planning, zero-click automation |
 
 ## Quality & Documentation Agents (2)
 
 | # | Agent | Category | Description | Use Cases |
 |---|-------|----------|-------------|-----------|
-| 27 | `accessibility-auditor` | quality | WCAG compliance, screen reader testing, keyboard navigation, visual/cognitive accessibility | Accessibility audits, ARIA implementation, contrast checks, inclusive design |
-| 28 | `api-docs-writer` | technical-writing | API reference docs, tutorials, architecture docs, OpenAPI specs, developer experience | API documentation, SDK guides, developer portals, changelog writing |
+| 30 | `accessibility-auditor` | quality | WCAG compliance, screen reader testing, keyboard navigation, visual/cognitive accessibility | Accessibility audits, ARIA implementation, contrast checks, inclusive design |
+| 31 | `api-docs-writer` | technical-writing | API reference docs, tutorials, architecture docs, OpenAPI specs, developer experience | API documentation, SDK guides, developer portals, changelog writing |
 
 ---
 
@@ -66,24 +67,25 @@
 
 | # | Agent | Category | Description | Use Cases |
 |---|-------|----------|-------------|-----------|
-| 29 | `orchestrator` | orchestration | Central coordinator — decomposes tasks, routes work, merges outputs, enforces quality gates | Complex multi-domain tasks, agent routing, output synthesis, conflict resolution |
-| 30 | `agency-brain` | strategy | Multi-agent agency orchestrator — lead gen, strategy, execution, QA, improvement across 15 specialist sub-agents | Full client acquisition workflows, end-to-end campaign planning, business diagnostics |
-| 31 | `lead-hunter` | sales | Prospect finding, lead scoring, outreach angle creation, cold email/DM sequences | Market prospecting, lead list building, outreach preparation, objection handling |
-| 32 | `offer-strategist` | strategy | Outcome-based offers, pricing tiers, proposals, value propositions, objection handling | Service packaging, proposal writing, pricing optimization, upsell strategies |
-| 33 | `video-specialist` | content | Video concepts, scripts, shot plans, short-form/long-form, repurposing | Reels/shorts scripting, ad video production, content repurposing, CTA placement |
-| 34 | `web-designer` | design | Website UX, wireframes, conversion flow, CTA placement, messaging hierarchy | Site architecture, mobile-first design, booking flows, trust signal placement |
+| 32 | `orchestrator` | orchestration | Central coordinator — decomposes tasks, routes work, merges outputs, enforces quality gates | Complex multi-domain tasks, agent routing, output synthesis, conflict resolution |
+| 33 | `agency-brain` | strategy | Agency Brain & Operations Lead — orchestrates 15+ specialist sub-agents across lead gen, SEO, paid ads, content, design, video, automation, and QA with a complete operating loop (Understand → Diagnose → Plan → Execute → QA → Improve) | Client acquisition workflows, campaign planning, business diagnostics, outreach sequences, funnel maps, QA checklists |
+| 34 | `lead-hunter` | sales | Prospect finding, lead scoring, outreach angle creation, cold email/DM sequences | Market prospecting, lead list building, outreach preparation, objection handling |
+| 35 | `offer-strategist` | strategy | Outcome-based offers, pricing tiers, proposals, value propositions, objection handling | Service packaging, proposal writing, pricing optimization, upsell strategies |
+| 36 | `video-specialist` | content | Video concepts, scripts, shot plans, short-form/long-form, repurposing | Reels/shorts scripting, ad video production, content repurposing, CTA placement |
+| 37 | `web-designer` | design | Website UX, wireframes, conversion flow, CTA placement, messaging hierarchy | Site architecture, mobile-first design, booking flows, trust signal placement |
 
 ---
 
-## Systems-Level Agents (5)
+## Systems-Level Agents (6)
 
 | # | Agent | Category | Description | Use Cases |
 |---|-------|----------|-------------|-----------|
-| 35 | `agent-builder` | technical | AI agent design, tool config, memory rules, routing logic, quality gates | Designing new specialist agents, prompt engineering, tool integration, memory architecture |
-| 36 | `systems-architect` | technical | Multi-agent OS architecture, tool/MCP design, memory systems, orchestration, QA strategy | Platform architecture, MCP server design, scalability planning, system evaluation |
-| 37 | `product-engineer` | technical | Codebase analysis, bug fixing, feature completion, production readiness, release management | Production audits, bug triage, release planning, technical debt reduction |
-| 38 | `intelligence-architect` | strategy | Superior AI platform design vs competitors, competitive gap analysis, system superiority | Platform benchmarking, competitive architecture, innovation roadmap |
-| 39 | `training-architect` | technical | Agent training systems, evaluation rubrics, humanization rules, continuous improvement | Training curriculum design, scenario libraries, scoring rubrics, failure mode analysis |
+| 38 | `agent-builder` | technical | AI agent design, tool config, memory rules, routing logic, quality gates | Designing new specialist agents, prompt engineering, tool integration, memory architecture |
+| 39 | `systems-architect` | technical | Enterprise multi-agent OS architecture, full tool ecosystem design, Karpathy-style improvement loops, MCP server networks, evaluation frameworks, failure detection | Platform architecture, MCP design, memory systems, tool orchestration, deployment planning |
+| 40 | `product-engineer` | technical | Codebase analysis, bug fixing, feature completion, production readiness, release management | Production audits, bug triage, release planning, technical debt reduction |
+| 41 | `intelligence-architect` | strategy | Superior AI platform design vs competitors, competitive gap analysis, system superiority | Platform benchmarking, competitive architecture, innovation roadmap |
+| 42 | `training-architect` | technical | Agent training systems, evaluation rubrics, humanization rules, continuous improvement | Training curriculum design, scenario libraries, scoring rubrics, failure mode analysis |
+| 43 | `security-architect` | security | CISO & AI Security Architect — Zero Trust architecture, AI security (prompt injection, memory poisoning, agent impersonation), honeypot deception strategy, privacy-by-design, threat detection, red team framework, incident recovery, security scorecards | Enterprise security architecture, threat modeling, DevSecOps pipelines, honeypot design, audit system, incident response |
 
 ---
 
@@ -93,18 +95,18 @@
 |----------|--------|---------|
 | `research` | researcher, competitor-intel | Intelligence gathering and analysis |
 | `content` | writer, editor, localization, seo-specialist, content-strategist, video-specialist | Content creation, optimization, and quality |
+| `strategy` | strategist, seo-strategist, agency-brain, offer-strategist, intelligence-architect | Business strategy, SEO strategy, and competitive intelligence |
 | `technical` | developer, voice, devops, agent-builder, systems-architect, product-engineer, training-architect | Engineering, infrastructure, and system design |
 | `analysis` | analyst, data-scientist | Data analysis and insights |
-| `strategy` | strategist, agency-brain, offer-strategist, intelligence-architect | Business strategy and planning |
 | `marketing` | marketer, growth-hacker, conversion-optimizer, community-manager | Marketing, growth, and engagement |
-| `design` | designer, ux-researcher, web-designer | UI/UX, brand, and visual design |
+| `design` | designer, product-designer, ux-researcher, web-designer | UI/UX, brand, design systems, and visual design |
 | `finance` | finance | Pricing, budgeting, and financial modeling |
 | `quality` | qa, accessibility-auditor | Quality assurance and compliance |
 | `sales` | sales-optimizer, lead-hunter | Sales enablement and pipeline |
-| `security` | security-auditor | Security auditing and remediation |
+| `security` | security-auditor, security-architect | Security auditing, threat modeling, and zero trust architecture |
 | `legal` | legal | Legal compliance and contract review |
 | `management` | coordinator | Project coordination and delivery |
-| `orchestration` | workflow, orchestrator | Multi-agent coordination and routing |
+| `orchestration` | workflow, orchestrator, super-orchestrator | Multi-agent coordination, routing, and universal AI operating partner |
 | `technical-writing` | api-docs-writer | Technical documentation |
 
 ---

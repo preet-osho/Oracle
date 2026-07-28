@@ -6,6 +6,7 @@ import { estimateTokens } from '@/lib/utils';
 import { AGENT_TYPES, type AgentType } from './agent-config';
 import { DailyUsageIndicator, useSubscriptionState } from './FeatureGate';
 import { hasAgentAccess } from '@/lib/subscription';
+import { GodModeCostIndicator } from './GodModeCostIndicator';
 
 
 // ─── Chat Input Area ───────────────────
@@ -27,6 +28,8 @@ interface ChatInputAreaProps {
   onFileAttach: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onSidebarToggle?: () => void;
   sidebarOpen?: boolean;
+  godModeEnabled?: boolean;
+  setGodModeEnabled?: (enabled: boolean) => void;
 }
 
 export function ChatInputArea({
@@ -35,6 +38,7 @@ export function ChatInputArea({
   detectedPatterns, crossDomainSuggestions, dailyUsage,
   onSend, onPaste, onFileAttach,
   onSidebarToggle, sidebarOpen,
+  godModeEnabled = false, setGodModeEnabled,
 }: ChatInputAreaProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { plan } = useSubscriptionState();
@@ -62,7 +66,7 @@ export function ChatInputArea({
         </div>
       )}
       <div className="mx-auto max-w-3xl">
-        {/* Agent Badge */}
+        {/* Agent Badge + GOD MODE Toggle */}
         {(() => {
           const agentInfo = AGENT_TYPES.find((a) => a.id === agentType);
           if (!agentInfo) return null;
@@ -70,26 +74,36 @@ export function ChatInputArea({
           const locked = !agentAllowed;
           return (
             <div className={`mb-2 flex items-center gap-2 rounded-lg border px-3 py-2 ${
-              locked
-                ? 'bg-[var(--oracle-warning)]/5 border-[var(--oracle-warning)]/20'
-                : isOrchestrator
-                  ? 'bg-[var(--oracle-surface-2)]/60 border-[var(--oracle-border)]'
-                  : 'bg-[var(--oracle-primary)]/5 border-[var(--oracle-primary)]/15'
-            }`}>
-              {locked && <span className="text-sm">🔒</span>}
-              {!locked && <span className="text-sm">{agentInfo.emoji}</span>}
-              <span className={`text-[11px] font-semibold ${
-                locked
-                  ? 'text-[var(--oracle-warning)]'
+              godModeEnabled
+                ? 'bg-[var(--oracle-error)]/5 border-[var(--oracle-error)]/20'
+                : locked
+                  ? 'bg-[var(--oracle-warning)]/5 border-[var(--oracle-warning)]/20'
                   : isOrchestrator
-                    ? 'text-[var(--oracle-text-3)]'
-                    : 'text-[var(--oracle-primary-l)]'
-              }`}>{agentInfo.label} Agent</span>
-              {locked && (
-                <span className="text-[10px] text-[var(--oracle-warning)] hidden sm:inline">· Requires {plan === 'starter' ? 'Pro' : 'Agency'} plan</span>
+                    ? 'bg-[var(--oracle-surface-2)]/60 border-[var(--oracle-border)]'
+                    : 'bg-[var(--oracle-primary)]/5 border-[var(--oracle-primary)]/15'
+            }`}>
+              {godModeEnabled ? (
+                <span className="text-sm">⚡</span>
+              ) : locked ? (
+                <span className="text-sm">🔒</span>
+              ) : (
+                <span className="text-sm">{agentInfo.emoji}</span>
               )}
-              {!locked && (
+              <span className={`text-[11px] font-semibold ${
+                godModeEnabled
+                  ? 'text-[var(--oracle-error)]'
+                  : locked
+                    ? 'text-[var(--oracle-warning)]'
+                    : isOrchestrator
+                      ? 'text-[var(--oracle-text-3)]'
+                      : 'text-[var(--oracle-primary-l)]'
+              }`}>{agentInfo.label} Agent{godModeEnabled ? ' · ⚡ GOD MODE' : ''}</span>
+              {locked ? (
+                <span className="text-[10px] text-[var(--oracle-warning)] hidden sm:inline">· Requires {plan === 'starter' ? 'Pro' : 'Agency'} plan</span>
+              ) : !godModeEnabled ? (
                 <span className="text-[10px] text-[var(--oracle-text-muted)] hidden sm:inline">· {isOrchestrator ? 'Multi-agent orchestrator mode' : 'Specialized system prompt loaded'}</span>
+              ) : (
+                <span className="text-[10px] text-[var(--oracle-error)] hidden sm:inline">· High-stakes verification enabled</span>
               )}
               {locked ? (
                 <a
@@ -98,14 +112,48 @@ export function ChatInputArea({
                 >
                   Upgrade →
                 </a>
-              ) : !isOrchestrator ? (
+              ) : (
+                <div className="ml-auto flex items-center gap-2">
+                  {!isOrchestrator && !godModeEnabled ? (
+                    <button
+                      onClick={() => setAgentType('orchestrator')}
+                      className="rounded-md px-2 py-0.5 text-[10px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)] hover:text-[var(--oracle-text-3)] transition-colors"
+                    >
+                      Switch to Orchestrator
+                    </button>
+                  ) : null}
+                  <GodModeCostIndicator enabled={godModeEnabled} size="sm" />
+                  {setGodModeEnabled && (
                 <button
-                  onClick={() => setAgentType('orchestrator')}
-                  className="ml-auto rounded-md px-2 py-0.5 text-[10px] text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)] hover:text-[var(--oracle-text-3)] transition-colors"
+                  onClick={() => setGodModeEnabled(!godModeEnabled)}
+                  aria-pressed={godModeEnabled}
+                  aria-label={godModeEnabled ? 'Toggle GOD MODE: currently on' : 'Toggle GOD MODE: currently off'}
+                  aria-describedby="god-mode-description"
+                  className={`rounded-md px-2 py-0.5 text-[10px] font-medium transition-all ${
+                    godModeEnabled
+                      ? 'bg-[var(--oracle-error)]/10 text-[var(--oracle-error)] hover:bg-[var(--oracle-error)]/20'
+                      : 'text-[var(--oracle-text-muted)] hover:bg-[var(--oracle-card-hover)] hover:text-[var(--oracle-text-3)]'
+                  }`}
+                  title={godModeEnabled ? 'Disable GOD MODE for this conversation' : 'Enable GOD MODE for high-stakes tasks'}
                 >
-                  Switch to Orchestrator
+                  ⚡ {godModeEnabled ? 'GOD MODE ON' : 'Enable GOD MODE'}
                 </button>
-              ) : null}
+                  )}
+                  {/* Description for aria-describedby — hidden but available to screen readers */}
+                  <p id="god-mode-description" className="sr-only">
+                    Activates enhanced system prompts with high-stakes verification and stricter quality gates. May incur additional token cost.
+                  </p>
+                  {/* Live region for screen reader announcements */}
+                  <div
+                    aria-live="polite"
+                    aria-atomic="true"
+                    className="sr-only"
+                    role="status"
+                  >
+                    {godModeEnabled ? 'GOD MODE enabled' : 'GOD MODE disabled'}
+                  </div>
+                </div>
+              )}
             </div>
           );
         })()}

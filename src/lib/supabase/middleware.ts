@@ -51,8 +51,8 @@ export async function updateSession(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   // Public routes that don't require auth
-  const publicRoutes = ['/login', '/auth/callback', '/auth/confirm'];
-  const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
+  const publicRoutes = ['/login', '/auth/callback', '/auth/confirm', '/'];
+  const isPublicRoute = publicRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'));
 
   // Static assets and Next.js internals are always public
   const isStaticAsset = pathname.startsWith('/_next') ||

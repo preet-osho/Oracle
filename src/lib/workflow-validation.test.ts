@@ -405,8 +405,8 @@ describe('VALID_AGENTS', () => {
     expect([...VALID_AGENTS]).toEqual([...ALL_AGENT_NAMES]);
   });
 
-  it('has 39 agents matching ALL_AGENT_NAMES length', () => {
+  it('has 43 agents matching ALL_AGENT_NAMES length', () => {
     expect(VALID_AGENTS.length).toBe(ALL_AGENT_NAMES.length);
-    expect(VALID_AGENTS.length).toBe(39);
+    expect(VALID_AGENTS.length).toBe(43);
   });
 });

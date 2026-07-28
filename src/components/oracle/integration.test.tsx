@@ -2,6 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { resetChatPanelMocks } from './chat-panel-mock-setup';
+
+// ─── Shared CJS mocks ───
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SHARED = vi.hoisted(() => require('./test-utils.mocks.cjs'));
+const m = vi.hoisted(() => SHARED.createChatPanelMockInstances(vi.fn));
+const factories = vi.hoisted(() => SHARED.createChatPanelMockFactories(m, vi.fn));
 
 // ─── Mock FeatureGate (pro plan so tests see full content) ───
 vi.mock('./FeatureGate', () => ({
@@ -18,7 +25,7 @@ import { ChatPanel } from './ChatPanel';
 import { ProjectsTab } from './ProjectsTab';
 import { RoadmapTab } from './RoadmapTab';
 
-// ─── File-local vi.hoisted() mocks ───
+// ─── File-local stateful mocks (unique to integration tests) ───
 
 const {
   mockProjects,
@@ -29,8 +36,6 @@ const {
   mockTimeEntriesApi,
   mockProposalsApi,
   mockInvoicesApi,
-  mockAddCost,
-  mockAddUsageRecord,
   mockGetMemories,
 } = vi.hoisted(() => {
   const mockProjects: Array<Record<string, unknown>> = [];
@@ -88,123 +93,70 @@ const {
     mockTimeEntriesApi,
     mockProposalsApi,
     mockInvoicesApi,
-    mockAddCost: vi.fn(),
-    mockAddUsageRecord: vi.fn(),
     mockGetMemories: vi.fn(),
   };
 });
 
+// Controllable runOperatingLoop mock for operating loop tests
+const mockRunOperatingLoop = m.mockRunOperatingLoop;
+
 // ─── vi.mock() calls (must be top-level for Vitest hoisting) ───
 
+// ── Shared mocks (via factory, with integration-specific overrides) ──
+vi.mock('nanoid', () => factories.nanoid);
 vi.mock('@/styles/design-tokens', () => ({
+  ...factories.designTokens,
   motionVariants: { fadeUp: {}, tabContent: {}, scaleIn: {} },
   transitions: { smooth: {}, snappy: {}, popSpring: {} },
   buttonTapProps: {},
   cardHoverProps: {},
-  QUICK_START_CARDS: [
-    { emoji: '📊', label: 'SEO Audit', description: 'Full site audit', color: 'primary' },
-    { emoji: '✍️', label: 'Blog Post', description: 'Write a blog post', color: 'muted' },
-  ],
+}));
+vi.mock('@/lib/router', () => factories.router);
+vi.mock('@/lib/rag', () => factories.rag);
+vi.mock('@/lib/quality', () => factories.quality);
+vi.mock('@/lib/system-prompt', () => ({
+  ...factories.systemPrompt,
+  ROADMAP_GENERATION_PROMPT: 'Generate proposal for {{clientBrief}} in domain {{domain}} with budget {{budget}} and timeline {{timeline}}',
+}));
+vi.mock('@/lib/editor-gate', () => factories.editorGate);
+vi.mock('@/lib/output-quality-evaluator', () => factories.outputQualityEvaluator);
+vi.mock('@/lib/task-analyzer', () => factories.taskAnalyzer);
+vi.mock('@/lib/feedback-bridge', () => factories.feedbackBridge);
+vi.mock('@/lib/prompt-sanitizer', () => factories.promptSanitizer);
+vi.mock('@/lib/token-budget', () => factories.tokenBudget);
+vi.mock('@/lib/context-manager', () => factories.contextManager);
+vi.mock('@/lib/utils', () => factories.utils);
+vi.mock('@/lib/export-utils', () => factories.exportUtils);
+vi.mock('@/lib/search', () => factories.search);
+vi.mock('@/lib/csrf', () => factories.csrf);
+vi.mock('@/lib/self-training', () => factories.selfTraining);
+vi.mock('@/lib/cross-domain-thinking', () => factories.crossDomainThinking);
+vi.mock('@/lib/pattern-recognition', () => factories.patternRecognition);
+vi.mock('@/lib/search-helpers', () => factories.searchHelpers);
+vi.mock('@/lib/workflow-validation', () => factories.workflowValidation);
+vi.mock('@/lib/toast-config', () => factories.toastConfig);
+vi.mock('@/components/oracle/GuardStatsPanel', () => factories.guardStatsPanel);
+vi.mock('react-hot-toast', () => factories.toast);
+vi.mock('@/hooks/keyboard-shortcuts-context', () => ({
+  useKeyboardShortcuts: vi.fn(),
+  useKeyboardShortcutsContext: vi.fn(() => ({
+    register: vi.fn(),
+    unregister: vi.fn(),
+    getRegistrations: vi.fn(() => []),
+    getRegistration: vi.fn(() => null),
+    isGloballyEnabled: true,
+    getShortcutAnalytics: vi.fn(() => ({ totalInvocations: 0, byShortcut: {} })),
+    resetAnalytics: vi.fn(),
+  })),
+  KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
+// ── Unique mocks (stateful, can't use factory) ──
 vi.mock('@/data/domains', () => ({
   AGENCY_DOMAINS: [
     { id: 'seo', name: 'SEO', emoji: '🔍', category: 'Digital Marketing' },
     { id: 'web', name: 'Web Development', emoji: '🌐', category: 'Development' },
   ],
-}));
-
-vi.mock('@/lib/router', () => ({
-  NeverStopRouter: {
-    calculateCost: vi.fn().mockReturnValue({ usd: 0.001, inr: 0.084 }),
-  },
-}));
-
-vi.mock('@/stores/router.store', () => ({
-  useRouterStore: () => ({
-    streamingEnabled: false,
-    addCost: mockAddCost,
-    addUsageRecord: mockAddUsageRecord,
-    configuredProviders: ['groq'],
-  }),
-}));
-
-vi.mock('@/lib/rag', () => ({
-  processDocument: vi.fn().mockResolvedValue({ content: 'doc content' }),
-  retrieveRelevant: vi.fn().mockReturnValue([]),
-  chunkText: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/memory', () => ({
-  getMemories: (...args: unknown[]) => mockGetMemories(...args),
-  formatMemoryForContext: vi.fn().mockReturnValue(''),
-}));
-
-vi.mock('@/lib/quality', () => ({
-  saveQualityScore: vi.fn(),
-}));
-
-vi.mock('@/lib/system-prompt', () => ({
-  QUALITY_SCORING_PROMPT: 'Score: {{response}} Context: {{taskContext}}',
-  ROADMAP_GENERATION_PROMPT: 'Generate proposal for {{clientBrief}} in domain {{domain}} with budget {{budget}} and timeline {{timeline}}',
-  ORACLE_SYSTEM: 'You are ORACLE',
-  AI_OPERATING_SYSTEM: 'You are an AI agent',
-  RESEARCHER_AGENT_PROMPT: 'You are a researcher',
-  WRITER_AGENT_PROMPT: 'You are a writer',
-  DEVELOPER_AGENT_PROMPT: 'You are a developer',
-  ANALYST_AGENT_PROMPT: 'You are an analyst',
-  STRATEGIST_AGENT_PROMPT: 'You are a strategist',
-  MARKETER_AGENT_PROMPT: 'You are a marketer',
-  DESIGNER_AGENT_PROMPT: 'You are a designer',
-  FINANCE_AGENT_PROMPT: 'You are a finance expert',
-  VOICE_AGENT_PROMPT: 'You are a voice agent expert',
-  QA_AGENT_PROMPT: 'You are a QA engineer',
-  COORDINATOR_AGENT_PROMPT: 'You are a coordinator',
-  WORKFLOW_AGENT_PROMPT: 'You are a workflow agent',
-  MULTI_AGENT_ORCHESTRATOR_PROMPT: 'You are an orchestrator',
-  LEAD_HUNTER_AGENT_PROMPT: 'You are a lead hunter',
-  OFFER_STRATEGIST_AGENT_PROMPT: 'You are an offer strategist',
-  VIDEO_SPECIALIST_AGENT_PROMPT: 'You are a video specialist',
-  WEB_DESIGNER_AGENT_PROMPT: 'You are a web designer',
-  AGENT_BUILDER_AGENT_PROMPT: 'You are an agent builder',
-  SOCIAL_MEDIA_TOOL_CONTEXT: 'Social media tools available',
-}));
-
-vi.mock('@/lib/editor-gate', () => ({
-  runEditorGate: vi.fn().mockResolvedValue({ passed: true, confidence: 90, assessment: 'OK', issues: [] }),
-  loadEditorConfig: vi.fn().mockReturnValue({ enabled: true, minLength: 100, skipAgentTypes: [] }),
-  saveEditorConfig: vi.fn(),
-  DEFAULT_EDITOR_CONFIG: { enabled: true, minLength: 100, skipAgentTypes: [] },
-}));
-
-vi.mock('@/lib/output-quality-evaluator', () => ({
-  evaluateOutput: vi.fn().mockReturnValue({ passed: true, overallScore: 85, checks: [], suggestions: [] }),
-}));
-
-vi.mock('@/lib/task-analyzer', () => ({
-  analyzeTask: vi.fn().mockReturnValue({ complexity: 0.3, agents: [], suggestedTier: 'standard' }),
-}));
-
-vi.mock('@/lib/agency-operations', () => ({
-  runQualityGates: vi.fn().mockReturnValue({ passed: true, score: 80, checks: [] }),
-  runOperatingLoop: (...args: unknown[]) => mockRunOperatingLoop(...args),
-  routeAgencyTask: vi.fn().mockReturnValue({ primary: 'strategist', support: [], workflow: 'strategy' }),
-  detectMistakes: vi.fn().mockReturnValue([]),
-  rankDecisionOptions: vi.fn().mockReturnValue([]),
-  runSelfCheck: vi.fn().mockReturnValue({ score: 7, understood: true, avoidedGeneric: true, coveredChannels: true, assignedRightAgent: true, identifiedFailures: true, gaveNextStep: true, clientReady: true }),
-  runLeadGenPipeline: vi.fn().mockResolvedValue([]),
-  runClientHuntWorkflow: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('@/lib/feedback-bridge', () => ({
-  attachQualityToTraining: vi.fn(),
-  recordMessageFeedback: vi.fn(),
-}));
-
-vi.mock('@/lib/prompt-sanitizer', () => ({
-  sanitizeDocumentContent: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
-  sanitizeSearchResults: vi.fn().mockImplementation((results: unknown[]) => results),
-  sanitizeExternalContext: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
 }));
 
 vi.mock('jspdf', () => ({
@@ -220,6 +172,31 @@ vi.mock('jspdf', () => ({
     addPage: vi.fn(),
     save: vi.fn(),
   })),
+}));
+
+vi.mock('@/stores/router.store', () => ({
+  useRouterStore: () => ({
+    streamingEnabled: m.streamingEnabledRef.current,
+    addCost: m.mockAddCost,
+    addUsageRecord: m.mockAddUsageRecord,
+    configuredProviders: ['groq'],
+  }),
+}));
+
+vi.mock('@/lib/memory', () => ({
+  getMemories: (...args: unknown[]) => mockGetMemories(...args),
+  formatMemoryForContext: vi.fn().mockReturnValue(''),
+}));
+
+vi.mock('@/lib/agency-operations', () => ({
+  runQualityGates: m.mockRunQualityGates,
+  runOperatingLoop: m.mockRunOperatingLoop,
+  routeAgencyTask: vi.fn().mockReturnValue({ primary: 'strategist', support: [], workflow: 'strategy' }),
+  detectMistakes: vi.fn().mockReturnValue([]),
+  rankDecisionOptions: vi.fn().mockReturnValue([]),
+  runSelfCheck: vi.fn().mockReturnValue({ score: 7, understood: true, avoidedGeneric: true, coveredChannels: true, assignedRightAgent: true, identifiedFailures: true, gaveNextStep: true, clientReady: true }),
+  runLeadGenPipeline: vi.fn().mockResolvedValue([]),
+  runClientHuntWorkflow: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock('@/lib/api', () => ({
@@ -245,86 +222,20 @@ vi.mock('@/lib/api', () => ({
   customPromptsApi: { list: vi.fn().mockResolvedValue([]), create: vi.fn().mockResolvedValue({}), update: vi.fn().mockResolvedValue({}), delete: vi.fn().mockResolvedValue({}) },
 }));
 
-vi.mock('react-hot-toast', () => ({
-  __esModule: true,
-  default: Object.assign(
-    (...args: unknown[]) => {},
-    { error: (...args: unknown[]) => {}, success: (...args: unknown[]) => {} }
-  ),
-}));
-
-vi.mock('@/lib/token-budget', () => ({
-  calculateAllCosts: vi.fn().mockReturnValue([{ modelId: 'gpt-4o', fullRequestCostINR: 0.084, fullRequestCostUSD: 0.001, isFree: false }]),
-}));
-
-vi.mock('@/lib/context-manager', () => ({
-  buildOptimizedContext: vi.fn().mockReturnValue({ messages: [], tokenCount: 0 }),
-}));
-
-vi.mock('@/lib/utils', () => ({
-  estimateTokens: vi.fn().mockReturnValue(10),
-  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
-}));
-
-vi.mock('@/lib/export-utils', () => ({
-  exportChatToPDF: vi.fn(),
-  exportChatToWord: vi.fn(),
-}));
-
-vi.mock('@/lib/search', () => ({
-  formatSearchResults: vi.fn().mockReturnValue(''),
-}));
-
-vi.mock('@/lib/csrf', () => ({
-  csrfHeaders: vi.fn().mockReturnValue({}),
-}));
-
-vi.mock('@/lib/self-training', () => ({
-  recordTask: vi.fn(),
-}));
-
-vi.mock('@/lib/cross-domain-thinking', () => ({
-  getAdjacentServices: vi.fn().mockReturnValue([]),
-  SERVICE_BUNDLES: [],
-}));
-
-vi.mock('@/lib/pattern-recognition', () => ({
-  recogniseTaskPatterns: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/search-helpers', () => ({
-  searchConversations: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/workflow-validation', () => ({
-  VALID_AGENTS: ['researcher', 'writer', 'developer', 'analyst', 'strategist', 'marketer', 'designer', 'finance', 'voice', 'qa', 'coordinator', 'workflow'],
-}));
-
-vi.mock('@/lib/toast-config', () => ({
-  TOAST_DEFAULTS: { duration: 3000 },
-}));
-
-vi.mock('@/components/oracle/GuardStatsPanel', () => ({
-  GuardStatsPanel: () => null,
-}));
-
 // ─── Helpers (shared from test-utils) ──
 import { createSSEFetchMock } from './test-utils';
-
-// Controllable runOperatingLoop mock for operating loop tests
-const { mockRunOperatingLoop } = vi.hoisted(() => ({
-  mockRunOperatingLoop: vi.fn().mockResolvedValue([]),
-}));
 
 // ─── Tests ───
 
 describe('Integration: Cross-component workflows', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    resetChatPanelMocks(m);
     mockProjects.length = 0;
     mockTimeEntries.length = 0;
     mockProposals.length = 0;
     mockMemories.length = 0;
+    m.streamingEnabledRef.current = false; // integration tests use sync path by default
 
     // Mock global.fetch for ChatPanel's SSE streaming via /api/ai/chat
     global.fetch = createSSEFetchMock([

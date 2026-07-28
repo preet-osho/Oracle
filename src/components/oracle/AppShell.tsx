@@ -57,9 +57,10 @@ const RazorpayPaymentsTab = lazy(() => import('./RazorpayPaymentsTab').then((m) 
 const RateLimitDashboard = lazy(() => import('./RateLimitDashboard').then((m) => ({ default: m.RateLimitDashboard })));
 const PerformanceDashboard = lazy(() => import('./PerformanceDashboard').then((m) => ({ default: m.PerformanceDashboard })));
 const MultiClientOrchestrator = lazy(() => import('./MultiClientOrchestrator').then((m) => ({ default: m.MultiClientOrchestrator })));
-const CommandCenterDashboard = lazy(() => import('./CommandCenterDashboard').then((m) => ({ default: m.CommandCenterDashboard })));
+const AgencyCommandCenter = lazy(() => import('./AgencyCommandCenter').then((m) => ({ default: m.AgencyCommandCenter })));
 const CommunicationDashboard = lazy(() => import('./CommunicationDashboard').then((m) => ({ default: m.CommunicationDashboard })));
 const SocialMediaTab = lazy(() => import('./SocialMediaTab').then((m) => ({ default: m.SocialMediaTab })));
+const TrainingDashboard = lazy(() => import('./TrainingDashboard').then((m) => ({ default: m.TrainingDashboard })));
 
 // ─── Tab Loading Fallback ─────────────
 function TabFallback() {
@@ -311,11 +312,13 @@ export function AppShell() {
       case 'agent-performance':
         return <PerformanceDashboard />;
       case 'command-center':
-        return <CommandCenterDashboard />;
+        return <AgencyCommandCenter />;
       case 'communication':
         return <CommunicationDashboard />;
       case 'social-media':
         return <SocialMediaTab />;
+      case 'training':
+        return <TrainingDashboard />;
       case 'multi-client':
         return <MultiClientOrchestrator onAskOracle={(prompt?: string) => {
           if (prompt) {

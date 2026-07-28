@@ -1,0 +1,14 @@
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.8 [39m[90mC:/Users/LENOVO/Desktop/oracle[39m
+
+ [32m✓[39m [30m[42m lib [49m[39m src/lib/workflow-validation.test.ts [2m([22m[2m48 tests[22m[2m)[22m[32m 87[2mms[22m[39m
+ [32m✓[39m [30m[42m lib [49m[39m src/lib/task-analyzer.test.ts [2m([22m[2m114 tests[22m[2m)[22m[32m 264[2mms[22m[39m
+ [32m✓[39m [30m[42m lib [49m[39m src/lib/agents/agency-brain.test.ts [2m([22m[2m74 tests[22m[2m)[22m[32m 133[2mms[22m[39m
+ [32m✓[39m [30m[42m lib [49m[39m src/lib/agents/registry.test.ts [2m([22m[2m29 tests[22m[2m)[22m[32m 125[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m      Tests [22m [1m[32m265 passed[39m[22m[90m (265)[39m
+[2m     Errors [22m [1m[31m2 errors[39m[22m
+[2m   Start at [22m 12:47:15
+[2m   Duration [22m 142.27s[2m (transform 20.96s, setup 56.02s, import 5.73s, tests 609ms, environment 199.40s)[22m
+

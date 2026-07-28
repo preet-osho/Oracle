@@ -5,6 +5,7 @@
 
 import jsPDF from 'jspdf';
 import { downloadBlob } from '@/lib/download-blob';
+import type { DashboardMetrics } from '@/lib/command-center';
 
 // ─── Branding ─────────────────────────
 
@@ -484,4 +485,162 @@ export function exportTableToCSV(
   const headers = Object.keys(data[0]);
   const rows = data.map((row) => headers.map((h) => String(row[h] ?? '')));
   exportToCSV({ headers, rows, fileName });
+}
+
+// ─── Dashboard PDF Sections ────────────
+
+export function formatINR(amount: number): string {
+  return `₹${amount.toLocaleString('en-IN')}`;
+}
+
+export function formatUSD(amount: number): string {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * Build PDF sections from dashboard metrics for export.
+ * This is the single source of truth for both preview and export.
+ */
+export function buildPDFSections(metrics: DashboardMetrics): PDFSection[] {
+  return [
+    {
+      heading: '💰 Revenue',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['MRR', formatINR(metrics.revenue.mrr)],
+        ['ARR', formatINR(metrics.revenue.arr)],
+        ['Total Revenue', formatINR(metrics.revenue.totalRevenue)],
+        ['Revenue Growth', `${metrics.revenue.revenueGrowth}%`],
+        ['Average Deal Size', formatINR(metrics.revenue.averageDealSize)],
+        ['LTV', formatINR(metrics.revenue.ltv)],
+        ['CAC', formatINR(metrics.revenue.cac)],
+        ['LTV/CAC Ratio', `${metrics.revenue.ltvCacRatio}x`],
+      ],
+    },
+    {
+      heading: '📊 Pipeline',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Total Value', formatINR(metrics.pipeline.totalValue)],
+        ['Weighted Value', formatINR(metrics.pipeline.weightedValue)],
+        ['Active Deals', String(metrics.pipeline.dealCount)],
+        ['Average Probability', `${metrics.pipeline.averageProbability}%`],
+        ['Conversion Rate', `${metrics.pipeline.conversionRate}%`],
+        ['Average Sales Cycle', `${metrics.pipeline.averageSalesCycle} days`],
+      ],
+    },
+    {
+      heading: '🎯 Leads',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Total Leads', String(metrics.leads.totalLeads)],
+        ['New This Month', String(metrics.leads.newLeadsThisMonth)],
+        ['Conversion Rate', `${metrics.leads.conversionRate}%`],
+        ['Average Response Time', `${metrics.leads.averageResponseTime}h`],
+      ],
+    },
+    {
+      heading: '💼 Deals',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Active Deals', String(metrics.deals.activeDeals)],
+        ['Closed Won', String(metrics.deals.closedWon)],
+        ['Closed Lost', String(metrics.deals.closedLost)],
+        ['Win Rate', `${metrics.deals.winRate}%`],
+        ['Average Deal Size', formatINR(metrics.deals.averageDealSize)],
+        ['Closing This Month', String(metrics.deals.dealsClosingThisMonth)],
+        ['Overdue Deals', String(metrics.deals.overdueDeals)],
+      ],
+    },
+    {
+      heading: '📋 Activities',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Activities This Week', String(metrics.activities.activitiesThisWeek)],
+        ['Calls Made', String(metrics.activities.callsMade)],
+        ['Emails Sent', String(metrics.activities.emailsSent)],
+        ['Meetings Held', String(metrics.activities.meetingsHeld)],
+        ['Tasks Completed', String(metrics.activities.tasksCompleted)],
+        ['Pending Tasks', String(metrics.activities.pendingTasks)],
+      ],
+    },
+    {
+      heading: '🤖 Agent Health',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Active Agents', `${metrics.agentHealth.activeAgents}/${metrics.agentHealth.totalAgents}`],
+        ['Average Success Rate', `${metrics.agentHealth.averageSuccessRate}%`],
+        ['Average Response Time', `${metrics.agentHealth.averageResponseTime}ms`],
+        ['Total Tokens Used', metrics.agentHealth.totalTokensUsed.toLocaleString()],
+        ['Total Cost (USD)', formatUSD(metrics.agentHealth.totalCostUsd)],
+        ['Top Performer', metrics.agentHealth.topPerformingAgent],
+        ['Worst Performer', metrics.agentHealth.worstPerformingAgent],
+      ],
+    },
+    {
+      heading: '💵 Cost Tracking',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Total Cost (USD)', formatUSD(metrics.costTracking.totalCostUsd)],
+        ['Total Cost (INR)', formatINR(metrics.costTracking.totalCostInr)],
+        ['Budget Utilization', `${metrics.costTracking.budgetUtilization}%`],
+        ...Object.entries(metrics.costTracking.costByProvider).map(([provider, cost]) => [`Cost — ${provider}`, formatUSD(cost as number)]),
+      ],
+    },
+    {
+      heading: '📚 Learning',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Tasks Completed', String(metrics.learning.totalTasksCompleted)],
+        ['Quality Score', `${metrics.learning.averageQualityScore}/100`],
+        ['Improvement Rate', `+${metrics.learning.improvementRate}%`],
+        ['Pattern Matches', String(metrics.learning.patternMatches)],
+        ['Accuracy Rate', `${metrics.learning.accuracyRate}%`],
+      ],
+    },
+    {
+      heading: '🔧 Tool Health',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Total Servers', String(metrics.toolHealth.totalServers)],
+        ['Healthy', String(metrics.toolHealth.healthyServers)],
+        ['Degraded', String(metrics.toolHealth.degradedServers)],
+        ['Unhealthy', String(metrics.toolHealth.unhealthyServers)],
+        ['Total Tools', String(metrics.toolHealth.totalTools)],
+        ['Avg Latency', `${metrics.toolHealth.averageLatencyMs}ms`],
+        ['Overall Status', metrics.toolHealth.overallStatus],
+      ],
+    },
+    {
+      heading: '🧠 Memory Health',
+      type: 'table',
+      content: '',
+      tableHeaders: ['Metric', 'Value'],
+      tableRows: [
+        ['Total Memories', String(metrics.memoryHealth.totalMemories)],
+        ['Health Score', `${metrics.memoryHealth.healthScore}/100`],
+        ['Storage Usage', metrics.memoryHealth.storageUsage.toUpperCase()],
+        ['Avg Access Count', String(metrics.memoryHealth.averageAccessCount)],
+        ['Oldest Memory', `${metrics.memoryHealth.oldestMemoryAge} days`],
+      ],
+    },
+  ];
 }

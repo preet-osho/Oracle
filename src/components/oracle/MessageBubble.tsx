@@ -16,6 +16,7 @@ import type { EvalResult } from '@/lib/output-quality-evaluator';
 import type { EditorGateResult } from '@/lib/editor-gate';
 import type { QualityGateResult, OperatingLoopResult } from '@/lib/agency-operations';
 import type { ToolResult as SocialToolResult } from '@/lib/mcp/social-media-executor';
+import { GodModeMessageCost } from './GodModeCostIndicator';
 
 // ─── ChatMessage Type ──────────────────
 
@@ -32,6 +33,7 @@ export interface ChatMessage {
   isStreaming?: boolean;
   agentType?: AgentType;
   searchUsed?: boolean;
+  godMode?: boolean;
 }
 
 // ─── Message Bubble (Memoized + Markdown) ──
@@ -131,6 +133,12 @@ export const MessageBubble = memo(function MessageBubble({
               <span className="text-[10px] text-[var(--oracle-text-muted)] font-mono">
                 ₹{((message.costUSD || 0) * 84).toFixed(2)}
               </span>
+            )}
+            {message.godMode && (
+              <Badge label="⚡ GOD MODE" color="error" />
+            )}
+            {message.godMode && message.tokensUsed && (
+              <GodModeMessageCost tokensUsed={message.tokensUsed} />
             )}
             {message.searchUsed && (
               <Badge label="🔍 Web search" color="primary" />

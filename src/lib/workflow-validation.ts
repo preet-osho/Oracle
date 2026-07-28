@@ -13,6 +13,8 @@ export const VALID_AGENTS = [
   'agency-brain', 'lead-hunter', 'offer-strategist', 'video-specialist',
   'web-designer', 'agent-builder',
   'systems-architect', 'product-engineer', 'intelligence-architect', 'training-architect',
+  'security-architect',
+  'seo-strategist', 'product-designer', 'super-orchestrator',
 ] as const;
 
 export type WorkflowAgent = typeof VALID_AGENTS[number];

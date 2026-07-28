@@ -97,6 +97,18 @@ describe('Authentication Enforcement', () => {
     expect(mockUpdateSession).toHaveBeenCalledWith(request);
   });
 
+  it('redirects unauthenticated user to /login for /dashboard/agency', async () => {
+    const redirectResponse = createMockResponse(302, { Location: '/login' });
+    mockUpdateSession.mockResolvedValue(redirectResponse);
+
+    const request = createMockRequest('/dashboard/agency');
+    const response = await proxy(request);
+
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe('/login');
+    expect(mockUpdateSession).toHaveBeenCalledWith(request);
+  });
+
   it('allows authenticated user through to protected routes', async () => {
     // updateSession returns 200 (session valid)
     mockUpdateSession.mockResolvedValue(createMockResponse(200));

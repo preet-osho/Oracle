@@ -4,278 +4,68 @@
  *
  * Verifies the full flow from user input through the Agency Brain's 6-step operating loop,
  * quality gate checks, editor gate auto-correction, and badge rendering in the UI.
+ *
+ * Uses shared CJS mock factory pattern (test-utils.mocks.cjs) to reduce duplication.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ChatPanel } from './ChatPanel';
+import { resetChatPanelMocks } from './chat-panel-mock-setup';
 
-// ─── File-local vi.hoisted() mocks (needed by vi.mock factories in this file) ───
+// ─── Shared CJS mocks (loaded via require inside vi.hoisted so they're available to vi.mock() factories) ───
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const SHARED = vi.hoisted(() => require('./test-utils.mocks.cjs'));
 
-const { mockNanoid, resetNanoid } = vi.hoisted(() => {
-  let counter = 0;
-  const fn = vi.fn(() => `test-id-${++counter}`);
-  return { mockNanoid: fn, resetNanoid: () => { counter = 0; fn.mockClear(); } };
-});
-
-const { mockToast, mockToastError, resetToastMocks } = vi.hoisted(() => {
-  const t = vi.fn();
-  const e = vi.fn();
-  return { mockToast: t, mockToastError: e, resetToastMocks: () => { t.mockClear(); e.mockClear(); } };
-});
-
-const { mockLoadGuardConfig, mockRunHallucinationGuard, mockRecordLearning } = vi.hoisted(() => ({
-  mockLoadGuardConfig: vi.fn().mockReturnValue({
-    enabled: false,
-    thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 },
-  }),
-  mockRunHallucinationGuard: vi.fn().mockResolvedValue({
-    confidence: 80,
-    assessment: 'Looks good',
-    checks: [],
-    suggestions: [],
-  }),
-  mockRecordLearning: vi.fn(),
-}));
-
-const { mockRunQualityGates, resetQualityGates } = vi.hoisted(() => {
-  const fn = vi.fn().mockReturnValue({ passed: true, score: 80, checks: [] });
-  return { mockRunQualityGates: fn, resetQualityGates: () => { fn.mockReset(); fn.mockReturnValue({ passed: true, score: 80, checks: [] }); } };
-});
-
-const { mockRunOperatingLoop, resetOperatingLoop } = vi.hoisted(() => {
-  const fn = vi.fn().mockResolvedValue([]);
-  return { mockRunOperatingLoop: fn, resetOperatingLoop: () => { fn.mockReset(); fn.mockResolvedValue([]); } };
-});
-
-const { mockRunEditorGate, resetEditorGate } = vi.hoisted(() => {
-  const fn = vi.fn().mockResolvedValue({ passed: true, confidence: 90, assessment: 'OK', issues: [], checkedAt: Date.now() });
-  return { mockRunEditorGate: fn, resetEditorGate: () => { fn.mockReset(); fn.mockResolvedValue({ passed: true, confidence: 90, assessment: 'OK', issues: [], checkedAt: Date.now() }); } };
-});
-
-const { mockAnalyzeTask, resetAnalyzeTask } = vi.hoisted(() => {
-  const fn = vi.fn().mockReturnValue({
-    category: 'general',
-    complexity: 0.3,
-    estimatedTokens: 100,
-    agents: [{ role: 'researcher', priority: 1, taskFocus: 'Research', requiredTier: 'standard' }],
-    parallelizable: false,
-    requiresWebSearch: false,
-    suggestedTier: 'standard',
-  });
-  return { mockAnalyzeTask: fn, resetAnalyzeTask: () => {
-    fn.mockReset();
-    fn.mockReturnValue({
-      category: 'general',
-      complexity: 0.3,
-      estimatedTokens: 100,
-      agents: [{ role: 'researcher', priority: 1, taskFocus: 'Research', requiredTier: 'standard' }],
-      parallelizable: false,
-      requiresWebSearch: false,
-      suggestedTier: 'standard',
-    });
-  } };
-});
-
-const mockAddCost = vi.hoisted(() => vi.fn());
-const mockAddUsageRecord = vi.hoisted(() => vi.fn());
-
-let mockStreamingEnabled = true;
+// ─── File-local vi.hoisted() for creating mock instances and factories ───
+const m = vi.hoisted(() => SHARED.createChatPanelMockInstances(vi.fn));
+const factories = vi.hoisted(() => SHARED.createChatPanelMockFactories(m, vi.fn));
 
 // ─── vi.mock() calls (must be top-level for Vitest hoisting) ───
-
-vi.mock('nanoid', () => ({ nanoid: mockNanoid }));
-
-vi.mock('@/styles/design-tokens', () => ({
-  motionVariants: { fadeUp: {} },
-  transitions: { smooth: {}, snappy: {} },
-  buttonTapProps: {},
-  QUICK_START_CARDS: [
-    { emoji: '📊', label: 'SEO Audit', description: 'Full site audit', color: 'primary' },
-    { emoji: '✍️', label: 'Blog Post', description: 'Write a blog post', color: 'muted' },
-  ],
-}));
-
-vi.mock('@/lib/router', () => ({
-  NeverStopRouter: {
-    calculateCost: vi.fn().mockReturnValue({ usd: 0.001, inr: 0.084 }),
-  },
-}));
-
-vi.mock('@/stores/router.store', () => ({
-  useRouterStore: () => ({
-    streamingEnabled: mockStreamingEnabled,
-    addCost: mockAddCost,
-    addUsageRecord: mockAddUsageRecord,
-    configuredProviders: ['groq'],
-  }),
-}));
-
-vi.mock('@/lib/api', () => ({
-  conversationsApi: {
-    list: vi.fn().mockResolvedValue([]),
-    get: vi.fn().mockResolvedValue({ id: '1', title: 'Test', messages: [], agent_type: 'orchestrator', created_at: Date.now(), updated_at: Date.now() }),
-    create: vi.fn().mockResolvedValue({ id: '1', title: 'Test', messages: [], agent_type: 'orchestrator', created_at: Date.now(), updated_at: Date.now() }),
-    update: vi.fn().mockResolvedValue({}),
-    delete: vi.fn().mockResolvedValue({}),
-    appendMessages: vi.fn().mockResolvedValue({}),
-  },
-  knowledgeDocsApi: { list: vi.fn().mockResolvedValue([]) },
-  projectsApi: { list: vi.fn().mockResolvedValue([]) },
-  memoriesApi: { list: vi.fn().mockResolvedValue([]) },
-}));
-
-vi.mock('@/lib/rag', () => ({
-  processDocument: vi.fn().mockResolvedValue({ content: 'doc content' }),
-  retrieveRelevant: vi.fn().mockReturnValue([]),
-  chunkText: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/memory', () => ({
-  getMemories: vi.fn().mockResolvedValue([]),
-  formatMemoryForContext: vi.fn().mockReturnValue(''),
-}));
-
-vi.mock('@/lib/quality', () => ({
-  saveQualityScore: vi.fn(),
-}));
-
-vi.mock('@/lib/system-prompt', () => ({
-  QUALITY_SCORING_PROMPT: 'Score: {{response}} Context: {{taskContext}}',
-  ORACLE_SYSTEM: 'You are ORACLE',
-  AI_OPERATING_SYSTEM: 'You are an AI agent',
-  RESEARCHER_AGENT_PROMPT: 'You are a researcher',
-  WRITER_AGENT_PROMPT: 'You are a writer',
-  DEVELOPER_AGENT_PROMPT: 'You are a developer',
-  ANALYST_AGENT_PROMPT: 'You are an analyst',
-  STRATEGIST_AGENT_PROMPT: 'You are a strategist',
-  MARKETER_AGENT_PROMPT: 'You are a marketer',
-  DESIGNER_AGENT_PROMPT: 'You are a designer',
-  FINANCE_AGENT_PROMPT: 'You are a finance expert',
-  VOICE_AGENT_PROMPT: 'You are a voice agent expert',
-  QA_AGENT_PROMPT: 'You are a QA engineer',
-  COORDINATOR_AGENT_PROMPT: 'You are a coordinator',
-  WORKFLOW_AGENT_PROMPT: 'You are a workflow agent',
-  MULTI_AGENT_ORCHESTRATOR_PROMPT: 'You are an orchestrator',
-  LEAD_HUNTER_AGENT_PROMPT: 'You are a lead hunter',
-  OFFER_STRATEGIST_AGENT_PROMPT: 'You are an offer strategist',
-  VIDEO_SPECIALIST_AGENT_PROMPT: 'You are a video specialist',
-  WEB_DESIGNER_AGENT_PROMPT: 'You are a web designer',
-  AGENT_BUILDER_AGENT_PROMPT: 'You are an agent builder',
-  SOCIAL_MEDIA_TOOL_CONTEXT: 'Social media tools available',
-}));
-
-vi.mock('@/lib/hallucination-guard', () => ({
-  loadGuardConfig: (...args: unknown[]) => mockLoadGuardConfig(...args),
-  runHallucinationGuard: (...args: unknown[]) => mockRunHallucinationGuard(...args),
-  recordLearning: (...args: unknown[]) => mockRecordLearning(...args),
-}));
-
-vi.mock('react-hot-toast', () => ({
-  __esModule: true,
-  default: Object.assign(
-    (...args: unknown[]) => mockToast(...args),
-    { error: (...args: unknown[]) => mockToastError(...args) }
-  ),
-}));
-
-vi.mock('@/lib/token-budget', () => ({
-  calculateAllCosts: vi.fn().mockReturnValue([{ modelId: 'gpt-4o', fullRequestCostINR: 0.084, fullRequestCostUSD: 0.001, isFree: false }]),
-}));
-
-vi.mock('@/lib/context-manager', () => ({
-  buildOptimizedContext: vi.fn().mockReturnValue({ messages: [], tokenCount: 0 }),
-}));
-
-vi.mock('@/lib/utils', () => ({
-  estimateTokens: vi.fn().mockReturnValue(10),
-  cn: (...args: unknown[]) => args.filter(Boolean).join(' '),
-}));
-
-vi.mock('@/lib/export-utils', () => ({
-  exportChatToPDF: vi.fn(),
-  exportChatToWord: vi.fn(),
-}));
-
-vi.mock('@/lib/search', () => ({
-  formatSearchResults: vi.fn().mockReturnValue(''),
-}));
-
-vi.mock('@/lib/csrf', () => ({
-  csrfHeaders: vi.fn().mockReturnValue({}),
-}));
-
-vi.mock('@/lib/self-training', () => ({
-  recordTask: vi.fn(),
-}));
-
-vi.mock('@/lib/cross-domain-thinking', () => ({
-  getAdjacentServices: vi.fn().mockReturnValue([]),
-  SERVICE_BUNDLES: [],
-}));
-
-vi.mock('@/lib/pattern-recognition', () => ({
-  recogniseTaskPatterns: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/search-helpers', () => ({
-  searchConversations: vi.fn().mockReturnValue([]),
-}));
-
-vi.mock('@/lib/workflow-validation', () => ({
-  VALID_AGENTS: ['researcher', 'writer', 'developer', 'analyst', 'strategist', 'marketer', 'designer', 'finance', 'voice', 'qa', 'coordinator', 'workflow'],
-}));
-
-vi.mock('@/lib/toast-config', () => ({
-  TOAST_DEFAULTS: { duration: 3000 },
-}));
-
-vi.mock('@/lib/output-quality-evaluator', () => ({
-  evaluateOutput: vi.fn().mockReturnValue({ passed: true, overallScore: 85, checks: [], suggestions: [] }),
-}));
-
-vi.mock('@/lib/editor-gate', () => ({
-  runEditorGate: (...args: unknown[]) => mockRunEditorGate(...args),
-  loadEditorConfig: vi.fn().mockReturnValue({ enabled: true, minLength: 100, skipAgentTypes: [] }),
-  saveEditorConfig: vi.fn(),
-  DEFAULT_EDITOR_CONFIG: { enabled: true, minLength: 100, skipAgentTypes: [] },
-}));
-
-vi.mock('@/lib/prompt-sanitizer', () => ({
-  sanitizeDocumentContent: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
-  sanitizeSearchResults: vi.fn().mockImplementation((results: unknown[]) => results),
-  sanitizeExternalContext: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
-}));
-
-// ── Agency Operations mock (wired to our controllable mocks) ──
-vi.mock('@/lib/agency-operations', () => ({
-  runQualityGates: (...args: unknown[]) => mockRunQualityGates(...args),
-  runOperatingLoop: (...args: unknown[]) => mockRunOperatingLoop(...args),
-  routeAgencyTask: vi.fn().mockReturnValue({ primary: 'strategist', support: [], workflow: 'strategy' }),
-  detectMistakes: vi.fn().mockReturnValue([]),
-  rankDecisionOptions: vi.fn().mockReturnValue([]),
-  runSelfCheck: vi.fn().mockReturnValue({ score: 7, understood: true, avoidedGeneric: true, coveredChannels: true, assignedRightAgent: true, identifiedFailures: true, gaveNextStep: true, clientReady: true }),
-  runLeadGenPipeline: vi.fn().mockResolvedValue([]),
-  runClientHuntWorkflow: vi.fn().mockResolvedValue([]),
-}));
-
-vi.mock('@/lib/task-analyzer', () => ({
-  analyzeTask: (...args: unknown[]) => mockAnalyzeTask(...args),
-}));
-
-vi.mock('@/lib/feedback-bridge', () => ({
-  attachQualityToTraining: vi.fn(),
-  recordMessageFeedback: vi.fn(),
-  recordGuardVerdict: vi.fn(),
-}));
-
-vi.mock('@/lib/provider-health', () => ({
-  recordProviderHealth: vi.fn(),
-}));
-
-vi.mock('@/components/oracle/GuardStatsPanel', () => ({
-  GuardStatsPanel: () => null,
+vi.mock('nanoid', () => factories.nanoid);
+vi.mock('@/styles/design-tokens', () => factories.designTokens);
+vi.mock('@/lib/router', () => factories.router);
+vi.mock('@/stores/router.store', () => factories.routerStore);
+vi.mock('@/lib/api', () => factories.api);
+vi.mock('@/lib/rag', () => factories.rag);
+vi.mock('@/lib/memory', () => factories.memory);
+vi.mock('@/lib/quality', () => factories.quality);
+vi.mock('@/lib/system-prompt', () => factories.systemPrompt);
+vi.mock('@/lib/hallucination-guard', () => factories.hallucinationGuard);
+vi.mock('react-hot-toast', () => factories.toast);
+vi.mock('@/lib/token-budget', () => factories.tokenBudget);
+vi.mock('@/lib/context-manager', () => factories.contextManager);
+vi.mock('@/lib/utils', () => factories.utils);
+vi.mock('@/lib/export-utils', () => factories.exportUtils);
+vi.mock('@/lib/search', () => factories.search);
+vi.mock('@/lib/csrf', () => factories.csrf);
+vi.mock('@/lib/self-training', () => factories.selfTraining);
+vi.mock('@/lib/cross-domain-thinking', () => factories.crossDomainThinking);
+vi.mock('@/lib/pattern-recognition', () => factories.patternRecognition);
+vi.mock('@/lib/search-helpers', () => factories.searchHelpers);
+vi.mock('@/lib/workflow-validation', () => factories.workflowValidation);
+vi.mock('@/lib/toast-config', () => factories.toastConfig);
+vi.mock('@/lib/output-quality-evaluator', () => factories.outputQualityEvaluator);
+vi.mock('@/lib/editor-gate', () => factories.editorGate);
+vi.mock('@/lib/prompt-sanitizer', () => factories.promptSanitizer);
+vi.mock('@/lib/agency-operations', () => factories.agencyOperations);
+vi.mock('@/lib/task-analyzer', () => factories.taskAnalyzer);
+vi.mock('@/lib/feedback-bridge', () => factories.feedbackBridge);
+vi.mock('@/lib/provider-health', () => factories.providerHealth);
+vi.mock('@/components/oracle/GuardStatsPanel', () => factories.guardStatsPanel);
+vi.mock('@/hooks/keyboard-shortcuts-context', () => ({
+  useKeyboardShortcuts: vi.fn(),
+  useKeyboardShortcutsContext: vi.fn(() => ({
+    register: vi.fn(),
+    unregister: vi.fn(),
+    getRegistrations: vi.fn(() => []),
+    getRegistration: vi.fn(() => null),
+    isGloballyEnabled: true,
+    getShortcutAnalytics: vi.fn(() => ({ totalInvocations: 0, byShortcut: {} })),
+    resetAnalytics: vi.fn(),
+  })),
+  KeyboardShortcutsProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // ─── Helpers (shared from test-utils) ──
@@ -286,13 +76,7 @@ import { createSSEFetchMock } from './test-utils';
 describe('Agency Brain End-to-End Integration', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    mockStreamingEnabled = true;
-    resetNanoid();
-    resetToastMocks();
-    resetQualityGates();
-    resetOperatingLoop();
-    resetEditorGate();
-    resetAnalyzeTask();
+    resetChatPanelMocks(m);
     window.localStorage.clear();
     // Set up default global.fetch mock (streaming SSE response)
     global.fetch = createSSEFetchMock([
@@ -306,7 +90,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('operating loop activation', () => {
     it('runs operating loop when task complexity > 0.8', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -316,7 +100,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Dental clinic needs patient acquisition.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Root cause: weak local visibility.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Channel mix: Local SEO + Google Ads.', agentUsed: 'agency-brain', duration: 90 },
@@ -334,14 +118,14 @@ describe('Agency Brain End-to-End Integration', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockAnalyzeTask).toHaveBeenCalledTimes(1);
-      expect(mockRunOperatingLoop).toHaveBeenCalledTimes(1);
-      const [taskArg] = mockRunOperatingLoop.mock.calls[0];
+      expect(m.analyzeTask).toHaveBeenCalledTimes(1);
+      expect(m.mockRunOperatingLoop).toHaveBeenCalledTimes(1);
+      const [taskArg] = m.mockRunOperatingLoop.mock.calls[0];
       expect(taskArg).toContain('dental clinic');
     });
 
     it('does NOT run operating loop when task complexity <= 0.8', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'general',
         complexity: 0.3,
         estimatedTokens: 100,
@@ -360,12 +144,12 @@ describe('Agency Brain End-to-End Integration', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockAnalyzeTask).toHaveBeenCalledTimes(1);
-      expect(mockRunOperatingLoop).not.toHaveBeenCalled();
+      expect(m.analyzeTask).toHaveBeenCalledTimes(1);
+      expect(m.mockRunOperatingLoop).not.toHaveBeenCalled();
     });
 
     it('operating loop failure does not crash the chat (non-blocking)', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.95,
         estimatedTokens: 500,
@@ -377,7 +161,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
       // The error from runOperatingLoop propagates to ChatPanel's catch block,
       // which sets an error message instead of the AI response.
-      mockRunOperatingLoop.mockRejectedValue(new Error('Loop service unavailable'));
+      m.mockRunOperatingLoop.mockRejectedValue(new Error('Loop service unavailable'));
 
       const user = userEvent.setup();
       render(<ChatPanel />);
@@ -399,7 +183,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('operating loop results in UI', () => {
     it('renders OperatingLoopBadge when loop results are available', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -409,7 +193,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Dental clinic needs patients.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Weak local SEO.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Local SEO + Ads.', agentUsed: 'agency-brain', duration: 90 },
@@ -434,7 +218,7 @@ describe('Agency Brain End-to-End Integration', () => {
     });
 
     it('does not render OperatingLoopBadge for simple tasks', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'general',
         complexity: 0.3,
         estimatedTokens: 100,
@@ -461,7 +245,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('quality gate + operating loop combined', () => {
     it('runs both operating loop and quality gate for complex tasks', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -471,7 +255,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Analysis complete.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Diagnosis complete.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Plan ready.', agentUsed: 'agency-brain', duration: 90 },
@@ -480,7 +264,7 @@ describe('Agency Brain End-to-End Integration', () => {
         { step: 'improve', output: 'Improvements noted.', agentUsed: 'agency-brain', duration: 50 },
       ]);
 
-      mockRunQualityGates.mockReturnValue({
+      m.mockRunQualityGates.mockReturnValue({
         passed: true,
         score: 85,
         checks: [
@@ -499,8 +283,8 @@ describe('Agency Brain End-to-End Integration', () => {
       });
 
       // Both operating loop and quality gate should have been called
-      expect(mockRunOperatingLoop).toHaveBeenCalledTimes(1);
-      expect(mockRunQualityGates).toHaveBeenCalledTimes(1);
+      expect(m.mockRunOperatingLoop).toHaveBeenCalledTimes(1);
+      expect(m.mockRunQualityGates).toHaveBeenCalledTimes(1);
 
       // Both badges should render
       await waitFor(() => {
@@ -510,7 +294,7 @@ describe('Agency Brain End-to-End Integration', () => {
     });
 
     it('quality gate failure shows warning even when operating loop succeeds', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.85,
         estimatedTokens: 500,
@@ -520,7 +304,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Done.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Done.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Done.', agentUsed: 'agency-brain', duration: 90 },
@@ -529,7 +313,7 @@ describe('Agency Brain End-to-End Integration', () => {
         { step: 'improve', output: 'Done.', agentUsed: 'agency-brain', duration: 50 },
       ]);
 
-      mockRunQualityGates.mockReturnValue({
+      m.mockRunQualityGates.mockReturnValue({
         passed: false,
         score: 30,
         checks: [
@@ -551,7 +335,7 @@ describe('Agency Brain End-to-End Integration', () => {
       expect(screen.getByText(/⚠️ agency QA 30%/)).toBeDefined();
 
       // Warning toast should fire
-      expect(mockToast).toHaveBeenCalledWith(
+      expect(m.mockToast).toHaveBeenCalledWith(
         expect.stringContaining('Quality gate'),
         expect.objectContaining({ duration: 4000 }),
       );
@@ -562,7 +346,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('editor gate integration', () => {
     it('runs editor gate after response and stores result', async () => {
-      mockRunEditorGate.mockResolvedValue({
+      m.mockRunEditorGate.mockResolvedValue({
         passed: true,
         confidence: 95,
         assessment: 'Professional quality',
@@ -579,14 +363,14 @@ describe('Agency Brain End-to-End Integration', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockRunEditorGate).toHaveBeenCalledTimes(1);
-      const [userContent, aiContent] = mockRunEditorGate.mock.calls[0];
+      expect(m.mockRunEditorGate).toHaveBeenCalledTimes(1);
+      const [userContent, aiContent] = m.mockRunEditorGate.mock.calls[0];
       expect(userContent).toContain('dental clinic');
       expect(aiContent).toBe('Hello from AI');
     });
 
     it('auto-corrects response when editor gate fails with corrected text', async () => {
-      mockRunEditorGate.mockResolvedValue({
+      m.mockRunEditorGate.mockResolvedValue({
         passed: false,
         confidence: 60,
         assessment: 'Found placeholder text',
@@ -607,14 +391,14 @@ describe('Agency Brain End-to-End Integration', () => {
       });
 
       // Editor correction toast should fire
-      expect(mockToast).toHaveBeenCalledWith(
+      expect(m.mockToast).toHaveBeenCalledWith(
         expect.stringContaining('Editor gate'),
         expect.objectContaining({ duration: 3000 }),
       );
     });
 
     it('editor gate error does not crash chat (non-blocking)', async () => {
-      mockRunEditorGate.mockRejectedValue(new Error('Editor service down'));
+      m.mockRunEditorGate.mockRejectedValue(new Error('Editor service down'));
 
       const user = userEvent.setup();
       render(<ChatPanel />);
@@ -634,7 +418,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('multi-domain task routing', () => {
     it('triggers operating loop for multi-domain tasks with complexity > 0.8', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.85,
         estimatedTokens: 600,
@@ -648,7 +432,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Multi-domain task understood.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Multiple issues identified.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Cross-domain plan ready.', agentUsed: 'agency-brain', duration: 90 },
@@ -667,8 +451,8 @@ describe('Agency Brain End-to-End Integration', () => {
       });
 
       // Multi-domain task should trigger operating loop
-      expect(mockRunOperatingLoop).toHaveBeenCalledTimes(1);
-      const [taskArg] = mockRunOperatingLoop.mock.calls[0];
+      expect(m.mockRunOperatingLoop).toHaveBeenCalledTimes(1);
+      const [taskArg] = m.mockRunOperatingLoop.mock.calls[0];
       expect(taskArg).toContain('lead generation');
       expect(taskArg).toContain('local SEO');
       expect(taskArg).toContain('paid ads');
@@ -679,7 +463,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('new conversation resets agency state', () => {
     it('clears operating loop results when starting a new conversation', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -689,7 +473,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Done.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Done.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Done.', agentUsed: 'agency-brain', duration: 90 },
@@ -698,7 +482,7 @@ describe('Agency Brain End-to-End Integration', () => {
         { step: 'improve', output: 'Done.', agentUsed: 'agency-brain', duration: 50 },
       ]);
 
-      mockRunQualityGates.mockReturnValue({
+      m.mockRunQualityGates.mockReturnValue({
         passed: true, score: 85,
         checks: [{ name: 'Objective', passed: true, message: 'OK' }],
       });
@@ -732,9 +516,9 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('sync path operating loop', () => {
     it('runs operating loop on sync path for complex tasks', async () => {
-      mockStreamingEnabled = false;
+      m.streamingEnabledRef.current = false;
 
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.85,
         estimatedTokens: 500,
@@ -744,7 +528,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Sync analysis.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Sync diagnosis.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Sync plan.', agentUsed: 'agency-brain', duration: 90 },
@@ -762,7 +546,7 @@ describe('Agency Brain End-to-End Integration', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockRunOperatingLoop).toHaveBeenCalledTimes(1);
+      expect(m.mockRunOperatingLoop).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -770,7 +554,7 @@ describe('Agency Brain End-to-End Integration', () => {
 
   describe('oracle-loop-complete event dispatch', () => {
     it('dispatches oracle-loop-complete event after operating loop finishes', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -788,7 +572,7 @@ describe('Agency Brain End-to-End Integration', () => {
         { step: 'qa', output: 'QA.', agentUsed: 'agency-brain', duration: 60 },
         { step: 'improve', output: 'Improvement.', agentUsed: 'agency-brain', duration: 50 },
       ];
-      mockRunOperatingLoop.mockResolvedValue(loopResults);
+      m.mockRunOperatingLoop.mockResolvedValue(loopResults);
 
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
@@ -816,7 +600,7 @@ describe('Agency Brain End-to-End Integration', () => {
     });
 
     it('does NOT dispatch oracle-loop-complete for simple tasks (no operating loop)', async () => {
-      mockAnalyzeTask.mockReturnValue({
+      m.analyzeTask.mockReturnValue({
         category: 'general',
         complexity: 0.3,
         estimatedTokens: 100,
@@ -852,7 +636,7 @@ describe('Agency Brain End-to-End Integration', () => {
   describe('multiple messages with different complexity levels', () => {
     it('runs operating loop only for complex tasks, not simple ones', async () => {
       // First message: simple
-      mockAnalyzeTask.mockReturnValueOnce({
+      m.analyzeTask.mockReturnValueOnce({
         category: 'general',
         complexity: 0.3,
         estimatedTokens: 100,
@@ -870,10 +654,10 @@ describe('Agency Brain End-to-End Integration', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockRunOperatingLoop).not.toHaveBeenCalled();
+      expect(m.mockRunOperatingLoop).not.toHaveBeenCalled();
 
       // Second message: complex
-      mockAnalyzeTask.mockReturnValueOnce({
+      m.analyzeTask.mockReturnValueOnce({
         category: 'strategic-planning',
         complexity: 0.9,
         estimatedTokens: 500,
@@ -883,7 +667,7 @@ describe('Agency Brain End-to-End Integration', () => {
         suggestedTier: 'premium',
       });
 
-      mockRunOperatingLoop.mockResolvedValue([
+      m.mockRunOperatingLoop.mockResolvedValue([
         { step: 'understand', output: 'Understood.', agentUsed: 'agency-brain', duration: 100 },
         { step: 'diagnose', output: 'Diagnosed.', agentUsed: 'agency-brain', duration: 80 },
         { step: 'plan', output: 'Planned.', agentUsed: 'agency-brain', duration: 90 },
@@ -899,7 +683,7 @@ describe('Agency Brain End-to-End Integration', () => {
       });
 
       // Operating loop should now have been called once (for the complex task only)
-      expect(mockRunOperatingLoop).toHaveBeenCalledTimes(1);
+      expect(m.mockRunOperatingLoop).toHaveBeenCalledTimes(1);
     });
   });
 });

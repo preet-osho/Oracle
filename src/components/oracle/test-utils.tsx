@@ -1,5 +1,5 @@
-import { vi, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { vi, expect, afterEach } from 'vitest';
+import { render, screen, waitFor, act, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 /**
@@ -300,6 +300,80 @@ export async function renderAndType(
     });
   }
   return { unmount, user, prompt: message };
+}
+
+// ─── Render ChatPanel with KeyboardShortcutsProvider ──
+
+/**
+ * Renders ChatPanel wrapped in KeyboardShortcutsProvider, inside act().
+ *
+ * Use this in tests that need the full ChatPanel component with keyboard
+ * shortcuts context (e.g. GOD MODE toggle via Ctrl+Shift+G).
+ *
+ * @returns The React Testing Library render result (container, unmount, etc.)
+ */
+let _cleanupRegistered = false;
+
+export async function renderChatPanel(): Promise<ReturnType<typeof render>> {
+  const { KeyboardShortcutsProvider } = await import('@/hooks/keyboard-shortcuts-context');
+  const { ChatPanel } = await import('./ChatPanel');
+  let result!: ReturnType<typeof render>;
+  await act(async () => {
+    result = render(
+      <KeyboardShortcutsProvider>
+        <ChatPanel />
+      </KeyboardShortcutsProvider>,
+    );
+  });
+  // Schedule cleanup after the test completes to prevent memory leaks.
+  // Guard ensures afterEach is registered only once per test file.
+  if (!_cleanupRegistered) {
+    afterEach(() => { cleanup(); });
+    _cleanupRegistered = true;
+  }
+  return result;
+}
+
+// ─── GOD MODE Toggle + Send Message Helper ──
+
+/**
+ * Renders ChatPanel, toggles GOD MODE on, sends a message, and waits for the
+ * AI response. Use this in tests that need a message sent while GOD MODE is
+ * active (e.g. testing the GOD MODE badge).
+ *
+ * @param message - The message to type into the chat input (defaults to 'Hello')
+ * @returns The `userEvent` instance for further interactions
+ */
+export async function toggleGodModeAndSendMessage(message = 'Hello') {
+  const user = userEvent.setup();
+  await renderChatPanel();
+
+  // Enable GOD MODE
+  const toggleButton = screen.getByText(/Enable GOD MODE/);
+  await user.click(toggleButton);
+
+  // Send message with GOD MODE enabled
+  await user.type(screen.getByLabelText('Chat input'), message + '{Enter}');
+  await waitFor(() => {
+    expect(screen.getByText('Hello from AI')).toBeDefined();
+  });
+
+  return user;
+}
+
+// ─── GOD MODE Toggle Off Helper ──
+
+/**
+ * Disables GOD MODE by clicking the active toggle button. Use this after
+ * `toggleGodModeAndSendMessage` when a test needs to verify behavior
+ * both with and without GOD MODE enabled.
+ *
+ * @param user - The `userEvent` instance (typically from `toggleGodModeAndSendMessage`)
+ * @returns The same `userEvent` instance for chaining
+ */
+export async function toggleGodModeOff(user: any) {
+  await user.click(screen.getByText(/GOD MODE ON/));
+  return user;
 }
 
 // ─── Streaming Mocks (for NeverStopRouter.callStreaming) ──

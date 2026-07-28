@@ -5,137 +5,62 @@ import React from 'react';
 import { ChatPanel } from './ChatPanel';
 import { NeverStopRouter } from '@/lib/router';
 
-// ─── Shared mocks (must be in vi.hoisted for Vitest hoisting compatibility) ───
-const SHARED_MOCKS = vi.hoisted(() => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return require('./test-utils.mocks.cjs');
-});
-const {
-  DESIGN_TOKENS_MOCK, ROUTER_MOCK, API_MOCK, RAG_MOCK, MEMORY_MOCK,
-  QUALITY_MOCK, SYSTEM_PROMPT_MOCK, TOKEN_BUDGET_MOCK, CONTEXT_MANAGER_MOCK,
-  UTILS_MOCK, EXPORT_UTILS_MOCK, SEARCH_MOCK, CSRF_MOCK, SELF_TRAINING_MOCK,
-  CROSS_DOMAIN_THINKING_MOCK, PATTERN_RECOGNITION_MOCK, SEARCH_HELPERS_MOCK,
-  WORKFLOW_VALIDATION_MOCK, TOAST_CONFIG_MOCK, GUARD_STATS_PANEL_MOCK,
-  createToastMock, createHallucinationGuardMock,
-} = SHARED_MOCKS;
-// Note: vi.mock() factories below reference SHARED_MOCKS.X directly because
-// destructured variables are not initialized at hoist time.
-
-// ─── File-local vi.hoisted() mocks (needed by vi.mock factories in this file) ───
-
-const { mockNanoid, resetNanoid } = vi.hoisted(() => {
-  let counter = 0;
-  const fn = vi.fn(() => `test-id-${++counter}`);
-  return {
-    mockNanoid: fn,
-    resetNanoid: () => { counter = 0; fn.mockClear(); },
-  };
+// ─── Shared CJS mocks (loaded via require inside vi.hoisted so they're available to vi.mock() factories) ───
+// Uses the shared factory from test-utils.mocks.cjs to create mock instances and
+// vi.mock() factory objects, eliminating ~15 lines of inline mock definitions.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { m, factories } = vi.hoisted(() => {
+  const SHARED = require('./test-utils.mocks.cjs');
+  const m = SHARED.createChatPanelMockInstances(vi.fn);
+  const factories = SHARED.createChatPanelMockFactories(m, vi.fn);
+  return { m, factories };
 });
 
-const { mockToast, mockToastError, resetToastMocks } = vi.hoisted(() => {
-  const mockToastFn = vi.fn();
-  const mockToastErrorFn = vi.fn();
-  return {
-    mockToast: mockToastFn,
-    mockToastError: mockToastErrorFn,
-    resetToastMocks: () => { mockToastFn.mockClear(); mockToastErrorFn.mockClear(); },
-  };
-});
-
-const { mockRunOperatingLoop, analyzeTask } = vi.hoisted(() => ({
-  mockRunOperatingLoop: vi.fn().mockResolvedValue([]),
-  analyzeTask: vi.fn().mockReturnValue({ complexity: 0.3, agents: [], suggestedTier: 'standard' }),
+// ─── vi.mock() calls (factory objects from shared CJS factory) ───
+vi.mock('nanoid', () => factories.nanoid);
+vi.mock('@/styles/design-tokens', () => factories.designTokens);
+vi.mock('@/lib/router', () => factories.router);
+vi.mock('@/stores/router.store', () => factories.routerStore);
+vi.mock('@/hooks/keyboard-shortcuts-context', () => ({
+  useKeyboardShortcuts: vi.fn(),
+  useKeyboardShortcutsContext: vi.fn(() => ({
+    register: vi.fn(),
+    unregister: vi.fn(),
+    getRegistrations: vi.fn(() => []),
+    getRegistration: vi.fn(() => null),
+    isGloballyEnabled: true,
+    getShortcutAnalytics: vi.fn(() => ({ totalInvocations: 0, byShortcut: {} })),
+    resetAnalytics: vi.fn(),
+    getAnalytics: vi.fn(() => ({ totalInvocations: 0, byShortcut: {} })),
+  })),
 }));
-
-const { mockLoadGuardConfig, mockRunHallucinationGuard, mockRecordLearning } = vi.hoisted(() => ({
-  mockLoadGuardConfig: vi.fn().mockReturnValue({
-    enabled: false,
-    thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 },
-  }),
-  mockRunHallucinationGuard: vi.fn().mockResolvedValue({
-    confidence: 80,
-    assessment: 'Looks good',
-    checks: [],
-    suggestions: [],
-  }),
-  mockRecordLearning: vi.fn(),
-}));
-
-// ─── vi.mock() calls (must be top-level for Vitest hoisting) ───
-
-vi.mock('nanoid', () => ({ nanoid: mockNanoid }));
-vi.mock('@/styles/design-tokens', () => SHARED_MOCKS.DESIGN_TOKENS_MOCK);
-vi.mock('@/lib/router', () => SHARED_MOCKS.ROUTER_MOCK);
-
-const mockAddCost = vi.fn();
-const mockAddUsageRecord = vi.fn();
-const { streamingEnabledRef } = vi.hoisted(() => ({
-  streamingEnabledRef: { current: true },
-}));
-
-vi.mock('@/stores/router.store', () => ({
-  useRouterStore: () => ({
-    streamingEnabled: streamingEnabledRef.current,
-    addCost: mockAddCost,
-    addUsageRecord: mockAddUsageRecord,
-    configuredProviders: ['groq'],
-  }),
-}));
-
-vi.mock('@/lib/api', () => SHARED_MOCKS.API_MOCK);
-vi.mock('@/lib/rag', () => SHARED_MOCKS.RAG_MOCK);
-vi.mock('@/lib/memory', () => SHARED_MOCKS.MEMORY_MOCK);
-vi.mock('@/lib/quality', () => SHARED_MOCKS.QUALITY_MOCK);
-vi.mock('@/lib/system-prompt', () => SHARED_MOCKS.SYSTEM_PROMPT_MOCK);
-vi.mock('@/lib/hallucination-guard', () => SHARED_MOCKS.createHallucinationGuardMock(mockLoadGuardConfig, mockRunHallucinationGuard, mockRecordLearning));
-vi.mock('react-hot-toast', () => SHARED_MOCKS.createToastMock(mockToast, mockToastError));
-vi.mock('@/lib/token-budget', () => SHARED_MOCKS.TOKEN_BUDGET_MOCK);
-vi.mock('@/lib/context-manager', () => SHARED_MOCKS.CONTEXT_MANAGER_MOCK);
-vi.mock('@/lib/utils', () => SHARED_MOCKS.UTILS_MOCK);
-vi.mock('@/lib/export-utils', () => SHARED_MOCKS.EXPORT_UTILS_MOCK);
-vi.mock('@/lib/search', () => SHARED_MOCKS.SEARCH_MOCK);
-vi.mock('@/lib/csrf', () => SHARED_MOCKS.CSRF_MOCK);
-vi.mock('@/lib/self-training', () => SHARED_MOCKS.SELF_TRAINING_MOCK);
-vi.mock('@/lib/cross-domain-thinking', () => SHARED_MOCKS.CROSS_DOMAIN_THINKING_MOCK);
-vi.mock('@/lib/pattern-recognition', () => SHARED_MOCKS.PATTERN_RECOGNITION_MOCK);
-vi.mock('@/lib/search-helpers', () => SHARED_MOCKS.SEARCH_HELPERS_MOCK);
-vi.mock('@/lib/workflow-validation', () => SHARED_MOCKS.WORKFLOW_VALIDATION_MOCK);
-vi.mock('@/lib/toast-config', () => SHARED_MOCKS.TOAST_CONFIG_MOCK);
-
-vi.mock('@/lib/task-analyzer', () => ({ analyzeTask }));
-
-const mockRecordProviderHealth = vi.fn();
-vi.mock('@/lib/provider-health', () => ({ recordProviderHealth: (...args: unknown[]) => mockRecordProviderHealth(...args) }));
-vi.mock('@/lib/editor-gate', () => ({
-  runEditorGate: vi.fn().mockResolvedValue({ passed: true, confidence: 90, assessment: 'OK', issues: [] }),
-  loadEditorConfig: vi.fn().mockReturnValue({ enabled: true, minLength: 100, skipAgentTypes: [] }),
-  saveEditorConfig: vi.fn(),
-  DEFAULT_EDITOR_CONFIG: { enabled: true, minLength: 100, skipAgentTypes: [] },
-}));
-vi.mock('@/lib/output-quality-evaluator', () => ({
-  evaluateOutput: vi.fn().mockReturnValue({ passed: true, overallScore: 85, checks: [], suggestions: [] }),
-}));
-
-vi.mock('@/lib/feedback-bridge', () => ({
-  attachQualityToTraining: vi.fn(),
-  recordMessageFeedback: vi.fn(),
-}));
-vi.mock('@/lib/agency-operations', () => ({
-  runOperatingLoop: mockRunOperatingLoop,
-  runQualityGates: vi.fn().mockReturnValue({ passed: true, score: 80, checks: [] }),
-  routeAgencyTask: vi.fn().mockReturnValue({ primary: 'strategist', support: [], workflow: 'strategy' }),
-  detectMistakes: vi.fn().mockReturnValue([]),
-  rankDecisionOptions: vi.fn().mockReturnValue([]),
-  runSelfCheck: vi.fn().mockReturnValue({ score: 7, understood: true, avoidedGeneric: true, coveredChannels: true, assignedRightAgent: true, identifiedFailures: true, gaveNextStep: true, clientReady: true }),
-  runLeadGenPipeline: vi.fn().mockResolvedValue([]),
-  runClientHuntWorkflow: vi.fn().mockResolvedValue([]),
-}));
-vi.mock('@/lib/prompt-sanitizer', () => ({
-  sanitizeDocumentContent: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
-  sanitizeSearchResults: vi.fn().mockImplementation((results: unknown[]) => results),
-  sanitizeExternalContext: vi.fn().mockImplementation((content: string) => ({ sanitized: content, flagged: false })),
-}));
-vi.mock('@/components/oracle/GuardStatsPanel', () => SHARED_MOCKS.GUARD_STATS_PANEL_MOCK);
+vi.mock('@/lib/api', () => factories.api);
+vi.mock('@/lib/rag', () => factories.rag);
+vi.mock('@/lib/memory', () => factories.memory);
+vi.mock('@/lib/quality', () => factories.quality);
+vi.mock('@/lib/system-prompt', () => factories.systemPrompt);
+vi.mock('@/lib/hallucination-guard', () => factories.hallucinationGuard);
+vi.mock('react-hot-toast', () => factories.toast);
+vi.mock('@/lib/token-budget', () => factories.tokenBudget);
+vi.mock('@/lib/context-manager', () => factories.contextManager);
+vi.mock('@/lib/utils', () => factories.utils);
+vi.mock('@/lib/export-utils', () => factories.exportUtils);
+vi.mock('@/lib/search', () => factories.search);
+vi.mock('@/lib/csrf', () => factories.csrf);
+vi.mock('@/lib/self-training', () => factories.selfTraining);
+vi.mock('@/lib/cross-domain-thinking', () => factories.crossDomainThinking);
+vi.mock('@/lib/pattern-recognition', () => factories.patternRecognition);
+vi.mock('@/lib/search-helpers', () => factories.searchHelpers);
+vi.mock('@/lib/workflow-validation', () => factories.workflowValidation);
+vi.mock('@/lib/toast-config', () => factories.toastConfig);
+vi.mock('@/lib/task-analyzer', () => factories.taskAnalyzer);
+vi.mock('@/lib/provider-health', () => factories.providerHealth);
+vi.mock('@/lib/editor-gate', () => factories.editorGate);
+vi.mock('@/lib/output-quality-evaluator', () => factories.outputQualityEvaluator);
+vi.mock('@/lib/feedback-bridge', () => factories.feedbackBridge);
+vi.mock('@/lib/agency-operations', () => factories.agencyOperations);
+vi.mock('@/lib/prompt-sanitizer', () => factories.promptSanitizer);
+vi.mock('@/components/oracle/GuardStatsPanel', () => factories.guardStatsPanel);
 
 // ─── Helpers (shared from test-utils) ──
 import { createSSEFetchMock, defaultFetchMock, createSignalCapturingFetch, setupCallAIMock, renderAndStartLoopWithFetch } from './test-utils';
@@ -145,31 +70,31 @@ import { createSSEFetchMock, defaultFetchMock, createSignalCapturingFetch, setup
 describe('ChatPanel', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    streamingEnabledRef.current = true;
-    resetNanoid();
-    resetToastMocks();
+    m.streamingEnabledRef.current = true;
+    m.resetNanoid();
+    m.resetToastMocks();
     window.localStorage.clear();
 
     // Set up default global.fetch mock
     global.fetch = defaultFetchMock();
 
-    mockRecordProviderHealth.mockClear();
-    mockRunOperatingLoop.mockResolvedValue([]);
+    m.mockRecordProviderHealth.mockClear();
+    m.mockRunOperatingLoop.mockResolvedValue([]);
 
     // Restore default calculateCost mock
     (NeverStopRouter.calculateCost as ReturnType<typeof vi.fn>).mockReturnValue({ usd: 0.001, inr: 0.084 });
     // Reset hallucination-guard mocks for test isolation
-    mockLoadGuardConfig.mockReturnValue({
+    m.mockLoadGuardConfig.mockReturnValue({
       enabled: false,
       thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 },
     });
-    mockRunHallucinationGuard.mockResolvedValue({
+    m.mockRunHallucinationGuard.mockResolvedValue({
       confidence: 80,
       assessment: 'Looks good',
       checks: [],
       suggestions: [],
     });
-    mockRecordLearning.mockClear();
+    m.mockRecordLearning.mockClear();
   });
 
   // ── Empty State ──
@@ -270,7 +195,7 @@ describe('ChatPanel', () => {
     });
 
     it('renders assistant response from sync path', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       const user = userEvent.setup();
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
@@ -299,7 +224,7 @@ describe('ChatPanel', () => {
     });
 
     it('displays cost for assistant messages with cost > 0', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       global.fetch = vi.fn(async (url: URL | Request | string, init?: RequestInit) => {
         if (typeof url === 'string' && url.includes('/api/ai/chat')) {
           return {
@@ -319,7 +244,7 @@ describe('ChatPanel', () => {
     });
 
     it('renders error message when fetch fails', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       global.fetch = vi.fn(async () => {
         throw new Error('Network timeout');
       });
@@ -340,9 +265,9 @@ describe('ChatPanel', () => {
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
       await waitFor(() => {
-        expect(mockAddUsageRecord).toHaveBeenCalledTimes(1);
+        expect(m.mockAddUsageRecord).toHaveBeenCalledTimes(1);
       });
-      const record = mockAddUsageRecord.mock.calls[0][0];
+      const record = m.mockAddUsageRecord.mock.calls[0][0];
       expect(record).toMatchObject({
         provider: 'groq',
         model: 'gpt-4o',
@@ -355,14 +280,14 @@ describe('ChatPanel', () => {
     });
 
     it('calls addUsageRecord after sync completes', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       const user = userEvent.setup();
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
       await waitFor(() => {
-        expect(mockAddUsageRecord).toHaveBeenCalledTimes(1);
+        expect(m.mockAddUsageRecord).toHaveBeenCalledTimes(1);
       });
-      const record = mockAddUsageRecord.mock.calls[0][0];
+      const record = m.mockAddUsageRecord.mock.calls[0][0];
       expect(record).toMatchObject({
         provider: 'openai',
         model: 'gpt-4o',
@@ -374,12 +299,12 @@ describe('ChatPanel', () => {
     });
 
     it('calls addCost when cost > 0 (sync path)', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       const user = userEvent.setup();
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
       await waitFor(() => {
-        expect(mockAddCost).toHaveBeenCalledWith(0.001, 0.084);
+        expect(m.mockAddCost).toHaveBeenCalledWith(0.001, 0.084);
       });
     });
 
@@ -388,14 +313,14 @@ describe('ChatPanel', () => {
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
       await waitFor(() => {
-        expect(mockAddCost).toHaveBeenCalled();
+        expect(m.mockAddCost).toHaveBeenCalled();
       });
     });
 
     it('does not call addCost when both costUSD and cost.inr are 0', async () => {
       (NeverStopRouter.calculateCost as ReturnType<typeof vi.fn>).mockReturnValue({ usd: 0, inr: 0 });
 
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       global.fetch = vi.fn(async (url: URL | Request | string, init?: RequestInit) => {
         if (typeof url === 'string' && url.includes('/api/ai/chat')) {
           return {
@@ -410,9 +335,9 @@ describe('ChatPanel', () => {
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
       await waitFor(() => {
-        expect(mockAddUsageRecord).toHaveBeenCalled();
+        expect(m.mockAddUsageRecord).toHaveBeenCalled();
       });
-      expect(mockAddCost).not.toHaveBeenCalled();
+      expect(m.mockAddCost).not.toHaveBeenCalled();
     });
   });
 
@@ -730,7 +655,7 @@ describe('ChatPanel', () => {
 
       unmount();
 
-      mockNanoid.mockImplementationOnce(() => 'remount-user-1')
+      m.mockNanoid.mockImplementationOnce(() => 'remount-user-1')
         .mockImplementationOnce(() => assistantMsgId);
 
       render(<ChatPanel />);
@@ -761,7 +686,7 @@ describe('ChatPanel', () => {
 
       unmount();
 
-      mockNanoid.mockImplementationOnce(() => 'remount-user-bad')
+      m.mockNanoid.mockImplementationOnce(() => 'remount-user-bad')
         .mockImplementationOnce(() => assistantMsgId);
 
       render(<ChatPanel />);
@@ -821,18 +746,18 @@ describe('ChatPanel', () => {
 
   describe('toast notifications', () => {
     it('shows warning toast when hallucination guard fails', async () => {
-      mockLoadGuardConfig.mockReturnValue({
+      m.mockLoadGuardConfig.mockReturnValue({
         enabled: true,
         thresholds: { passThreshold: 70, warnThreshold: 50, blockThreshold: 30 },
       });
-      mockRunHallucinationGuard.mockRejectedValue(new Error('Guard error'));
+      m.mockRunHallucinationGuard.mockRejectedValue(new Error('Guard error'));
 
       const user = userEvent.setup();
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
 
       await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledWith(
+        expect(m.mockToast).toHaveBeenCalledWith(
           expect.stringContaining('Hallucination guard'),
           expect.objectContaining({ duration: 3000 })
         );
@@ -881,8 +806,8 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
-      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(m.mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = m.mockRecordProviderHealth.mock.calls[0][0];
       expect(call.providerId).toBe('groq');
       expect(call.success).toBe(true);
       expect(call.latencyMs).toBe(200); // from _health in SSE chunks
@@ -891,7 +816,7 @@ describe('ChatPanel', () => {
     });
 
     it('records health on successful sync response', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       const user = userEvent.setup();
       render(<ChatPanel />);
       await user.type(screen.getByLabelText('Chat input'), 'Hi{Enter}');
@@ -900,8 +825,8 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Hello from AI')).toBeDefined();
       });
 
-      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
-      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(m.mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = m.mockRecordProviderHealth.mock.calls[0][0];
       expect(call.providerId).toBe('openai');
       expect(call.success).toBe(true);
       expect(call.latencyMs).toBe(150); // from _health in sync JSON
@@ -921,8 +846,8 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Error: Network timeout')).toBeDefined();
       });
 
-      expect(mockRecordProviderHealth).toHaveBeenCalledTimes(1);
-      const call = mockRecordProviderHealth.mock.calls[0][0];
+      expect(m.mockRecordProviderHealth).toHaveBeenCalledTimes(1);
+      const call = m.mockRecordProviderHealth.mock.calls[0][0];
       expect(call.success).toBe(false);
       expect(call.errorMessage).toBe('Network timeout');
       expect(call.tokensUsed).toBe(0);
@@ -941,13 +866,13 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Reply')).toBeDefined();
       });
 
-      const call = mockRecordProviderHealth.mock.calls[0][0];
+      const call = m.mockRecordProviderHealth.mock.calls[0][0];
       expect(call.latencyMs).toBe(200); // from _health in SSE
       expect(call.model).toBe('claude-sonnet-4-6');
     });
 
     it('records health with latency from server-provided _health metadata (sync)', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       global.fetch = vi.fn(async (url: URL | Request | string, init?: RequestInit) => {
         if (typeof url === 'string' && url.includes('/api/ai/chat')) {
           return {
@@ -974,7 +899,7 @@ describe('ChatPanel', () => {
         expect(screen.getByText('Sync reply')).toBeDefined();
       });
 
-      const call = mockRecordProviderHealth.mock.calls[0][0];
+      const call = m.mockRecordProviderHealth.mock.calls[0][0];
       expect(call.latencyMs).toBe(350); // from _health in JSON
       expect(call.providerId).toBe('anthropic');
       expect(call.model).toBe('claude-opus-4');
@@ -987,20 +912,20 @@ describe('ChatPanel', () => {
     afterEach(() => {
       // Restore vi.mock() fn mocks to their default values
       // (vi.restoreAllMocks() only restores vi.spyOn spies, not vi.mock fn mocks)
-      vi.mocked(analyzeTask).mockReturnValue({ complexity: 0.3, agents: [], suggestedTier: 'standard' });
-      mockRunOperatingLoop.mockResolvedValue([]);
+      vi.mocked(m.analyzeTask).mockReturnValue({ complexity: 0.3, agents: [], suggestedTier: 'standard' });
+      m.mockRunOperatingLoop.mockResolvedValue([]);
     });
 
     it('passes abort signal to fetch in the operating loop callAI path', async () => {
       // Override task analyzer to trigger the operating loop (complexity > 0.8)
-      vi.mocked(analyzeTask).mockReturnValue({ complexity: 0.9, agents: [], suggestedTier: 'premium' });
+      vi.mocked(m.analyzeTask).mockReturnValue({ complexity: 0.9, agents: [], suggestedTier: 'premium' });
 
       // Override runOperatingLoop to actually call callAI
-      setupCallAIMock(mockRunOperatingLoop);
+      setupCallAIMock(m.mockRunOperatingLoop);
 
       const capturedSignals: AbortSignal[] = [];
       await renderAndStartLoopWithFetch(
-        mockRunOperatingLoop,
+        m.mockRunOperatingLoop,
         createSignalCapturingFetch(capturedSignals),
         'Build a complete marketing strategy',
       );
@@ -1031,7 +956,7 @@ describe('ChatPanel', () => {
     });
 
     it('sync response path passes an abort signal to fetch', async () => {
-      streamingEnabledRef.current = false;
+      m.streamingEnabledRef.current = false;
       const capturedSignals: AbortSignal[] = [];
       global.fetch = createSignalCapturingFetch(capturedSignals);
 

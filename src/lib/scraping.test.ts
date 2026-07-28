@@ -17,7 +17,7 @@ const { mockScrapeUrl, mockCrawlUrl, mockMapUrl } = vi.hoisted(() => ({
 // ─── Module Mocks ──────────────────────
 
 vi.mock('@mendable/firecrawl-js', () => ({
-  default: vi.fn().mockImplementation(function () {
+  default: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
     this.scrapeUrl = mockScrapeUrl;
     this.crawlUrl = mockCrawlUrl;
     this.mapUrl = mockMapUrl;

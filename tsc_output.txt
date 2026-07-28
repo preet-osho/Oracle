@@ -1,33 +1,20 @@
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m214[0m:[93m46[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m214[0m     loadGuardConfig: (...args: unknown[]) => mockLoadGuardConfig(...args),
-[7m   [0m [91m                                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m215[0m:[93m52[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m215[0m     runHallucinationGuard: (...args: unknown[]) => mockRunHallucinationGuard(...args),
-[7m   [0m [91m                                                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m216[0m:[93m45[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m216[0m     recordLearning: (...args: unknown[]) => mockRecordLearning(...args),
-[7m   [0m [91m                                            ~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m225[0m:[93m48[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m225[0m       runQualityGates: (...args: unknown[]) => mockFn(...args),
-[7m   [0m [91m                                               ~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m253[0m:[93m31[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m253[0m       (...args: unknown[]) => mockToast(...args),
-[7m   [0m [91m                              ~~~~~~~~~~~~~~~~~~[0m
-
-[96msrc/components/oracle/test-utils.mocks.ts[0m:[93m254[0m:[93m40[0m - [91merror[0m[90m TS2348: [0mValue of type 'Mock<Procedure | Constructable>' is not callable. Did you mean to include 'new'?
-
-[7m254[0m       { error: (...args: unknown[]) => mockToastError(...args) },
-[7m   [0m [91m                                       ~~~~~~~~~~~~~~~~~~~~~~~[0m
-
-
-Found 6 errors in the same file, starting at: src/components/oracle/test-utils.mocks.ts[90m:214[0m
-
+src/app/api/communication/send/route.test.ts(2,15): error TS2305: Module '"@/lib/communication-hub-types"' has no exported member 'CommunicationChannel'.
+src/app/api/webhooks/route.test.ts(660,17): error TS2540: Cannot assign to 'NODE_ENV' because it is a read-only property.
+src/app/api/webhooks/route.test.ts(736,17): error TS2540: Cannot assign to 'NODE_ENV' because it is a read-only property.
+src/components/oracle/PerformanceDashboard.test.tsx(77,72): error TS2556: A spread argument must either have a tuple type or be passed to a rest parameter.
+src/components/oracle/PerformanceDashboard.test.tsx(78,62): error TS2556: A spread argument must either have a tuple type or be passed to a rest parameter.
+src/components/oracle/PerformanceDashboard.test.tsx(79,76): error TS2556: A spread argument must either have a tuple type or be passed to a rest parameter.
+src/lib/agents/registry.ts(1888,5): error TS2353: Object literal may only specify known properties, and 'defaultProviderId' does not exist in type 'Record<"researcher" | "writer" | "developer" | "analyst" | "strategist" | "marketer" | "designer" | "finance" | "voice" | "qa" | "coordinator" | "workflow" | "legal" | "security-auditor" | ... 19 more ... | "agent-builder", AgentMetadata>'.
+src/lib/email-service.test.ts(21,5): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/lib/email-service.test.ts(705,7): error TS2322: Type '{ type: string; props: { children: string; }; }' is not assignable to type 'ReactNode'.
+  Type '{ type: string; props: { children: string; }; }' is missing the following properties from type 'ReactPortal': children, key
+src/lib/email-service.test.ts(722,7): error TS2322: Type '{ type: string; props: {}; }' is not assignable to type 'ReactNode'.
+  Type '{ type: string; props: {}; }' is missing the following properties from type 'ReactPortal': children, key
+src/lib/email-service.test.ts(742,7): error TS2322: Type '{ type: string; props: {}; }' is not assignable to type 'ReactNode'.
+  Type '{ type: string; props: {}; }' is missing the following properties from type 'ReactPortal': children, key
+src/lib/email-service.ts(156,45): error TS2352: Conversion of type '{ from: string; to: string[]; subject: string; reply_to: string | undefined; tags: { name: string; value: string; }[]; }' to type 'CreateEmailOptions' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type '{ from: string; to: string[]; subject: string; reply_to: string | undefined; tags: { name: string; value: string; }[]; }' is not comparable to type 'EmailTemplateOptions & CreateEmailBaseOptionsWithTemplate & { react?: undefined; html?: undefined; text?: undefined; }'.
+    Property 'template' is missing in type '{ from: string; to: string[]; subject: string; reply_to: string | undefined; tags: { name: string; value: string; }[]; }' but required in type 'EmailTemplateOptions'.
+src/lib/scraping.test.ts(21,5): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/lib/scraping.test.ts(22,5): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.
+src/lib/scraping.test.ts(23,5): error TS2683: 'this' implicitly has type 'any' because it does not have a type annotation.

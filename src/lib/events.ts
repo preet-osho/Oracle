@@ -15,6 +15,7 @@ export interface OracleEventMap {
   'oracle-quality-update': { score: number };
   'oracle-project-select': { projectId: string | null };
   'oracle-web-search-toggle': { enabled: boolean };
+  'oracle-god-mode-toggle': { enabled: boolean };
   'oracle-loop-complete': { results: OperatingLoopResult[]; total: number; task: string; timestamp: number };
   'oracle-client-task': { task: string; prompt: string };
   'oracle-task-progress': { taskId: string; clientName: string; status: string; currentAgent?: string; completedAgents: string[]; totalAgents: number; synthesisOutput?: string; error?: string; startedAt: number; elapsed: number };
