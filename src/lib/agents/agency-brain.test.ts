@@ -60,8 +60,8 @@ describe('Agency Brain — Prompt Validation', () => {
       expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('DEFAULT OPERATING LOOP');
     });
 
-    it('contains OUTPUT FORMAT or OUTPUT STYLE specification', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/OUTPUT (FORMAT|STYLE)/);
+    it('contains OUTPUT STYLE specification', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('OUTPUT STYLE');
     });
 
     it('contains VERIFY instruction', () => {
@@ -86,28 +86,28 @@ describe('Agency Brain — Prompt Validation', () => {
   });
 
   describe('the 6-step operating loop', () => {
-    it('defines Step 1 — UNDERSTAND', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 1[\s\S]*[Uu]nderstand/);
+    it('defines Step 1, Understand', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 1, Understand');
     });
 
-    it('defines Step 2 — DIAGNOSE', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 2[\s\S]*[Dd]iagnose/);
+    it('defines Step 2, Diagnose', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 2, Diagnose');
     });
 
-    it('defines Step 3 — PLAN', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 3[\s\S]*[Pp]lan/);
+    it('defines Step 3, Plan', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 3, Plan');
     });
 
-    it('defines Step 4 — EXECUTE', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 4[\s\S]*[Ee]xecute/);
+    it('defines Step 4, Execute', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 4, Execute');
     });
 
-    it('defines Step 5 — QA', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 5[\s\S]*QA/);
+    it('defines Step 5, QA', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 5, QA');
     });
 
-    it('defines Step 6 — IMPROVE', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/Step 6[\s\S]*[Ii]mprove/);
+    it('defines Step 6, Improve', () => {
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('Step 6, Improve');
     });
   });
 
@@ -180,15 +180,22 @@ describe('Agency Brain — Domain Rules & Systems', () => {
   });
 
   describe('client hunt workflow', () => {
-    it('defines client hunt steps', () => {
+    it('defines all 15 client hunt steps', () => {
       const steps = [
         'Pick a niche',
-        'Segment by fit',
+        'Identify the exact pain point',
+        'Create a clear outcome offer',
+        'Build a lead list',
+        'Segment by fit and priority',
         'Create tailored outreach',
+        'Send outreach with tracking',
         'Book calls',
         'Diagnose on call',
+        'Present a simple solution',
+        'Close with a scoped offer',
         'Deliver fast wins',
         'Collect proof',
+        'Turn results into case studies',
         'Repeat and scale',
       ];
       for (const step of steps) {
@@ -199,19 +206,19 @@ describe('Agency Brain — Domain Rules & Systems', () => {
 
   describe('SEO system coverage', () => {
     it('covers on-page SEO', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/on-page SEO/i);
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('on-page SEO');
     });
 
     it('covers off-page SEO', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/off-page SEO/i);
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('off-page SEO');
     });
 
     it('covers technical SEO', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/technical SEO/i);
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('technical SEO');
     });
 
     it('covers local SEO', () => {
-      expect(AGENCY_BRAIN_AGENT_PROMPT).toMatch(/local SEO/i);
+      expect(AGENCY_BRAIN_AGENT_PROMPT).toContain('local SEO');
     });
 
     it('covers AI SEO', () => {
