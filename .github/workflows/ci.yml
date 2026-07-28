@@ -57,6 +57,27 @@ jobs:
       - name: Run ESLint
         run: npx next lint --dir src
 
+  prompt-quality:
+    name: Prompt Quality Gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Validate agent prompt quality thresholds
+        run: npm run prompt:quality:gate
+
   test-p1:
     name: 'Tests: P1 Critical'
     runs-on: ubuntu-latest

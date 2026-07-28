@@ -25,6 +25,7 @@
     "train": "tsx scripts/run-training-scenarios.ts",
     "train:list": "tsx scripts/run-training-scenarios.ts --list",
     "train:critical": "tsx scripts/run-training-scenarios.ts --critical",
+    "prompt:quality:gate": "tsx scripts/prompt-quality-gate.ts",
     "typecheck:strict": "tsc -p tsconfig.strict.json --noEmit",
     "prepare": "husky"
   },

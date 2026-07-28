@@ -97,7 +97,8 @@ describe('Training Scenario Library', () => {
     });
 
     it('should return empty array for agent with no scenarios', () => {
-      const scenarios = getScenariosForAgent('voice' as AgentName);
+      // 'super-orchestrator' was removed from registry but keep test using a non-existent agent name
+      const scenarios = getScenariosForAgent('non-existent-agent' as AgentName);
       expect(scenarios.length).toBe(0);
     });
   });
