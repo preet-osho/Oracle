@@ -9,7 +9,7 @@
 
 - **Routing:** The orchestrator uses each agent's `category` and `taskFocus` to match tasks to the right specialist.
 - **Workflows:** Any agent in this list can appear as a phase in multi-agent workflow plans.
-- **Training:** Each agent has training scenarios in `src/lib/agents/training-scenarios-library.ts`.
+- **Training:** Each agent has 3+ training scenarios in `src/lib/agents/training-scenarios-library.ts` (128 total across 43 agents).
 
 > **Note on numbering:** The `#` column contains reference IDs for this document only. They are **not** permanent identifiers — use the agent's `name` column (e.g. `seo-specialist`) when working with the registry, routing, or code.
 
