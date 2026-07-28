@@ -10,28 +10,33 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added — Enhanced Agent Prompts & Test Guardrails
 
-**8 agent prompts enhanced** with enterprise-grade specificity (5,000+ chars each). **323+ tests passing** across 4 test files (enhanced-agents, agency-brain, workflow-validation, training-scenarios).
+**16 agent prompts enhanced** with enterprise-grade specificity (5,000+ chars each). **323+ tests passing** across 4 test files (enhanced-agents, agency-brain, workflow-validation, training-scenarios). **128 training scenarios** across all 43 agents.
 
 #### Agent Prompt Enhancements
-agency-brain, systems-architect, security-architect, product-engineer, intelligence-architect, training-architect, product-designer, seo-specialist — each with domain-specific workflows, quality gates, output formats, and INR pricing.
+- **8 initial enhanced prompts** (5,000+ chars each): agency-brain, systems-architect, security-architect, product-engineer, intelligence-architect, training-architect, product-designer, seo-specialist
+- **8 additional enhanced prompts** (6,700-8,700 chars each): researcher, writer, developer, analyst, growth-hacker, content-strategist, conversion-optimizer, video-specialist
+- Each with domain-specific workflows, quality gates, output formats, and INR pricing
 
-#### Prompt Quality Guardrails (workflow-validation.test.ts)
-- All agent prompts ≥1,000 chars; enhanced agents ≥5,000 chars
-- Role definition, VERIFY instruction, no standalone placeholders, registry sync
+#### Prompt Quality Guardrails
+- **workflow-validation.test.ts** — All agent prompts ≥1,000 chars; enhanced agents ≥5,000 chars; role definition, VERIFY instruction, no standalone placeholders, registry sync
+- **scripts/prompt-quality-gate.ts** — Standalone CI gate script validating all 43 agent prompts against minimum length thresholds
+- **package.json** — Added `prompt:quality:gate` npm script
+- **.github/workflows/ci.yml** — Added `prompt-quality` CI job (3min timeout, runs on push/PR)
 
 #### New Tests
 - **enhanced-agents.test.ts** (117 tests) — Prompt validation, registry metadata, domain-specific sections, cross-agent uniqueness
 - **agency-brain.test.ts** (74 tests) — 15-step operating loop, sub-agent roster, quality gates, INR pricing
 
-#### Training Scenarios (12 new, 74 total)
-Bug triage, code review, platform comparison, competitive moat, rubric design, failure mode training, design tokens, accessibility audit, responsive layout, local SEO, AI SEO — for product-engineer, intelligence-architect, training-architect, product-designer, seo-specialist.
+#### Training Scenarios (128 total across 43 agents)
+- **54 new scenarios** for 23 under-covered agents (orchestrator, workflow, growth-hacker, conversion-optimizer, community-manager, devops, data-scientist, api-docs-writer, agent-builder, voice, seo-strategist, super-orchestrator, competitor-intel, legal, sales-optimizer, video-specialist, ux-researcher, systems-architect, localization, finance, offer-strategist, coordinator, accessibility-auditor)
+- All 43 agents now have 3+ training scenarios each
 
 #### Documentation
 - **AGENTS.md** — Expanded from 33 to 43 agents with renumbered reference IDs
 
 ### Fixed
 - minWordCount threshold lowered from 100 to 80 in training-scenarios.test.ts (failure-004 has minWordCount=80)
-- Leading newlines removed from 5 enhanced agent prompts in registry.ts
+- Leading newlines removed from 8 enhanced agent prompts in registry.ts
 - Invalid category 'design' changed to 'technical' in training-scenarios-library.ts for product-designer scenarios
 
 ---
