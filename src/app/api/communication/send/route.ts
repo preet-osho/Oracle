@@ -5,7 +5,7 @@
 
 import { NextRequest } from 'next/server';
 import { validateAuth } from '@/lib/supabase/validate';
-import { checkRateLimit, API_WRITE_RATE_LIMIT } from '@/lib/rate-limit';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { sendMessage, sendBulkMessages, isValidEmail, isValidWhatsAppNumber, type CommunicationChannel } from '@/lib/communication-hub-server';
 

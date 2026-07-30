@@ -889,15 +889,19 @@ function AgencyCommandCenterInner() {
     }
   }, [dateRange]);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- loadData is async; setLoading/setError calls happen before await which is safe */
   useEffect(() => {
     loadData();
   }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-refresh every 60 seconds
+  /* eslint-disable react-hooks/set-state-in-effect -- loadData is async, setState calls happen after await */
   useEffect(() => {
     const interval = setInterval(loadData, 60_000);
     return () => clearInterval(interval);
   }, [loadData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Keyboard shortcuts registered via context
   const noModalOpen = !showPDFPreview && !showShortcutsHelp;

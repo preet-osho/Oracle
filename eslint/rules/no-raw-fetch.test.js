@@ -8,6 +8,7 @@
  * - Allows non-fetch identifiers and member expressions
  */
 
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { RuleTester } = require('eslint');
 const rule = require('./no-raw-fetch.js');
 

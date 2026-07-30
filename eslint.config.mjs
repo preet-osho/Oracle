@@ -43,7 +43,11 @@ const eslintConfig = [
     files: ["scripts/**/*.ts", "vitest.config.ts", "eslint.config.mjs"],
     rules: {
       "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": ["warn", {
+        argsIgnorePattern: "^_",
+        varsIgnorePattern: "^_",
+        caughtErrorsIgnorePattern: "^_",
+      }],
     },
   },
 ];

@@ -446,7 +446,6 @@ function runTestsForLevelWithCoverage(level: PriorityLevel): CoverageResult {
       }
     );
 
-    const cleanOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
     const testMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+passed/);
     const tests = testMatch ? parseInt(testMatch[1], 10) : 0;
     const duration = Date.now() - startTime;
@@ -471,7 +470,6 @@ function runTestsForLevelWithCoverage(level: PriorityLevel): CoverageResult {
     const output = (error as { stdout?: string; stderr?: string }).stdout || '';
     const errOutput = (error as { stderr?: string }).stderr || '';
 
-    const cleanErrOutput = output.replace(/\x1b\[[0-9;]*m/g, '');
     const failMatch = stripAnsi(output).match(/Tests?\s+(\d+)\s+failed/);
     const fails = failMatch ? parseInt(failMatch[1], 10) : 'unknown';
 

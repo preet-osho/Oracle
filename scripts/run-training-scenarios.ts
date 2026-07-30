@@ -223,7 +223,7 @@ function listScenariosFiltered(scenarios: TrainingScenario[], verbose: boolean) 
 // ─── Mock Agent Executor ───────────────
 
 function createMockExecutor(): AgentExecutor {
-  return async (agentName: AgentName, taskPrompt: string): Promise<string> => {
+  return async (agentName: AgentName, _taskPrompt: string): Promise<string> => {
     await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
 
     const mockResponses: Record<string, string> = {

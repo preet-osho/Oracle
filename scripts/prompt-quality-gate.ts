@@ -20,15 +20,56 @@ const MIN_PROMPT_LENGTH = 1000;
 const ENHANCED_MIN_PROMPT_LENGTH = 5000;
 
 const ENHANCED_AGENTS = [
+  // Core Agents
+  'researcher',
+  'writer',
+  'developer',
+  'analyst',
+  'strategist',
+  'marketer',
+  'designer',
+  'finance',
+  'voice',
+  'qa',
+  'coordinator',
+  'workflow',
+  // Specialist Domain Agents
+  'legal',
+  'security-auditor',
+  'data-scientist',
+  'competitor-intel',
+  'editor',
+  'localization',
+  'devops',
+  'ux-researcher',
+  'growth-hacker',
+  'seo-specialist',
+  'seo-strategist',
+  'content-strategist',
+  'conversion-optimizer',
+  'community-manager',
+  'sales-optimizer',
+  // Quality & Documentation Agents
+  'accessibility-auditor',
+  'api-docs-writer',
+  // Meta/System-Level Agents
+  'orchestrator',
   'agency-brain',
+  'lead-hunter',
+  'offer-strategist',
+  'video-specialist',
+  'web-designer',
+  // Systems-Level Agents
+  'agent-builder',
   'systems-architect',
   'security-architect',
   'product-engineer',
   'intelligence-architect',
   'training-architect',
+  // Additional
   'product-designer',
-  'seo-specialist',
-];
+  'super-orchestrator',
+] as const;
 
 const PLACEHOLDER_REGEX = /^\s*\[INSERT\b|^\s*\[TODO\b|^\s*\[TBD\b|^\s*\[YOUR_TEXT_HERE\b/;
 

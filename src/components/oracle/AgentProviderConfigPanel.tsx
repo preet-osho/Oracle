@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
+
 import {
   AGENT_REGISTRY,
   getAllAgentNames,

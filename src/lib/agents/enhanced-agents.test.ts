@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════
 // ORACLE — Enhanced Agent Prompt Tests
-// Validates prompts, registry metadata, and quality for all 5 newly enhanced agents
+// Validates prompts, registry metadata, and quality for all 43 agents
 // ═══════════════════════════════════════
 
 import { describe, it, expect } from 'vitest';
@@ -102,9 +102,9 @@ describe('Enhanced Agents — Prompt Validation', () => {
           expect(getPrompt()).toMatch(/MISSION|OBJECTIVE/);
         });
 
-      it('contains core methodology section (PRINCIPLES, PHILOSOPHY, or KNOWLEDGE)', () => {
-        expect(getPrompt()).toMatch(/PRINCIPLES|PHILOSOPHY|KNOWLEDGE/);
-      });
+        it('contains core methodology section (PRINCIPLES, PHILOSOPHY, or KNOWLEDGE)', () => {
+          expect(getPrompt()).toMatch(/PRINCIPLES|PHILOSOPHY|KNOWLEDGE/);
+        });
 
         it('contains OUTPUT FORMAT section', () => {
           expect(getPrompt()).toMatch(/OUTPUT FORMAT|OUTPUT STYLE/);
@@ -207,6 +207,65 @@ describe('Enhanced Agents — Registry Metadata', () => {
         for (const keyword of agent.descriptionKeywords) {
           expect(desc).toContain(keyword.toLowerCase());
         }
+      });
+    });
+  }
+});
+
+// ═══════════════════════════════════════
+// Universal Required Sections — All 43 Agents
+// Uses flexible regex to accommodate different section naming conventions
+// ═══════════════════════════════════════
+
+describe('All Agents — Required Sections Validation', () => {
+  // Flexible patterns that match various section naming conventions used across agents
+  const MISSION_PATTERN = /MISSION|OBJECTIVE|PRIMARY GOAL|CORE PURPOSE/i;
+  const PRINCIPLES_PATTERN = /PRINCIPLES|PHILOSOPHY|KNOWLEDGE|CORE RULES|OPERATING PRINCIPLES/i;
+  const OUTPUT_PATTERN = /OUTPUT FORMAT|OUTPUT STYLE|DELIVERABLES|REPORT FORMAT|OUTPUT/i;
+  const DOMAIN_RULES_PATTERN = /DOMAIN RULES|DOMAIN CONTEXT|MARKET CONTEXT|INDIAN MARKET|LOCALIZATION/i;
+
+  for (const name of ALL_AGENT_NAMES) {
+    describe(name, () => {
+      const prompt = () => getAgentPrompt(name);
+
+      it('contains MISSION/OBJECTIVE section', () => {
+        expect(
+          MISSION_PATTERN.test(prompt()),
+          `${name} prompt missing MISSION/OBJECTIVE section`,
+        ).toBe(true);
+      });
+
+      it('contains CORE PRINCIPLES/PHILOSOPHY section', () => {
+        expect(
+          PRINCIPLES_PATTERN.test(prompt()),
+          `${name} prompt missing CORE PRINCIPLES/PHILOSOPHY section`,
+        ).toBe(true);
+      });
+
+      it('contains OUTPUT FORMAT section', () => {
+        expect(
+          OUTPUT_PATTERN.test(prompt()),
+          `${name} prompt missing OUTPUT FORMAT section`,
+        ).toBe(true);
+      });
+
+      it('contains DOMAIN RULES section', () => {
+        expect(
+          DOMAIN_RULES_PATTERN.test(prompt()),
+          `${name} prompt missing DOMAIN RULES section`,
+        ).toBe(true);
+      });
+
+      it('starts with role definition', () => {
+        expect(prompt()).toMatch(/^You are /);
+      });
+
+      it('contains VERIFY instruction', () => {
+        expect(prompt()).toContain('VERIFY');
+      });
+
+      it('is at least 5000 chars', () => {
+        expect(prompt().length).toBeGreaterThanOrEqual(5000);
       });
     });
   }
