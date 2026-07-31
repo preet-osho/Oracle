@@ -1000,7 +1000,7 @@ function JsonHighlight({ value }: { value: unknown }) {
         j++;
       }
       const str = chars.slice(i, j + 1);
-      const inner = str.slice(1, -1);
+      const _inner = str.slice(1, -1);
 
       // Peek ahead: if followed by `:` it's a key
       const rest = chars.slice(j + 1).trimStart();

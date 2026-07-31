@@ -4,8 +4,9 @@
 // ═══════════════════════════════════════
 
 import { McpServer } from '../server';
-import type { Tool, ToolResult } from '../protocol';
-import { fetchWithTimeout, TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
+import type { Tool } from '../protocol';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- scrapeUrl used by SEO server
 import { scrapeUrl } from '@/lib/scraping';
 import { createLogger } from '@/lib/logger';
 
@@ -279,7 +280,7 @@ export function createSeoMcpServer(): McpServer {
     const industry = args.industry as string | undefined;
 
     // Generate keyword suggestions based on topic analysis
-    const baseKeywords = topic.toLowerCase().split(/\s+/);
+    const _baseKeywords = topic.toLowerCase().split(/\s+/);
     const keywords: Array<{ keyword: string; type: string; intent: string }> = [];
 
     // Seed keywords

@@ -553,7 +553,7 @@ function extractWeaknesses(results: SearchResult[]): string[] {
   return weaknesses.slice(0, 3);
 }
 
-function extractOpportunities(results: SearchResult[], competitorName: string): string[] {
+function extractOpportunities(results: SearchResult[], _competitorName: string): string[] {
   const opportunities: string[] = [];
 
   // Look for gaps in competitor's offerings
