@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════
 
 import { createLogger } from '@/lib/logger';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 import type { EmailMessage, EmailSendResult, EmailConfig } from './types';
 
 const log = createLogger('Email');
@@ -62,13 +63,14 @@ export async function sendEmail(message: EmailMessage): Promise<EmailSendResult>
     if (message.headers) body.headers = message.headers;
     if (message.tags) body.tags = message.tags;
 
-    const response = await fetch('https://api.resend.com/emails', {
+    const response = await fetchWithTimeout('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      timeoutMs: TIMEOUT_STANDARD_MS,
     });
 
     const data = await response.json();

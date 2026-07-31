@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════
 
 import { createLogger } from '@/lib/logger';
+import { TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 
 const log = createLogger('MCPServers');
 
@@ -126,7 +127,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
         outputSchema: { type: 'object', properties: { title: { type: 'string' }, content: { type: 'string' } } },
         permissions: ['web:read'],
-        timeoutMs: 30000,
+        timeoutMs: TIMEOUT_MODERATE_MS,
       },
       {
         name: 'scrape_page',
@@ -134,7 +135,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { url: { type: 'string' }, selectors: { type: 'object' } }, required: ['url'] },
         outputSchema: { type: 'object', properties: { data: { type: 'object' } } },
         permissions: ['web:read'],
-        timeoutMs: 30000,
+        timeoutMs: TIMEOUT_MODERATE_MS,
       },
     ],
   },
@@ -152,7 +153,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { query: { type: 'string' }, maxResults: { type: 'number' } }, required: ['query'] },
         outputSchema: { type: 'object', properties: { results: { type: 'array' } } },
         permissions: ['search:read'],
-        timeoutMs: 15000,
+        timeoutMs: TIMEOUT_QUICK_MS,
       },
       {
         name: 'deep_research',
@@ -160,7 +161,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { topic: { type: 'string' }, depth: { type: 'number' } }, required: ['topic'] },
         outputSchema: { type: 'object', properties: { summary: { type: 'string' }, findings: { type: 'array' } } },
         permissions: ['search:read'],
-        timeoutMs: 60000,
+        timeoutMs: TIMEOUT_STANDARD_MS,
       },
     ],
   },
@@ -178,7 +179,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { url: { type: 'string' } }, required: ['url'] },
         outputSchema: { type: 'object', properties: { score: { type: 'number' }, issues: { type: 'array' } } },
         permissions: ['seo:read', 'seo:analyze'],
-        timeoutMs: 60000,
+        timeoutMs: TIMEOUT_STANDARD_MS,
       },
       {
         name: 'keyword_research',
@@ -186,7 +187,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { seedKeywords: { type: 'array' } }, required: ['seedKeywords'] },
         outputSchema: { type: 'object', properties: { keywords: { type: 'array' } } },
         permissions: ['seo:read'],
-        timeoutMs: 30000,
+        timeoutMs: TIMEOUT_MODERATE_MS,
       },
     ],
   },
@@ -348,7 +349,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { domain: { type: 'string' } }, required: ['domain'] },
         outputSchema: { type: 'object', properties: { domain: { type: 'string' }, traffic: { type: 'object' }, seo: { type: 'object' } } },
         permissions: ['research:read'],
-        timeoutMs: 45000,
+        timeoutMs: TIMEOUT_MODERATE_MS,
       },
       {
         name: 'market_research',
@@ -356,7 +357,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { industry: { type: 'string' } }, required: ['industry'] },
         outputSchema: { type: 'object', properties: { marketSize: { type: 'object' }, trends: { type: 'array' } } },
         permissions: ['research:read'],
-        timeoutMs: 60000,
+        timeoutMs: TIMEOUT_STANDARD_MS,
       },
     ],
   },
@@ -422,7 +423,7 @@ export const MCP_SERVERS: Record<string, MCPServerDefinition> = {
         inputSchema: { type: 'object', properties: { clientId: { type: 'string' }, period: { type: 'string' } }, required: ['clientId', 'period'] },
         outputSchema: { type: 'object', properties: { reportUrl: { type: 'string' }, summary: { type: 'string' } } },
         permissions: ['reporting:read'],
-        timeoutMs: 60000,
+        timeoutMs: TIMEOUT_STANDARD_MS,
       },
     ],
   },

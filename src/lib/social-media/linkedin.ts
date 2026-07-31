@@ -157,7 +157,7 @@ export async function postImage(
     const { uploadUrl, image: imageUrn } = registerData.value;
 
     // Step 2: Upload binary image
-    const imageResp = await fetchWithTimeout(imageUrl, { timeoutMs: 30_000 });
+    const imageResp = await fetchWithTimeout(imageUrl, { timeoutMs: TIMEOUT_MODERATE_MS });
     if (!imageResp.ok) {
       return { success: false, error: `Failed to download image: ${imageResp.status}` };
     }

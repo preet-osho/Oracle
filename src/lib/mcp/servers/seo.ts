@@ -5,7 +5,7 @@
 
 import { McpServer } from '../server';
 import type { Tool, ToolResult } from '../protocol';
-import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
+import { fetchWithTimeout, TIMEOUT_QUICK_MS, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import { scrapeUrl } from '@/lib/scraping';
 import { createLogger } from '@/lib/logger';
 
@@ -393,7 +393,7 @@ export function createSeoMcpServer(): McpServer {
 
       // Check robots.txt
       try {
-        const robotsResp = await fetchWithTimeout(`${baseUrl}/robots.txt`, { timeoutMs: 10000 });
+        const robotsResp = await fetchWithTimeout(`${baseUrl}/robots.txt`, { timeoutMs: TIMEOUT_QUICK_MS });
         const robotsText = await robotsResp.text();
         const hasDisallow = robotsText.includes('Disallow:');
         const hasSitemap = robotsText.includes('Sitemap:');
@@ -404,7 +404,7 @@ export function createSeoMcpServer(): McpServer {
 
       // Check sitemap
       try {
-        const sitemapResp = await fetchWithTimeout(`${baseUrl}/sitemap.xml`, { timeoutMs: 10000 });
+        const sitemapResp = await fetchWithTimeout(`${baseUrl}/sitemap.xml`, { timeoutMs: TIMEOUT_QUICK_MS });
         checks.push({ name: 'Sitemap', status: sitemapResp.ok ? 'pass' : 'warn', detail: sitemapResp.ok ? 'sitemap.xml found' : 'sitemap.xml not found or inaccessible' });
       } catch {
         checks.push({ name: 'Sitemap', status: 'fail', detail: 'Could not fetch sitemap.xml' });

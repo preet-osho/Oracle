@@ -5,6 +5,7 @@
 
 import { createLogger } from '@/lib/logger';
 import { csrfHeaders } from '@/lib/csrf';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 
 const log = createLogger('MCP:SocialMediaExecutor');
 
@@ -63,7 +64,7 @@ export async function executeToolCall(call: ToolCall): Promise<ToolResult> {
   const startedAt = Date.now();
 
   try {
-    const response = await fetch('/api/mcp', {
+    const response = await fetchWithTimeout('/api/mcp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
       body: JSON.stringify({
@@ -75,6 +76,7 @@ export async function executeToolCall(call: ToolCall): Promise<ToolResult> {
           arguments: call.args,
         },
       }),
+      timeoutMs: TIMEOUT_STANDARD_MS,
     });
 
     if (!response.ok) {

@@ -5,6 +5,7 @@
 // ═══════════════════════════════════════
 
 import { createLogger } from '@/lib/logger';
+import { fetchWithTimeout, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 import type {
   WhatsAppConfig,
   WhatsAppMessage,
@@ -164,7 +165,7 @@ export async function markAsRead(messageId: string): Promise<boolean> {
   if (!config) return false;
 
   try {
-    const response = await fetch(
+    const response = await fetchWithTimeout(
       `${config.baseUrl}/${config.phoneNumberId}/messages`,
       {
         method: 'POST',
@@ -177,6 +178,7 @@ export async function markAsRead(messageId: string): Promise<boolean> {
           status: 'read',
           message_id: messageId,
         }),
+        timeoutMs: TIMEOUT_STANDARD_MS,
       },
     );
 
@@ -264,13 +266,14 @@ async function sendRequest(
     const url = `${config.baseUrl}/${config.phoneNumberId}/messages`;
     log.info(`Sending WhatsApp message to ${message.to} (type: ${message.type})`);
 
-    const response = await fetch(url, {
+    const response = await fetchWithTimeout(url, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${config.accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(message),
+      timeoutMs: TIMEOUT_STANDARD_MS,
     });
 
     const data = await response.json();

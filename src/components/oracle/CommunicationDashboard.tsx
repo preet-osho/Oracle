@@ -1774,7 +1774,7 @@ export function CommunicationDashboard() {
     setSendingBatch(true);
     setShowBatchConfirm(false);
     try {
-      await fetch('/api/webhooks/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batch: true, count }) });
+      await fetchWithTimeout('/api/webhooks/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batch: true, count }), timeoutMs: TIMEOUT_QUICK_MS });
       await loadData();
     } catch {
       // Silently fail
@@ -1879,7 +1879,7 @@ export function CommunicationDashboard() {
               onClick={async () => {
                 setSendingTest(true);
                 try {
-                  await fetch('/api/webhooks/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+                  await fetchWithTimeout('/api/webhooks/test', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', timeoutMs: TIMEOUT_QUICK_MS });
                   await loadData();
                 } catch {
                   // Silently fail
