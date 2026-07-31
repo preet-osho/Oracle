@@ -10,12 +10,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added — Enhanced Agent Prompts & Test Guardrails
 
-**16 agent prompts enhanced** with enterprise-grade specificity (5,000+ chars each). **323+ tests passing** across 4 test files (enhanced-agents, agency-brain, workflow-validation, training-scenarios). **128 training scenarios** across all 43 agents.
+**All 43 agent prompts enhanced** to enterprise-grade specificity (5,000+ chars each, avg 7,753 chars). **552+ tests passing** across 3 key test files (enhanced-agents, workflow-validation, agent-prompts). **128 training scenarios** across all 43 agents.
 
-#### Agent Prompt Enhancements
+#### Agent Prompt Enhancements (3 batches)
 - **8 initial enhanced prompts** (5,000+ chars each): agency-brain, systems-architect, security-architect, product-engineer, intelligence-architect, training-architect, product-designer, seo-specialist
 - **8 additional enhanced prompts** (6,700-8,700 chars each): researcher, writer, developer, analyst, growth-hacker, content-strategist, conversion-optimizer, video-specialist
-- Each with domain-specific workflows, quality gates, output formats, and INR pricing
+- **27 remaining enhanced prompts** (5,500-8,700 chars each): strategist, marketer, designer, finance, voice, qa, coordinator, workflow, legal, security-auditor, data-scientist, competitor-intel, editor, devops, ux-researcher, community-manager, sales-optimizer, accessibility-auditor, api-docs-writer, localization, lead-hunter, offer-strategist, web-designer, agent-builder, orchestrator + 2 regressed fixes (seo-strategist, super-orchestrator)
+- All prompts India-contextualized with INR pricing, tier-1/2/3 considerations, festival calendar, mobile-first behavior
 
 #### Prompt Quality Guardrails
 - **workflow-validation.test.ts** — All agent prompts ≥1,000 chars; enhanced agents ≥5,000 chars; role definition, VERIFY instruction, no standalone placeholders, registry sync
@@ -24,7 +25,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - **.github/workflows/ci.yml** — Added `prompt-quality` CI job (3min timeout, runs on push/PR)
 
 #### New Tests
-- **enhanced-agents.test.ts** (117 tests) — Prompt validation, registry metadata, domain-specific sections, cross-agent uniqueness
+- **enhanced-agents.test.ts** (418 tests) — Prompt validation, registry metadata, domain-specific sections, cross-agent uniqueness
+- **agent-prompts.test.ts** (80 tests) — System prompt usability and uniqueness for 6 agent prompts
 - **agency-brain.test.ts** (74 tests) — 15-step operating loop, sub-agent roster, quality gates, INR pricing
 
 #### Training Scenarios (128 total across 43 agents)
@@ -38,6 +40,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - minWordCount threshold lowered from 100 to 80 in training-scenarios.test.ts (failure-004 has minWordCount=80)
 - Leading newlines removed from 8 enhanced agent prompts in registry.ts
 - Invalid category 'design' changed to 'technical' in training-scenarios-library.ts for product-designer scenarios
+- Header comment in training-scenarios-library.ts corrected from "33 agents" to "43 agents"
 
 ---
 
