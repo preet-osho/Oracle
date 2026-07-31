@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════
 // ORACLE — Training Scenario Library
-// Diverse, measurable training cases for all 33 agents
+// Diverse, measurable training cases for all 43 agents
 // ═══════════════════════════════════════
 
 import type { AgentName } from '@/lib/agents/registry';
