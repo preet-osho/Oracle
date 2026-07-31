@@ -49,14 +49,14 @@ export interface ServerCapabilities {
   resources?: { subscribe?: boolean; listChanged?: boolean };
   prompts?: { listChanged?: boolean };
    
-  logging?: Record<string, never>;
+  logging?: object;
 }
 
 export interface ClientCapabilities {
    
-  sampling?: Record<string, never>;
+  sampling?: object;
    
-  elicitation?: Record<string, never>;
+  elicitation?: object;
 }
 
 // ─── Initialize ───────────────────────

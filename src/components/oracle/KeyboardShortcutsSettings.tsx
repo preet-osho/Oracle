@@ -50,6 +50,7 @@ export function KeyboardShortcutsSettings({
   const [recordedKeys, setRecordedKeys] = useState<string[]>([]);
   const [conflicts, setConflicts] = useState<ShortcutConflict[]>([]);
   const [recordingConflict, setRecordingConflict] = useState<string | null>(null);
+  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   // Get all customizations
   const customizations = useMemo(() => getCustomizations(), [getCustomizations]);
@@ -199,7 +200,6 @@ export function KeyboardShortcutsSettings({
   }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importErrors, setImportErrors] = useState<string[]>([]);
 
   // Export customizations as file download
    
