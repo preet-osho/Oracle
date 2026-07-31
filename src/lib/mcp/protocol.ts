@@ -48,12 +48,15 @@ export interface ServerCapabilities {
   tools?: { listChanged?: boolean };
   resources?: { subscribe?: boolean; listChanged?: boolean };
   prompts?: { listChanged?: boolean };
-  logging?: {};
+   
+  logging?: Record<string, never>;
 }
 
 export interface ClientCapabilities {
-  sampling?: {};
-  elicitation?: {};
+   
+  sampling?: Record<string, never>;
+   
+  elicitation?: Record<string, never>;
 }
 
 // ─── Initialize ───────────────────────

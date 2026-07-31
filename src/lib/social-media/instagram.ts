@@ -57,7 +57,7 @@ function _buildParams(config: InstagramConfig, extra?: Record<string, string>): 
   }
   return base.toString();
 }
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+ 
 void _buildParams;
 
 // ─── Public API ───────────────────────

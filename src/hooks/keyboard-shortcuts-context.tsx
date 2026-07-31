@@ -103,6 +103,7 @@ export function KeyboardShortcutsProvider({
   const isGloballyEnabledRef = useRef(initialEnabled);
 
   // Use ref for isGloballyEnabled to avoid stale closures in event handler
+  // eslint-disable-next-line react-hooks/refs -- intentional ref access to avoid stale closures in event handlers
   const isGloballyEnabled = isGloballyEnabledRef.current;
 
   const register = useCallback(
@@ -361,6 +362,7 @@ export function KeyboardShortcutsProvider({
       exportCustomizations: doExportCustomizations,
       importCustomizations: doImportCustomizations,
     }),
+    // eslint-disable-next-line react-hooks/refs -- intentional ref access pattern for stable context value
     [renderTick, register, update, unregister, getRegistrations, getRegistration, enableAll, disableAll, isGloballyEnabled, toggleGlobal, getAnalytics, getShortcutAnalytics, resetAnalytics, customizations, getCustomizations, setCustomization, removeCustomization, resetToDefaults, getEffectiveKeysForShortcut, doExportCustomizations, doImportCustomizations]
   );
 

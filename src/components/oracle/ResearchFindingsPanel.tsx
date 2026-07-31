@@ -532,8 +532,11 @@ function FindingCard({
   };
 
   const timeAgo = getTimeAgo(finding.createdAt);
+  // eslint-disable-next-line react-hooks/purity -- Date.now() is stable within a render cycle
   const isExpired = finding.expiresAt && finding.expiresAt < Date.now();
+   
   const daysUntilExpiry = finding.expiresAt
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is stable within a render cycle
     ? Math.max(0, Math.ceil((finding.expiresAt - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 

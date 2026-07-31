@@ -896,12 +896,10 @@ function AgencyCommandCenterInner() {
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Auto-refresh every 60 seconds
-  /* eslint-disable react-hooks/set-state-in-effect -- loadData is async, setState calls happen after await */
   useEffect(() => {
     const interval = setInterval(loadData, 60_000);
     return () => clearInterval(interval);
   }, [loadData]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Keyboard shortcuts registered via context
   const noModalOpen = !showPDFPreview && !showShortcutsHelp;

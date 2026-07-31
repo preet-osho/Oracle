@@ -383,7 +383,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
     expect(screen.getByText('⭐ Quality Distribution')).toBeDefined();
     // 4 histogram bars (one per bucket) — scope to histogram section only
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const histogramBars = within(histogramSection).getAllByTestId('histogram-bar');
     expect(histogramBars.length).toBe(4);
   });
@@ -410,7 +410,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')! as HTMLElement;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const bars = within(histogramSection).getAllByTestId('histogram-bar');
     expect(bars.length).toBe(4);
 
@@ -443,7 +443,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')! as HTMLElement;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const bars = within(histogramSection).getAllByTestId('histogram-bar');
 
     // QUALITY_BUCKET_COLORS = ['#ef4444', '#f59e0b', '#10b981', '#06b6d4']
@@ -480,7 +480,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const histogramBars = within(histogramSection).getAllByTestId('histogram-bar');
     histogramBars.forEach((bar) => {
       expect(bar.className).toContain('transition-all');
@@ -506,7 +506,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const histogramBars = within(histogramSection).getAllByTestId('histogram-bar');
     // Each bar fills its container width (w-full) - the parent div provides flex-1 for equal distribution
     histogramBars.forEach((bar) => {
@@ -561,7 +561,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const histogramBars = within(histogramSection).getAllByTestId('histogram-bar');
     expect(histogramBars.length).toBe(4);
     // Bar 0: "0-25%: 1 score" (singular)
@@ -595,7 +595,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
     // Check the histogram section has count text for non-zero buckets
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const countTexts = within(histogramSection).getAllByText(/^\d+$/);
     // Counts displayed: 1, 0, 1, 2
     const counts = countTexts.map((el) => el.textContent);
@@ -625,7 +625,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     const bars = within(histogramSection).getAllByTestId('histogram-bar');
     // Only the last bar (75-100%) has count=1, maxCount=1, so height = 100%
     expect(bars[3].getAttribute('style')).toContain('height: 100%');
@@ -662,7 +662,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
     expect(screen.getByText('📋 Per-Agent Distribution')).toBeDefined();
     // researcher should be listed in the per-agent section
-    const agentSection = screen.getByText('📋 Per-Agent Distribution').closest('[role="figure"]')!;
+    const agentSection = screen.getByText('📋 Per-Agent Distribution').closest('[role="figure"]') as HTMLElement;
     expect(within(agentSection).getByText('researcher')).toBeDefined();
   });
 
@@ -688,7 +688,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const agentSection = screen.getByText('📋 Per-Agent Distribution').closest('[role="figure"]')!;
+    const agentSection = screen.getByText('📋 Per-Agent Distribution').closest('[role="figure"]') as HTMLElement;
     const bucketCounts = within(agentSection).getAllByText('1');
     expect(bucketCounts.length).toBeGreaterThanOrEqual(1);
     const twoCounts = within(agentSection).getAllByText('2');
@@ -746,7 +746,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     renderDashboard();
 
     expect(await screen.findByText('⚡ GOD MODE Training Impact')).toBeDefined();
-    const providerSection = screen.getByText('📡 Per-Provider Distribution').closest('[role="figure"]')!;
+    const providerSection = screen.getByText('📡 Per-Provider Distribution').closest('[role="figure"]') as HTMLElement;
     const bucketCounts = within(providerSection).getAllByText('1');
     expect(bucketCounts.length).toBeGreaterThanOrEqual(1);
     const twoCounts = within(providerSection).getAllByText('2');
@@ -801,7 +801,7 @@ describe('TrainingDashboard GOD MODE visualizations', () => {
     expect(screen.getByRole('img', { name: /Quality trend/ })).toBeDefined();
     // Histogram
     expect(screen.getByText('⭐ Quality Distribution')).toBeDefined();
-    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4')!;
+    const histogramSection = screen.getByText('⭐ Quality Distribution').closest('.mt-4') as HTMLElement;
     expect(within(histogramSection).getAllByTestId('histogram-bar').length).toBe(4);
     // Per-Agent
     expect(screen.getByText('📋 Per-Agent Distribution')).toBeDefined();

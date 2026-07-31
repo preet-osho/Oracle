@@ -170,6 +170,9 @@ describe('Enhanced Agents — Prompt Validation', () => {
 // ═══════════════════════════════════════
 
 describe('Enhanced Agents — Registry Metadata', () => {
+  // Single cast to avoid repeated type assertions
+  const reg = AGENT_REGISTRY as Record<string, { category: string; description: string; taskFocus: string; prompt: string }>;
+
   for (const agent of AGENTS) {
     describe(agent.name, () => {
       it('is listed in ALL_AGENT_NAMES', () => {
@@ -177,23 +180,23 @@ describe('Enhanced Agents — Registry Metadata', () => {
       });
 
       it('has an entry in AGENT_REGISTRY', () => {
-        expect(AGENT_REGISTRY[agent.name]).toBeDefined();
+        expect(reg[agent.name]).toBeDefined();
       });
 
       it(`has category "${agent.category}"`, () => {
-        expect(AGENT_REGISTRY[agent.name].category).toBe(agent.category);
+        expect(reg[agent.name].category).toBe(agent.category);
       });
 
       it('has a non-empty description', () => {
-        expect(AGENT_REGISTRY[agent.name].description.length).toBeGreaterThan(20);
+        expect(reg[agent.name].description.length).toBeGreaterThan(20);
       });
 
       it('has a non-empty taskFocus', () => {
-        expect(AGENT_REGISTRY[agent.name].taskFocus.length).toBeGreaterThan(20);
+        expect(reg[agent.name].taskFocus.length).toBeGreaterThan(20);
       });
 
       it('prompt in AGENT_REGISTRY matches getAgentPrompt', () => {
-        expect(AGENT_REGISTRY[agent.name].prompt).toBe(getAgentPrompt(agent.name));
+        expect(reg[agent.name].prompt).toBe(getAgentPrompt(agent.name));
       });
 
       it('getAgentMetadata returns non-null with correct category', () => {
@@ -203,7 +206,7 @@ describe('Enhanced Agents — Registry Metadata', () => {
       });
 
       it('description mentions key domain terms', () => {
-        const desc = AGENT_REGISTRY[agent.name].description.toLowerCase();
+        const desc = reg[agent.name].description.toLowerCase();
         for (const keyword of agent.descriptionKeywords) {
           expect(desc).toContain(keyword.toLowerCase());
         }

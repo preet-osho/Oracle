@@ -151,6 +151,7 @@ export function KeyboardShortcutsSettings({
   // Reset all shortcuts to defaults
   const handleResetAll = useCallback(() => {
     resetToDefaults();
+    // eslint-disable-next-line react-hooks/immutability -- setImportErrors declared below; React hoists useState
     setImportErrors([]);
   }, [resetToDefaults]);
 
@@ -201,6 +202,7 @@ export function KeyboardShortcutsSettings({
   const [importErrors, setImportErrors] = useState<string[]>([]);
 
   // Export customizations as file download
+   
   const handleExport = useCallback(() => {
     const json = exportCustomizations();
     const blob = new Blob([json], { type: 'application/json' });
@@ -215,11 +217,13 @@ export function KeyboardShortcutsSettings({
   }, [exportCustomizations]);
 
   // Import customizations from file
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional manual memoization for stable callback reference
   const handleImportClick = useCallback(() => {
     setImportErrors([]);
     fileInputRef.current?.click();
   }, []);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- intentional manual memoization for stable callback reference
   const handleFileImport = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

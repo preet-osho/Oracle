@@ -574,9 +574,9 @@ describe('formatMarkdownForAI', () => {
 
   it('handles null-like input gracefully', async () => {
     const { formatMarkdownForAI } = await freshImport();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     expect(formatMarkdownForAI(null as any)).toBe('');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     expect(formatMarkdownForAI(undefined as any)).toBe('');
   });
 });

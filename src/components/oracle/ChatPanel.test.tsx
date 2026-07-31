@@ -8,8 +8,8 @@ import { NeverStopRouter } from '@/lib/router';
 // ─── Shared CJS mocks (loaded via require inside vi.hoisted so they're available to vi.mock() factories) ───
 // Uses the shared factory from test-utils.mocks.cjs to create mock instances and
 // vi.mock() factory objects, eliminating ~15 lines of inline mock definitions.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { m, factories } = vi.hoisted(() => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const SHARED = require('./test-utils.mocks.cjs');
   const m = SHARED.createChatPanelMockInstances(vi.fn);
   const factories = SHARED.createChatPanelMockFactories(m, vi.fn);

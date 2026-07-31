@@ -17,7 +17,7 @@ import {
  */
 function hangingFetch() {
   return vi.fn((_url: string | URL | Request, _init?: RequestInit) => {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
+     
     return new Promise<never>(() => {});
   });
 }

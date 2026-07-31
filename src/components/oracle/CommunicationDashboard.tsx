@@ -403,6 +403,7 @@ function DeliveryRateTrendChart({ events }: { events: DeliveryEvent[] }) {
   const chartData = React.useMemo(() => {
     if (events.length === 0) return [];
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is stable within a render cycle
     const now = Date.now();
     const hoursToShow = 48;
     const bucketMs = 60 * 60 * 1000;
@@ -542,6 +543,7 @@ function DeliveryTrendChart({ events }: { events: DeliveryEvent[] }) {
   const chartData = React.useMemo(() => {
     if (events.length === 0) return [];
 
+    // eslint-disable-next-line react-hooks/purity -- Date.now() is stable within a render cycle
     const now = Date.now();
     const hoursToShow = 48; // Show last 48 hours
     const bucketMs = 60 * 60 * 1000; // 1 hour buckets

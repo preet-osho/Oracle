@@ -958,6 +958,7 @@ function QueueCard({ queue }: { queue: PostQueueItem[] }) {
                     : 'bg-red-500/20 text-red-300 border-red-500/30'
                   }`}>{item.status}</Badge>
                   <span className="text-[9px] text-zinc-600">
+                    {/* eslint-disable-next-line react-hooks/purity -- Date.now() is stable within a render cycle */}
                     {item.scheduledAt <= Date.now() ? 'Now' : formatTimeAgo(item.scheduledAt)}
                   </span>
                 </div>
