@@ -7,7 +7,7 @@ import { useRouterStore } from '@/stores/router.store';
 import { conversationsApi, knowledgeDocsApi, projectsApi, memoriesApi } from '@/lib/api';
 import { processDocument, retrieveRelevant, chunkText, indexDocument } from '@/lib/rag';
 import { sanitizeDocumentContent, sanitizeSearchResults, sanitizeExternalContext } from '@/lib/prompt-sanitizer';
-import { getMemories, formatMemoryForContext } from '@/lib/memory';
+import { getMemories, formatMemoryForContext, maybeAutoExtractMemories, resetAutoExtractionState } from '@/lib/memory';
 import { QUALITY_SCORING_PROMPT, SOCIAL_MEDIA_TOOL_CONTEXT } from '@/lib/system-prompt';
 import { saveQualityScore } from '@/lib/quality';
 import {runHallucinationGuard, loadGuardConfig} from '@/lib/hallucination-guard';
@@ -434,6 +434,8 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     setActiveConversationId(null);
     setConversationTitle('New Chat');
     setAgentType('orchestrator');
+    // Reset memory extraction state for the previous project
+    if (effectiveProjectId) resetAutoExtractionState(effectiveProjectId);
     setGodModeEnabled(false);
     setQualityScores({});
     setGuardResults({});
@@ -446,7 +448,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
     setIsLoopActive(false);
     setShowConversationList(false);
     persistedCountRef.current = 0;
-  }, []);
+  }, [effectiveProjectId]);
 
   // ── Refresh conversation list ──
   const refreshConversations = useCallback(async () => {
@@ -1067,6 +1069,11 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
 
+        // Auto-extract memories in background (fire-and-forget)
+        if (effectiveProjectId) {
+          maybeAutoExtractMemories(effectiveProjectId, finalMessages.map((m) => ({ role: m.role, content: m.content })));
+        }
+
         // Record GOD MODE metrics if active, else record normal message tokens
         const tokensUsed = inputTokens + outputTokens;
         const wasSuccessful = fullText.length > 0;
@@ -1193,6 +1200,11 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
         const finalMessages = [...newMessages, completedAssistant];
         saveConversation(finalMessages, title, agentType);
 
+        // Auto-extract memories in background (fire-and-forget)
+        if (effectiveProjectId) {
+          maybeAutoExtractMemories(effectiveProjectId, finalMessages.map((m) => ({ role: m.role, content: m.content })));
+        }
+
         // Record GOD MODE metrics if active, else record normal message tokens
         const tokensUsed = result.inputTokens + result.outputTokens;
         const wasSuccessful = result.text.length > 0;
@@ -1259,7 +1271,7 @@ export function ChatPanel({ onSidebarToggle, sidebarOpen, activeProjectId, webSe
       setIsStreaming(false);
     }
       // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchDailyUsage is stable ([] deps)
-  }, [input, isStreaming, streamingEnabled, agentType, conversationTitle, buildAIContext, recordUsage, saveConversation, scoreResponse, runGuardCheck, runOutputEval, runEditorCheck, runAgencyQualityGate, attachments, getOptimizedMessages, webSearchEnabled, configuredProviders, fetchDailyUsage]);
+  }, [input, isStreaming, streamingEnabled, agentType, conversationTitle, buildAIContext, recordUsage, saveConversation, scoreResponse, runGuardCheck, runOutputEval, runEditorCheck, runAgencyQualityGate, attachments, getOptimizedMessages, webSearchEnabled, configuredProviders, fetchDailyUsage, effectiveProjectId]);
 
   // ── Regenerate Response ──
   const handleRegenerate = useCallback((assistantMsgId: string) => {

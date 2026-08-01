@@ -158,6 +158,74 @@ If nothing new worth remembering, return an empty array [].`;
   }
 }
 
+// ─── Auto-Extract Memories from Chat ───
+
+/**
+ * Tracks last extraction state per client to avoid extracting on every message.
+ * Key: clientId, Value: { messageCount: number, lastExtractionAt: number }
+ */
+const extractionState = new Map<string, { messageCount: number; lastExtractionAt: number }>();
+
+/** Minimum messages between extractions (client-side throttle) */
+const MIN_MESSAGES_BETWEEN_EXTRACTIONS = 5;
+
+/** Minimum time between extractions (ms) — 2 minutes */
+const MIN_TIME_BETWEEN_EXTRACTIONS = 2 * 60 * 1000;
+
+/** Minimum user messages required before extraction triggers */
+const MIN_USER_MESSAGES = 2;
+
+/**
+ * Called after each chat response to track message counts and trigger
+ * background memory extraction when thresholds are met.
+ *
+ * This function is fire-and-forget — it never blocks the chat response.
+ *
+ * @param clientId - The project/client ID to store memories for
+ * @param messages - The full conversation message array
+ */
+export function maybeAutoExtractMemories(
+  clientId: string,
+  messages: Array<{ role: string; content: string }>,
+): void {
+  if (!clientId) return;
+
+  const state = extractionState.get(clientId) ?? { messageCount: 0, lastExtractionAt: 0 };
+  state.messageCount++;
+
+  // Check thresholds
+  const userMessageCount = messages.filter((m) => m.role === 'user').length;
+  const timeSinceLast = Date.now() - state.lastExtractionAt;
+
+  const meetsMessageThreshold = state.messageCount >= MIN_MESSAGES_BETWEEN_EXTRACTIONS;
+  const meetsTimeThreshold = timeSinceLast >= MIN_TIME_BETWEEN_EXTRACTIONS;
+  const meetsUserThreshold = userMessageCount >= MIN_USER_MESSAGES;
+
+  extractionState.set(clientId, state);
+
+  if (!meetsMessageThreshold || !meetsTimeThreshold || !meetsUserThreshold) return;
+
+  // Reset counter
+  state.messageCount = 0;
+  state.lastExtractionAt = Date.now();
+
+  // Fire-and-forget: extract in background, don't block chat
+  const conversationText = messages
+    .map((m) => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+    .join('\n\n');
+
+  extractAndSaveMemories(clientId, conversationText).catch(() => {
+    // Non-critical: extraction failures are logged inside extractAndSaveMemories
+  });
+}
+
+/**
+ * Reset extraction state for a client (e.g., when starting a new conversation)
+ */
+export function resetAutoExtractionState(clientId: string): void {
+  extractionState.delete(clientId);
+}
+
 // ─── Get All Client IDs ────────────────
 
 export async function getAllClientIds(): Promise<string[]> {
