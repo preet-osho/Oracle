@@ -28,7 +28,7 @@ import { fetchWithTimeout, TIMEOUT_QUICK_MS } from '@/lib/fetch-utils';
 // ─── Lazy Load Tabs ───────────────────
 const PromptsTab = lazy(() => import('./PromptsTab').then((m) => ({ default: m.PromptsTab })));
 const TestCasesTab = lazy(() => import('./TestCasesTab').then((m) => ({ default: m.TestCasesTab })));
-const WorkflowsTab = lazy(() => import('./WorkflowsTab').then((m) => ({ default: m.WorkflowsTab })));
+const WorkflowTemplatesPanel = lazy(() => import('./WorkflowTemplatesPanel').then((m) => ({ default: m.WorkflowTemplatesPanel })));
 const ProjectsTab = lazy(() => import('./ProjectsTab').then((m) => ({ default: m.ProjectsTab })));
 const RoadmapTab = lazy(() => import('./RoadmapTab').then((m) => ({ default: m.RoadmapTab })));
 const ConfigTab = lazy(() => import('./ConfigTab').then((m) => ({ default: m.ConfigTab })));
@@ -233,7 +233,16 @@ export function AppShell() {
       case 'test':
         return <TestCasesTab onAskQuestion={() => setActiveTab('agent')} />;
       case 'flows':
-        return <WorkflowsTab onRunPrompt={() => setActiveTab('agent')} />;
+        return (
+          <div className="flex h-full flex-col">
+            <div className="flex-1 overflow-hidden">
+              <WorkflowTemplatesPanel onRunWorkflow={(prompt) => {
+                emit('oracle-quick-action', { prompt });
+                setActiveTab('agent');
+              }} />
+            </div>
+          </div>
+        );
       case 'projects':
         return <ProjectsTab onAskOracle={() => setActiveTab('agent')} />;
       case 'analytics':

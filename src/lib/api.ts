@@ -303,6 +303,50 @@ export interface ApiConversation {
   updated_at: number;
 }
 
+// ─── Workflow Templates ──────────────
+
+export interface ApiWorkflowTemplate {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string;
+  color: string;
+  estimated_time: string;
+  domains: string[];
+  steps: Array<{
+    id: string;
+    name: string;
+    description: string;
+    prompt: string;
+    agent?: string;
+  }>;
+  is_builtin: boolean;
+  use_count: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export const workflowTemplatesApi = {
+  list: () => apiFetch<ApiWorkflowTemplate[]>('/api/workflow-templates'),
+
+  create: (data: Omit<ApiWorkflowTemplate, 'id' | 'org_id' | 'is_builtin' | 'use_count' | 'created_at' | 'updated_at'>) =>
+    apiFetch<ApiWorkflowTemplate>('/api/workflow-templates', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<Pick<ApiWorkflowTemplate, 'name' | 'description' | 'color' | 'estimated_time' | 'domains' | 'steps' | 'use_count'>>) =>
+    apiFetch<ApiWorkflowTemplate>(`/api/workflow-templates/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ success: boolean }>(`/api/workflow-templates/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 export const conversationsApi = {
   list: () => apiFetch<ApiConversation[]>('/api/conversations'),
 
