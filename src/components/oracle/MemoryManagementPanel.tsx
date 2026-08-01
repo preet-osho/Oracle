@@ -143,6 +143,7 @@ export function MemoryManagementPanel({ projectId }: MemoryManagementPanelProps)
 
   // ── Delete memory ──
   const deleteMemory = useCallback(async (id: string) => {
+    if (!confirm('Are you sure you want to delete this memory?')) return;
     setDeletingId(id);
     try {
       await memoriesApi.delete(id);
