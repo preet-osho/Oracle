@@ -11,7 +11,7 @@ import { calculateCost } from '@/lib/ai-constants';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { checkRateLimit, AI_CHAT_RATE_LIMIT } from '@/lib/rate-limit';
 import { decrypt as decryptKey } from '@/lib/encryption';
-import { sanitizeSystemPrompt, sanitizeMessages } from '@/lib/prompt-sanitizer';
+import { sanitizeSystemPrompt, sanitizeMessages, sanitizeSearchResults } from '@/lib/prompt-sanitizer';
 import { fetchWithTimeout, TIMEOUT_STREAMING_MS, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 import { recordCost } from '@/lib/cost-tracker';
 import { recordProviderHealth } from '@/lib/provider-health-server';
@@ -214,12 +214,30 @@ export async function POST(request: NextRequest) {
           apiKeys: searchApiKeys,
         });
 
+        // ── SECURITY: Sanitize search results before injecting into AI context ──
+        // Prevents indirect prompt injection via crafted search snippets
+        const allSearchResults = searchData.flatMap((r) => r.results);
+        const sanitizedResults = sanitizeSearchResults(allSearchResults, {
+          userId: auth.user?.id,
+          route: '/api/ai/chat-with-research',
+        });
+
+        // Rebuild searchData with sanitized results (preserving provider structure)
+        let sanitizedIdx = 0;
+        searchData = searchData.map((providerResult) => {
+          const count = providerResult.results.length;
+          const results = sanitizedResults.slice(sanitizedIdx, sanitizedIdx + count);
+          sanitizedIdx += count;
+          return { ...providerResult, results, totalResults: results.length };
+        });
+
         searchContext = formatResearchForAI(searchData);
 
         log.info('Web search completed', {
           query: lastUserMessage.slice(0, 50),
           providers: searchData.length,
           totalResults: searchData.reduce((sum, r) => sum + r.totalResults, 0),
+          sanitizedResults: sanitizedResults.length,
         });
       } catch (error) {
         log.error('Web search failed', { error: error instanceof Error ? error.message : 'Unknown' });
@@ -439,5 +457,3 @@ async function handleSync(
     );
   }
 }
-
-
