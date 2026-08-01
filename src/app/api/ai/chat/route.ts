@@ -5,18 +5,14 @@
 // ═══════════════════════════════════════
 
 import { NextRequest } from 'next/server';
-import { validateAuth } from '@/lib/supabase/validate';
 import { PROVIDERS } from '@/data/providers';
 import { calculateCost } from '@/lib/ai-constants';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
-import { checkRateLimit, AI_CHAT_RATE_LIMIT } from '@/lib/rate-limit';
-import { decrypt as decryptKey } from '@/lib/encryption';
-import { sanitizeSystemPrompt, sanitizeMessages } from '@/lib/prompt-sanitizer';
-import { fetchWithTimeout, TIMEOUT_STREAMING_MS, TIMEOUT_STANDARD_MS } from '@/lib/fetch-utils';
 import { recordCost } from '@/lib/cost-tracker';
 import { recordProviderHealth } from '@/lib/provider-health-server';
-import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';import { getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit} from '@/lib/subscription';
+import { recordSuccess, recordFailure } from '@/lib/circuit-breaker';
 import { streamAnthropic, streamOpenAICompatible, callAnthropicSync, callOpenAISync } from './shared';
+import { runAuthMiddleware, type AuthData } from './middleware';
 
 
 // ─── Request Body ──────────────────────
@@ -33,73 +29,7 @@ interface ChatRequest {
 // ─── POST Handler ──────────────────────
 
 export async function POST(request: NextRequest) {
-  // 0. Initialize circuit breaker (loads state from Supabase on first cold start)
-  await initCircuitBreaker();
-
-  // 1. Authenticate
-  const auth = await validateAuth();
-  if ('error' in auth) return auth.error;
-  if (!auth.org) return Response.json({ error: "No organization found. Create or join an organization first." }, { status: 400 });
-
-  // 2. Subscription-based daily limit enforcement (atomic increment + check)
-  const subscription = await getUserSubscription(auth.user.id);
-  const planId = getEffectivePlan(subscription);
-
-  const dailyCheck = await incrementAndCheckDailyLimit(auth.user.id, planId);
-  if (!dailyCheck.allowed) {
-    writeAuditLog({
-      userId: auth.user.id,
-      action: AUDIT_ACTIONS.AI_CHAT,
-      entityType: 'ai_request',
-      metadata: { blocked: true, reason: 'daily_limit', planId, used: dailyCheck.used, limit: dailyCheck.limit },
-    });
-    return Response.json(
-      {
-        error: `Daily limit reached (${dailyCheck.used}/${dailyCheck.limit}). Upgrade your plan for more requests.`,
-        code: 'DAILY_LIMIT_EXCEEDED',
-        used: dailyCheck.used,
-        limit: dailyCheck.limit,
-        upgradeUrl: '/pricing',
-      },
-      { status: 403 }
-    );
-  }
-
-  // 3. Rate limit (per-user, 10 req/min)
-  const rateLimitKey = `ai:chat:${auth.user.id}`;
-  const rateLimit = await checkRateLimit(rateLimitKey, AI_CHAT_RATE_LIMIT);
-  if (!rateLimit.allowed) {
-    writeAuditLog({
-      userId: auth.user.id,
-      action: AUDIT_ACTIONS.RATE_LIMIT_EXCEEDED,
-      entityType: 'ai_chat',
-      metadata: { remaining: rateLimit.remaining, resetAt: rateLimit.resetAt },
-    });
-    return Response.json(
-      { error: 'Rate limit exceeded. Please wait before sending another request.' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(Math.ceil((rateLimit.resetAt - Date.now()) / 1000)),
-          'X-RateLimit-Limit': String(AI_CHAT_RATE_LIMIT.maxRequests),
-          'X-RateLimit-Remaining': String(rateLimit.remaining),
-          'X-RateLimit-Reset': String(Math.ceil(rateLimit.resetAt / 1000)),
-        },
-      }
-    );
-  }
-
-  // Log near-limit usage for abuse pattern detection (≤2 remaining)
-  if (rateLimit.remaining <= 2) {
-    writeAuditLog({
-      userId: auth.user.id,
-      action: AUDIT_ACTIONS.RATE_LIMIT_WARNING,
-      entityType: 'ai_chat',
-      metadata: { remaining: rateLimit.remaining, resetAt: rateLimit.resetAt },
-    });
-  }
-
-  // 4. Parse body
+  // Parse body first (needed by middleware)
   let body: ChatRequest;
   try {
     body = await request.json();
@@ -107,134 +37,42 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { messages, providerId, modelId, maxTokens, stream } = body;
+  // Run all auth/rate-limiting/sanitization checks
+  const result = await runAuthMiddleware(request, body, '/api/ai/chat');
+  if (result instanceof Response) return result;
 
-  // Sanitize user-supplied systemPrompt to prevent prompt injection
-  const { sanitized: systemPrompt, threatsDetected, riskLevel } = sanitizeSystemPrompt(body.systemPrompt, {
-    userId: auth.user?.id,
-    route: '/api/ai/chat',
-  });
+  const { auth, providerId, modelId, apiKey, provider, messages, systemPrompt, maxTokens, stream } = result;
+  const authData = auth as unknown as AuthData;
 
-  if (riskLevel === 'critical') {
-    writeAuditLog({
-      userId: auth.user.id,
-      action: 'PROMPT_INJECTION_BLOCKED',
-      entityType: 'security',
-      metadata: { threats: threatsDetected, riskLevel },
-    });
-    return Response.json(
-      { error: 'Request blocked: potential prompt injection detected.' },
-      { status: 400 }
-    );
-  }
-
-  if (!messages || !Array.isArray(messages) || messages.length === 0) {
-    return Response.json({ error: 'messages array is required' }, { status: 400 });
-  }
-
-  // Sanitize all user messages to prevent prompt injection via message content
-  const { sanitizedMessages, threatsDetected: msgThreats, riskLevel: msgRisk, blocked } = sanitizeMessages(messages, {
-    userId: auth.user?.id,
-    route: '/api/ai/chat',
-  });
-
-  if (blocked) {
-    writeAuditLog({
-      userId: auth.user.id,
-      action: 'PROMPT_INJECTION_BLOCKED',
-      entityType: 'security',
-      metadata: { threats: msgThreats, riskLevel: msgRisk, source: 'messages' },
-    });
-    return Response.json(
-      { error: 'Request blocked: potential prompt injection detected in messages.' },
-      { status: 400 }
-    );
-  }
-
-  // 5. Look up API key from server-side storage (user_api_keys table)
-  //    Keys are encrypted at rest and never exposed to the browser
-  const clientHeaders = request.headers;
-  const resolvedProviderId = clientHeaders.get('x-oracle-provider-id') || providerId || 'groq';
-  const resolvedModelId = clientHeaders.get('x-oracle-model-id') || modelId;
-
-  // Fetch the decrypted key from the database
-  const { data: keyRow, error: keyError } = await auth.supabase
-    .from('user_api_keys')
-    .select('encrypted_key')
-    .eq('org_id', auth.org.orgId)
-    .eq('provider_id', resolvedProviderId)
-    .eq('is_active', true)
-    .single();
-
-  if (keyError || !keyRow) {
-    return Response.json(
-      { error: `No API key configured for ${resolvedProviderId}. Add one in Settings → API Keys.` },
-      { status: 400 }
-    );
-  }
-
-  // Decrypt the key server-side
-  const apiKey = decryptKey(keyRow.encrypted_key);
-
-  if (!apiKey) {
-    return Response.json(
-      { error: 'Failed to decrypt API key' },
-      { status: 500 }
-    );
-  }
-
-  const provider = PROVIDERS.find((p) => p.id === resolvedProviderId);
-  if (!provider) {
-    return Response.json({ error: `Unknown provider: ${resolvedProviderId}` }, { status: 400 });
-  }
-
-  const finalModelId = resolvedModelId || provider.models[0]?.id;
-  if (!finalModelId) {
-    return Response.json({ error: 'No model specified' }, { status: 400 });
-  }
-
-  // 6. Build messages payload (using sanitized messages)
+  // Build messages payload (using sanitized messages)
   const apiMessages: Array<{ role: string; content: string }> = [];
   if (systemPrompt) {
-    if (resolvedProviderId === 'anthropic') {
+    if (providerId === 'anthropic') {
       // Anthropic uses separate system param
     } else {
       apiMessages.push({ role: 'system', content: systemPrompt });
     }
   }
-  apiMessages.push(...sanitizedMessages);
+  apiMessages.push(...messages);
 
-  // 7. Determine streaming mode
-  const isStream = stream !== false; // default to streaming
-
-  // 8. Audit log the AI request (fire-and-forget, persists to audit_logs table)
+  // Audit log the AI request
   writeAuditLog({
-    userId: auth.user.id,
+    userId: authData.user.id,
     action: AUDIT_ACTIONS.AI_CHAT,
     entityType: 'ai_request',
     metadata: {
-      provider: resolvedProviderId,
-      model: finalModelId,
-      messageCount: messages.length,
-      stream: isStream,
+      provider: providerId,
+      model: modelId,
+      messageCount: body.messages?.length || 0,
+      stream,
     },
   });
 
-  // 9. Check circuit breaker — skip known-failing providers
-  if (!isAvailable(resolvedProviderId)) {
-    const unavailable = getUnavailableProviders();
-    return Response.json(
-      { error: `Provider ${resolvedProviderId} is temporarily unavailable (circuit breaker open). Unavailable: ${unavailable.join(', ')}. Please try another provider or wait a few minutes.` },
-      { status: 503 }
-    );
-  }
-
-  // 10. Route to provider (streaming or sync)
-
-  if (isStream) {
-    return handleStreaming(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, auth.user.id);
+  // Route to provider (streaming or sync)
+  if (stream) {
+    return handleStreaming(providerId, modelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, authData.user.id);
   } else {
-    return handleSync(resolvedProviderId, finalModelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, auth.user.id);
+    return handleSync(providerId, modelId, apiKey, provider, apiMessages, systemPrompt, maxTokens, authData.user.id);
   }
 }
 
