@@ -19,7 +19,7 @@ export interface ApiKeyInfo {
 
 import { getCsrfToken } from '@/lib/csrf';
 import { fetchWithTimeout } from '@/lib/fetch-utils';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { type SupabaseClient } from '@supabase/supabase-js';
 import { decrypt } from '@/lib/encryption';
 import { createLogger } from '@/lib/logger';
 import type { SearchProvider } from '@/lib/research';
@@ -136,50 +136,3 @@ export async function lookupUserSearchKeys(
   }
 }
 
-/**
- * Look up user search API keys using a standalone Supabase client.
- * Use this when you don't already have a Supabase client from auth.
- */
-export async function lookupUserSearchKeysByOrgId(
-  orgId: string,
-): Promise<Partial<Record<SearchProvider, string>> | undefined> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-
-  return lookupUserSearchKeys(supabase, orgId);
-}
-
-/**
- * Look up a single AI provider API key for a user/org.
- *
- * @param supabase - Supabase client
- * @param orgId - Organization ID
- * @param providerId - Provider ID (e.g., 'openai', 'anthropic', 'groq')
- * @returns Decrypted API key, or null if not found
- */
-export async function lookupProviderApiKey(
-  supabase: SupabaseClient,
-  orgId: string,
-  providerId: string,
-): Promise<string | null> {
-  try {
-    const { data: keyRow, error: keyError } = await supabase
-      .from('user_api_keys')
-      .select('encrypted_key')
-      .eq('org_id', orgId)
-      .eq('provider_id', providerId)
-      .eq('is_active', true)
-      .single();
-
-    if (keyError || !keyRow) {
-      return null;
-    }
-
-    return decrypt(keyRow.encrypted_key);
-  } catch (err) {
-    log.error(`Error looking up provider API key for ${providerId}: ${err}`);
-    return null;
-  }
-}
