@@ -32,7 +32,7 @@ const WorkflowTemplatesPanel = lazy(() => import('./WorkflowTemplatesPanel').the
 const ProjectsTab = lazy(() => import('./ProjectsTab').then((m) => ({ default: m.ProjectsTab })));
 const RoadmapTab = lazy(() => import('./RoadmapTab').then((m) => ({ default: m.RoadmapTab })));
 const ConfigTab = lazy(() => import('./ConfigTab').then((m) => ({ default: m.ConfigTab })));
-const AnalyticsTab = lazy(() => import('./AnalyticsTab').then((m) => ({ default: m.AnalyticsTab })));
+const EnhancedAnalyticsDashboard = lazy(() => import('./EnhancedAnalyticsDashboard').then((m) => ({ default: m.EnhancedAnalyticsDashboard })));
 const QualityTab = lazy(() => import('./QualityTab').then((m) => ({ default: m.QualityTab })));
 const MemoryManagementPanel = lazy(() => import('./MemoryManagementPanel').then((m) => ({ default: m.MemoryManagementPanel })));
 const OrchestratorPanel = lazy(() => import('./OrchestratorPanel').then((m) => ({ default: m.OrchestratorPanel })));
@@ -246,7 +246,7 @@ export function AppShell() {
       case 'projects':
         return <ProjectsTab onAskOracle={() => setActiveTab('agent')} />;
       case 'analytics':
-        return <AnalyticsTab />;
+        return <EnhancedAnalyticsDashboard />;
       case 'roadmap':
         return <RoadmapTab onAskOracle={() => setActiveTab('agent')} />;
       case 'quality':
@@ -321,7 +321,7 @@ export function AppShell() {
       case 'rate-limit-audit':
         return <RateLimitDashboard />;
       case 'agent-performance':
-        return <PerformanceDashboard />;
+        return <EnhancedAnalyticsDashboard />;
       case 'command-center':
         return <AgencyCommandCenter />;
       case 'communication':
