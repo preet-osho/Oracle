@@ -38,6 +38,7 @@ export function VoiceAgentTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeView, setActiveView] = useState<'agents' | 'logs'>('agents');
   const [searchQuery, setSearchQuery] = useState('');
+  const [vapiAssistantId, setVapiAssistantId] = useState('');
   const [newAgent, setNewAgent] = useState<{
     name: string;
     provider: 'vapi' | 'sarvam' | 'elevenlabs' | 'bland';
@@ -96,15 +97,18 @@ export function VoiceAgentTab() {
   const createAgent = useCallback(async () => {
     if (!newAgent.name.trim()) { toast.error('❌ Name required', TOAST_DEFAULTS); return; }
     try {
-      const created = await voiceAgentsApi.create(newAgent);
+      const config: Record<string, unknown> = {};
+      if (vapiAssistantId.trim()) config.vapi_assistant_id = vapiAssistantId.trim();
+      const created = await voiceAgentsApi.create({ ...newAgent, config } as any);
       setAgents(prev => [created, ...prev]);
       setShowCreate(false);
       setNewAgent({ name: '', provider: 'vapi', voice: VOICES[0], language: 'English', greeting: '', instructions: '', tools: [] });
+      setVapiAssistantId('');
       toast.success('✅ Voice agent created', TOAST_DEFAULTS);
     } catch {
       toast.error('❌ Failed to create agent', TOAST_DEFAULTS);
     }
-  }, [newAgent]);
+  }, [newAgent, vapiAssistantId]);
 
   const updateAgent = useCallback(async (id: string, data: Partial<ApiVoiceAgent>) => {
     try {
@@ -141,16 +145,20 @@ export function VoiceAgentTab() {
       name: agent.name, provider: agent.provider, voice: agent.voice,
       language: agent.language, greeting: agent.greeting, instructions: agent.instructions, tools: agent.tools,
     });
+    setVapiAssistantId((agent.config as Record<string, unknown>)?.vapi_assistant_id as string || '');
     setShowCreate(true);
   }, []);
 
   const saveEdit = useCallback(async () => {
     if (!editingId) return;
-    await updateAgent(editingId, newAgent);
+    const config: Record<string, unknown> = {};
+    if (vapiAssistantId.trim()) config.vapi_assistant_id = vapiAssistantId.trim();
+    await updateAgent(editingId, { ...newAgent, config } as any);
     setEditingId(null);
     setShowCreate(false);
     setNewAgent({ name: '', provider: 'vapi', voice: VOICES[0], language: 'English', greeting: '', instructions: '', tools: [] });
-  }, [editingId, newAgent, updateAgent]);
+    setVapiAssistantId('');
+  }, [editingId, newAgent, vapiAssistantId, updateAgent]);
 
   const formatDuration = (seconds: number) => `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 
@@ -262,6 +270,13 @@ export function VoiceAgentTab() {
                       </select>
                     </div>
                   </div>
+                  {newAgent.provider === 'vapi' && (
+                    <div className="mb-3">
+                      <label className="mb-1 block text-[11px] font-semibold text-[var(--oracle-text-muted)]">VAPI Assistant ID <span className="text-[var(--oracle-text-muted)]">(for webhook routing)</span></label>
+                      <input value={vapiAssistantId} onChange={(e) => setVapiAssistantId(e.target.value)} placeholder="e.g., asst_abc123 (from VAPI dashboard)" className="w-full rounded-xl border border-[var(--oracle-border)] bg-[var(--oracle-surface-2)] px-4 py-2.5 text-[13px] text-[var(--oracle-text-1)] outline-none focus:border-[var(--oracle-primary)] font-mono" />
+                      <p className="mt-1 text-[10px] text-[var(--oracle-text-muted)]">Paste your VAPI assistant ID here so incoming calls are routed to this agent via the webhook.</p>
+                    </div>
+                  )}
                   <div className="mb-3">
                     <label className="mb-1 block text-[11px] font-semibold text-[var(--oracle-text-muted)]">Greeting Message</label>
                     <textarea value={newAgent.greeting} onChange={(e) => setNewAgent((p) => ({ ...p, greeting: e.target.value }))} placeholder="Hi! Welcome to [Business]. How can I help you today?" rows={2} className="w-full resize-none rounded-xl border border-[var(--oracle-border)] bg-[var(--oracle-surface-2)] px-4 py-2.5 text-[13px] text-[var(--oracle-text-1)] outline-none focus:border-[var(--oracle-primary)]" />
@@ -344,6 +359,12 @@ export function VoiceAgentTab() {
                               <div><p className="text-[10px] text-[var(--oracle-text-muted)]">Instructions</p><p className="text-[12px] text-[var(--oracle-text-3)] line-clamp-3">{agent.instructions || 'Not set'}</p></div>
                             </div>
                             <div className="mb-3"><p className="text-[10px] text-[var(--oracle-text-muted)] mb-1">Tools</p><div className="flex flex-wrap gap-1">{agent.tools.length > 0 ? agent.tools.map((t) => <span key={t} className="rounded-full bg-[var(--oracle-surface-2)] px-2 py-0.5 text-[9px] text-[var(--oracle-text-muted)]">{t}</span>) : <span className="text-[10px] text-[var(--oracle-text-muted)]">No tools configured</span>}</div></div>
+                            {String((agent.config as Record<string, unknown>)?.vapi_assistant_id || '') && (
+                              <div className="mb-2">
+                                <p className="text-[10px] text-[var(--oracle-text-muted)]">VAPI Assistant ID</p>
+                                <p className="text-[11px] text-[var(--oracle-text-3)] font-mono">{String((agent.config as Record<string, unknown>).vapi_assistant_id)}</p>
+                              </div>
+                            )}
                             <div className="flex gap-2">
                               <button onClick={(e) => { e.stopPropagation(); copyToClipboard(`npx vapi create --agent ${agent.id}`).then((ok) => ok ? toast.success('Deploy command copied', TOAST_DEFAULTS) : toast.error('❌ Clipboard access denied', TOAST_DEFAULTS)); }} className="rounded-lg border border-[var(--oracle-border)] px-3 py-1.5 text-[10px] text-[var(--oracle-text-3)]">📋 Copy Deploy Cmd</button>
                               <button onClick={(e) => { e.stopPropagation(); toast.success('Test call initiated (simulated)', TOAST_DEFAULTS); }} className="rounded-lg oracle-gradient-bg px-3 py-1.5 text-[10px] font-medium text-white">📞 Test Call</button>
