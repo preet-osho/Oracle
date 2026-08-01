@@ -379,6 +379,46 @@ export interface ApiCallLog {
   created_at: number;
 }
 
+// ─── Custom Agents ───────────────────
+
+export interface ApiCustomAgent {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string;
+  category: string;
+  task_focus: string;
+  prompt: string;
+  default_tier: string;
+  default_provider_id: string | null;
+  default_model_id: string | null;
+  tools: string[];
+  is_active: boolean;
+  created_at: number;
+  updated_at: number;
+}
+
+export const customAgentsApi = {
+  list: () => apiFetch<ApiCustomAgent[]>('/api/custom-agents'),
+
+  create: (data: Omit<ApiCustomAgent, 'id' | 'org_id' | 'is_active' | 'created_at' | 'updated_at'>) =>
+    apiFetch<ApiCustomAgent>('/api/custom-agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<Pick<ApiCustomAgent, 'name' | 'description' | 'category' | 'task_focus' | 'prompt' | 'default_tier' | 'default_provider_id' | 'default_model_id' | 'tools' | 'is_active'>>) =>
+    apiFetch<ApiCustomAgent>(`/api/custom-agents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ success: boolean }>(`/api/custom-agents/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
 export const voiceAgentsApi = {
   list: () => apiFetch<ApiVoiceAgent[]>('/api/voice-agents'),
 
