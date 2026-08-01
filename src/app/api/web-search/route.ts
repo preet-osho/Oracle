@@ -11,6 +11,7 @@ import { fetchWithTimeout, TIMEOUT_MODERATE_MS } from '@/lib/fetch-utils';
 import { checkRateLimit, WEB_SEARCH_RATE_LIMIT } from '@/lib/rate-limit';
 import { writeAuditLog, AUDIT_ACTIONS } from '@/lib/audit-log';
 import { decrypt as decryptKey } from '@/lib/encryption';
+import { sanitizeSearchResults } from '@/lib/prompt-sanitizer';
 
 // ─── Request Body ──────────────────────
 
@@ -133,12 +134,15 @@ async function searchTavilyServer(query: string, apiKey: string, maxResults: num
   }
 
   const data = await response.json();
-  const results = (data.results || []).map((r: Record<string, string>) => ({
+  const rawResults = (data.results || []).map((r: Record<string, string>) => ({
     title: r.title || '',
     url: r.url || '',
     snippet: r.content || '',
     publishedDate: r.published_date || undefined,
   }));
+
+  // ── SECURITY: Sanitize results before returning to client ──
+  const results = sanitizeSearchResults(rawResults, { route: '/api/web-search' });
 
   return Response.json({ results });
 }
@@ -165,12 +169,15 @@ async function searchSerperServer(query: string, apiKey: string, maxResults: num
   }
 
   const data = await response.json();
-  const results = (data.organic || []).map((r: Record<string, string>) => ({
+  const rawResults = (data.organic || []).map((r: Record<string, string>) => ({
     title: r.title || '',
     url: r.link || '',
     snippet: r.snippet || '',
     publishedDate: r.date || undefined,
   }));
+
+  // ── SECURITY: Sanitize results before returning to client ──
+  const results = sanitizeSearchResults(rawResults, { route: '/api/web-search' });
 
   return Response.json({ results });
 }
