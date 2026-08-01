@@ -3,7 +3,7 @@
 // URL scraping · Site crawling · Structured extraction · Markdown conversion
 // ═══════════════════════════════════════
 
-import FirecrawlApp from '@mendable/firecrawl-js';
+import FirecrawlApp, { type Document, type CrawlJob, type MapData } from '@mendable/firecrawl-js';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('Scraping');
@@ -73,6 +73,8 @@ export interface ExtractOptions {
   /** Prompt for the AI extraction */
   prompt?: string;
 }
+
+type FirecrawlScrapeParams = Parameters<typeof FirecrawlApp.prototype.scrapeUrl>[1];
 
 export interface ExtractResult {
   url: string;
@@ -207,8 +209,7 @@ export async function crawlSite(
   log.info('Starting site crawl', { startUrl, limit });
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const crawlResult: any = await client.crawlUrl(startUrl, {
+    const crawlResult: CrawlJob = await client.crawlUrl(startUrl, {
       limit,
       includePaths,
       excludePaths,
@@ -224,18 +225,17 @@ export async function crawlSite(
     let failedPages = 0;
 
     // Process crawl results — Firecrawl returns { data: CrawlPage[] }
-    const crawlPages: unknown[] = Array.isArray(crawlResult?.data) ? crawlResult.data : [];
+    const crawlPages: Document[] = Array.isArray(crawlResult?.data) ? crawlResult.data : [];
     for (const page of crawlPages) {
-      const p = page as Record<string, unknown>;
-      if (p.error) {
+      if ((page as Record<string, unknown>).error) {
         failedPages++;
         continue;
       }
-      const meta = (p.metadata || {}) as Record<string, unknown>;
+      const meta = (page.metadata || {}) as Record<string, unknown>;
       pages.push({
         url: (meta.sourceURL as string) || startUrl,
         title: (meta.title as string) || '',
-        markdown: (p.markdown as string) || '',
+        markdown: page.markdown || '',
         metadata: {
           description: meta.description as string | undefined,
           sourceURL: meta.sourceURL as string | undefined,
@@ -247,7 +247,7 @@ export async function crawlSite(
     }
 
     return {
-      id: (crawlResult as Record<string, unknown>).id as string || '',
+      id: crawlResult.id || '',
       status: failedPages === 0 ? 'completed' : successfulPages > 0 ? 'partial' : 'failed',
       pages,
       totalPages: successfulPages + failedPages,
@@ -273,18 +273,15 @@ export async function extractStructuredData(
   log.info('Extracting structured data', { url, schema: Object.keys(options.schema) });
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: any = await client.scrapeUrl(url, {
-      formats: ['markdown'] as any,
+    const result: Document = await client.scrapeUrl(url, {
+      formats: ['markdown'],
       extract: {
         schema: options.schema,
         systemPrompt: options.prompt,
       },
-    } as any);
+    } as Parameters<typeof client.scrapeUrl>[1]);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const extractResult: any = result;
-    const extractData: Record<string, unknown> = extractResult?.extract || {};
+    const extractData: Record<string, unknown> = (result as Record<string, unknown>)?.extract as Record<string, unknown> || {};
 
     return {
       url,
@@ -313,9 +310,14 @@ export async function mapSite(
       limit: 100,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mapResult: any = result;
-    const links: Array<Record<string, string>> = mapResult?.links || [];
+    const mapResult: MapData = result;
+    const links: Array<{ url: string; title: string; description: string }> = (Array.isArray(mapResult?.links)
+      ? (mapResult.links as unknown as Array<Record<string, string>>)
+      : []).map((link) => ({
+      url: link.url || '',
+      title: link.title || '',
+      description: link.description || '',
+    }));
     return links.map((link) => ({
       url: link.url || '',
       title: link.title || '',
