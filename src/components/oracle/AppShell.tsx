@@ -34,7 +34,7 @@ const RoadmapTab = lazy(() => import('./RoadmapTab').then((m) => ({ default: m.R
 const ConfigTab = lazy(() => import('./ConfigTab').then((m) => ({ default: m.ConfigTab })));
 const AnalyticsTab = lazy(() => import('./AnalyticsTab').then((m) => ({ default: m.AnalyticsTab })));
 const QualityTab = lazy(() => import('./QualityTab').then((m) => ({ default: m.QualityTab })));
-const MemoryExtractor = lazy(() => import('./MemoryExtractor').then((m) => ({ default: m.MemoryExtractor })));
+const MemoryManagementPanel = lazy(() => import('./MemoryManagementPanel').then((m) => ({ default: m.MemoryManagementPanel })));
 const OrchestratorPanel = lazy(() => import('./OrchestratorPanel').then((m) => ({ default: m.OrchestratorPanel })));
 const LeadsTab = lazy(() => import('./LeadsTab').then((m) => ({ default: m.LeadsTab })));
 const BusinessTab = lazy(() => import('./BusinessTab').then((m) => ({ default: m.BusinessTab })));
@@ -243,7 +243,9 @@ export function AppShell() {
       case 'quality':
         return <QualityTab />;
       case 'memory':
-        return <MemoryExtractor />;
+        return (
+          <MemoryManagementPanel projectId={sidebarSelectedProjectId} />
+        );
       case 'leads':
         return <LeadsTab onAskOracle={() => setActiveTab('agent')} />;
       case 'business':

@@ -199,6 +199,12 @@ export const memoriesApi = {
       body: JSON.stringify(data),
     }),
 
+  update: (id: string, data: Partial<Pick<ApiMemory, 'content' | 'category' | 'importance'>>) =>
+    apiFetch<ApiMemory>(`/api/memories/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
   delete: (id: string) =>
     apiFetch<{ success: boolean }>(`/api/memories/${id}`, {
       method: 'DELETE',
