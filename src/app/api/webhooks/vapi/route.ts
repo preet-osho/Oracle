@@ -90,6 +90,69 @@ async function findVoiceAgent(supabase: ReturnType<typeof getSupabaseClient>, as
   return byConfig;
 }
 
+// ─── Upsert active call (for live tracking) ─────────────
+
+async function upsertActiveCall(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  data: {
+    org_id: string;
+    agent_id: string;
+    vapi_call_id: string;
+    caller_number: string;
+    status: string;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  if (!supabase) return null;
+  const now = Date.now();
+
+  // Try to update existing record first
+  const { data: existing } = await supabase
+    .from('active_calls')
+    .select('id')
+    .eq('vapi_call_id', data.vapi_call_id)
+    .single();
+
+  if (existing) {
+    const { data: updated } = await supabase
+      .from('active_calls')
+      .update({ status: data.status, updated_at: now, metadata: data.metadata || {} })
+      .eq('id', existing.id)
+      .select()
+      .single();
+    return updated;
+  }
+
+  // Insert new record
+  const record = {
+    id: `ac_${now}_${Math.random().toString(36).substring(2, 9)}`,
+    org_id: data.org_id,
+    agent_id: data.agent_id,
+    vapi_call_id: data.vapi_call_id,
+    caller_number: data.caller_number,
+    status: data.status,
+    started_at: now,
+    updated_at: now,
+    metadata: data.metadata || {},
+  };
+  const { data: inserted } = await supabase
+    .from('active_calls')
+    .insert(record)
+    .select()
+    .single();
+  return inserted;
+}
+
+// ─── Remove active call (when call ends) ─────────────
+
+async function removeActiveCall(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  vapiCallId: string
+) {
+  if (!supabase) return;
+  await supabase.from('active_calls').delete().eq('vapi_call_id', vapiCallId);
+}
+
 // ─── Store call log ─────────────────────
 
 async function storeCallLog(
@@ -275,7 +338,10 @@ export async function POST(request: NextRequest) {
         ? transcript.substring(0, 200) + '...'
         : transcript;
 
-      // Store call log if we have Supabase and can find the agent
+      // Remove active call and store final call log
+      if (supabase) {
+        await removeActiveCall(supabase, call.id);
+      }
       if (supabase && call.assistantId) {
         const agent = await findVoiceAgent(supabase, call.assistantId);
         if (agent) {
@@ -310,6 +376,31 @@ export async function POST(request: NextRequest) {
         status: call.status,
         from: message.status,
       });
+
+      // Store/update active call for live tracking
+      if (supabase && call.assistantId) {
+        const agent = await findVoiceAgent(supabase, call.assistantId);
+        if (agent) {
+          const callerNumber = call.customer?.number || call.phoneNumber?.number || '';
+          const isActive = ['ringing', 'in-progress', 'forwarding'].includes(call.status);
+
+          if (isActive) {
+            await upsertActiveCall(supabase, {
+              org_id: agent.org_id,
+              agent_id: agent.id,
+              vapi_call_id: call.id,
+              caller_number: callerNumber,
+              status: call.status,
+              metadata: { assistant_id: call.assistantId, cost: call.cost },
+            });
+            log.info('Active call upserted', { callId: call.id, status: call.status });
+          } else {
+            await removeActiveCall(supabase, call.id);
+            log.info('Active call removed', { callId: call.id, status: call.status });
+          }
+        }
+      }
+
       return NextResponse.json({ success: true });
     }
 

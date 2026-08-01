@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { motionVariants, transitions, buttonTapProps } from '@/styles/design-tokens';
 import toast from 'react-hot-toast';
 import { TOAST_DEFAULTS } from '@/lib/toast-config';
-import { voiceAgentsApi, callLogsApi, type ApiVoiceAgent, type ApiCallLog } from '@/lib/api';
+import { voiceAgentsApi, callLogsApi, activeCallsApi, type ApiVoiceAgent, type ApiCallLog, type ApiActiveCall } from '@/lib/api';
 import { copyToClipboard } from '@/lib/utils';
 
 // ─── Constants ─────────────────────────
@@ -39,6 +39,7 @@ export function VoiceAgentTab() {
   const [activeView, setActiveView] = useState<'agents' | 'logs'>('agents');
   const [searchQuery, setSearchQuery] = useState('');
   const [vapiAssistantId, setVapiAssistantId] = useState('');
+  const [activeCalls, setActiveCalls] = useState<ApiActiveCall[]>([]);
   const [newAgent, setNewAgent] = useState<{
     name: string;
     provider: 'vapi' | 'sarvam' | 'elevenlabs' | 'bland';
@@ -69,6 +70,19 @@ export function VoiceAgentTab() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  // ── Live call polling ──
+  useEffect(() => {
+    const pollActiveCalls = async () => {
+      try {
+        const calls = await activeCallsApi.list();
+        setActiveCalls(calls);
+      } catch { /* silent */ }
+    };
+    pollActiveCalls();
+    const interval = setInterval(pollActiveCalls, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Stats ──
   const stats = useMemo(() => {
@@ -218,6 +232,35 @@ export function VoiceAgentTab() {
               </div>
             </div>
           </motion.div>
+
+          {/* Live Calls Banner */}
+          {activeCalls.length > 0 && (
+            <motion.div variants={motionVariants.fadeUp} initial="initial" animate="animate" transition={transitions.smooth} className="mb-4">
+              <div className="oracle-glass rounded-2xl p-4 border-l-4 border-[var(--oracle-success)]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="h-2 w-2 rounded-full bg-[var(--oracle-success)] animate-pulse" />
+                  <p className="text-[13px] font-semibold text-[var(--oracle-text-1)]">🔴 Live Calls ({activeCalls.length})</p>
+                </div>
+                <div className="space-y-2">
+                  {activeCalls.map((call) => {
+                    const agent = agents.find(a => a.id === call.agent_id);
+                    const elapsed = Math.floor((Date.now() - call.started_at) / 1000);
+                    return (
+                      <div key={call.id} className="flex items-center justify-between rounded-lg bg-[var(--oracle-surface-2)] px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-2 w-2 rounded-full ${call.status === 'in-progress' ? 'bg-[var(--oracle-success)] animate-pulse' : call.status === 'ringing' ? 'bg-[var(--oracle-warning)] animate-pulse' : 'bg-[var(--oracle-primary)]'}`} />
+                          <span className="text-[11px] font-medium text-[var(--oracle-text-1)]">{call.caller_number || 'Unknown'}</span>
+                          {agent && <span className="text-[10px] text-[var(--oracle-text-muted)]">via {agent.name}</span>}
+                          <span className="rounded-full bg-[var(--oracle-success)]/10 px-2 py-0.5 text-[10px] font-medium text-[var(--oracle-success)]">{call.status}</span>
+                        </div>
+                        <span className="text-[10px] text-[var(--oracle-text-muted)]">{Math.floor(elapsed / 60)}m {elapsed % 60}s</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </motion.div>
+          )}
 
           {/* View Tabs + Search + New Button */}
           <div className="mb-4 flex flex-wrap items-center gap-2">

@@ -419,6 +419,24 @@ export const customAgentsApi = {
     }),
 };
 
+// ─── Active Calls ────────────────────
+
+export interface ApiActiveCall {
+  id: string;
+  org_id: string;
+  agent_id: string;
+  vapi_call_id: string;
+  caller_number: string;
+  status: 'ringing' | 'in-progress' | 'forwarding' | 'ended';
+  started_at: number;
+  updated_at: number;
+  metadata: Record<string, unknown>;
+}
+
+export const activeCallsApi = {
+  list: () => apiFetch<ApiActiveCall[]>('/api/active-calls'),
+};
+
 export const voiceAgentsApi = {
   list: () => apiFetch<ApiVoiceAgent[]>('/api/voice-agents'),
 
