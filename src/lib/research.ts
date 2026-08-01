@@ -19,6 +19,8 @@ export interface SearchConfig {
   braveApiKey?: string;
   googleApiKey?: string;
   googleSearchEngineId?: string;
+  /** User-provided API keys (BYOK) — override env vars when set */
+  apiKeys?: Partial<Record<SearchProvider, string>>;
 }
 
 export interface DeepResearchQuery {
@@ -74,12 +76,12 @@ export interface MarketResearch {
 
 // ─── Configuration ─────────────────────
 
-function getConfig(): SearchConfig {
+function getConfig(userApiKeys?: Partial<Record<SearchProvider, string>>): SearchConfig {
   return {
-    tavilyApiKey: process.env.TAVILY_API_KEY,
-    serperApiKey: process.env.SERPER_API_KEY,
-    braveApiKey: process.env.BRAVE_API_KEY,
-    googleApiKey: process.env.GOOGLE_API_KEY,
+    tavilyApiKey: userApiKeys?.tavily || process.env.TAVILY_API_KEY,
+    serperApiKey: userApiKeys?.serper || process.env.SERPER_API_KEY,
+    braveApiKey: userApiKeys?.brave || process.env.BRAVE_API_KEY,
+    googleApiKey: userApiKeys?.google || process.env.GOOGLE_API_KEY,
     googleSearchEngineId: process.env.GOOGLE_SEARCH_ENGINE_ID,
   };
 }
@@ -274,9 +276,11 @@ export async function search(
     maxResults?: number;
     providers?: SearchProvider[];
     dateRange?: string;
+    /** User-provided API keys (BYOK) — override env vars when set */
+    apiKeys?: Partial<Record<SearchProvider, string>>;
   } = {},
 ): Promise<ResearchResult[]> {
-  const config = getConfig();
+  const config = getConfig(options.apiKeys);
   const maxResults = options.maxResults || 5;
   const providers = options.providers || ['tavily', 'serper', 'brave'];
   const results: ResearchResult[] = [];
@@ -338,7 +342,10 @@ export async function search(
 
 export async function deepResearch(
   query: string,
-  options: Partial<DeepResearchQuery> = {},
+  options: Partial<DeepResearchQuery> & {
+    /** User-provided API keys (BYOK) — override env vars when set */
+    apiKeys?: Partial<Record<SearchProvider, string>>;
+  } = {},
 ): Promise<{
   results: SearchResult[];
   verifiedClaims: VerifiedClaim[];
@@ -351,6 +358,7 @@ export async function deepResearch(
   const searchResults = await search(query, {
     maxResults,
     providers: options.providers,
+    apiKeys: options.apiKeys,
   });
 
   // Step 2: Flatten and deduplicate results
@@ -473,13 +481,14 @@ function generateResearchSummary(
 export async function researchCompetitor(
   competitorName: string,
   website: string,
+  apiKeys?: Partial<Record<SearchProvider, string>>,
 ): Promise<CompetitorAnalysis> {
   const startTime = Date.now();
 
   // Search for competitor information
   const searchResults = await search(
     `${competitorName} company information services pricing`,
-    { maxResults: 5 },
+    { maxResults: 5, apiKeys },
   );
 
   const allResults = searchResults.flatMap((r) => r.results);
@@ -572,13 +581,14 @@ function extractOpportunities(results: SearchResult[], _competitorName: string):
 export async function researchMarket(
   query: string,
   industry: string,
+  apiKeys?: Partial<Record<SearchProvider, string>>,
 ): Promise<MarketResearch> {
   const startTime = Date.now();
 
   // Search for market information
   const searchResults = await search(
     `${industry} market size growth trends ${new Date().getFullYear()}`,
-    { maxResults: 5 },
+    { maxResults: 5, apiKeys },
   );
 
   const allResults = searchResults.flatMap((r) => r.results);

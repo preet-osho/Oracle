@@ -5,6 +5,7 @@
 
 import { createLogger } from '@/lib/logger';
 import type { Tool, ToolResult, ToolContent } from '@/lib/mcp/protocol';
+import type { SearchProvider } from '@/lib/research';
 
 const log = createLogger('MCPServers');
 
@@ -52,6 +53,8 @@ export interface ResearchToolInput {
   name?: string;
   maxResults?: number;
   data?: Record<string, unknown>;
+  /** User-provided API keys (BYOK) — override env vars when set */
+  apiKeys?: Partial<Record<SearchProvider, string>>;
 }
 
 // ─── SEO MCP Server ────────────────────
@@ -626,26 +629,28 @@ export async function handleResearchTool(
 
   try {
     let result: unknown;
+    // BYOK: pass user-provided search API keys to research functions
+    const apiKeys = input.apiKeys;
 
     switch (toolName) {
       case 'research_search': {
         const { search } = await import('@/lib/research');
-        result = await search(input.query!, { maxResults: input.maxResults || 5 });
+        result = await search(input.query!, { maxResults: input.maxResults || 5, apiKeys });
         break;
       }
       case 'research_deep': {
         const { deepResearch } = await import('@/lib/research');
-        result = await deepResearch(input.query!, { query: input.query || '', maxResults: input.maxResults || 10 });
+        result = await deepResearch(input.query!, { query: input.query || '', maxResults: input.maxResults || 10, apiKeys });
         break;
       }
       case 'research_competitor': {
         const { researchCompetitor } = await import('@/lib/research');
-        result = await researchCompetitor(input.name || input.query || '', input.url || '');
+        result = await researchCompetitor(input.name || input.query || '', input.url || '', apiKeys);
         break;
       }
       case 'research_market': {
         const { researchMarket } = await import('@/lib/research');
-        result = await researchMarket(input.query || input.industry!, input.industry!);
+        result = await researchMarket(input.query || input.industry!, input.industry!, apiKeys);
         break;
       }
       default:
