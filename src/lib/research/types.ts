@@ -16,6 +16,8 @@ export interface ExtractorConfig {
   includeHtml?: boolean;
   /** Specific provider to use (skip waterfall). Default: null (auto) */
   provider?: ExtractionProvider;
+  /** User-provided API keys (BYOK pattern) — keyed by provider name */
+  apiKeys?: Partial<Record<ExtractionProvider, string>>;
 }
 
 export interface ExtractedContent {

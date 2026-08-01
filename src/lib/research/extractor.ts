@@ -87,14 +87,13 @@ async function extractWithProvider(
 // Free tier: 1000 req/day
 // Best quality: clean markdown extraction, handles JS-heavy pages
 
-// TODO: Migrate to BYOK pattern (user_api_keys table) for consistency with web-search route
-
 async function extractWithJina(
   url: string,
-  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean },
+  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean; apiKeys?: Partial<Record<ExtractionProvider, string>> },
 ): Promise<ExtractedContent> {
-  const apiKey = process.env.JINA_API_KEY;
-  if (!apiKey) throw new Error('JINA_API_KEY not configured');
+  // BYOK: Use user-provided key first, fall back to environment variable
+  const apiKey = config.apiKeys?.jina || process.env.JINA_API_KEY;
+  if (!apiKey) throw new Error('JINA_API_KEY not configured. Add one in Settings → API Keys.');
 
   const response = await fetchWithTimeout('https://r.jina.ai/' + url, {
     method: 'GET',
@@ -134,10 +133,11 @@ async function extractWithJina(
 
 async function extractWithFirecrawl(
   url: string,
-  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean },
+  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean; apiKeys?: Partial<Record<ExtractionProvider, string>> },
 ): Promise<ExtractedContent> {
-  const apiKey = process.env.FIRECRAWL_API_KEY;
-  if (!apiKey) throw new Error('FIRECRAWL_API_KEY not configured');
+  // BYOK: Use user-provided key first, fall back to environment variable
+  const apiKey = config.apiKeys?.firecrawl || process.env.FIRECRAWL_API_KEY;
+  if (!apiKey) throw new Error('FIRECRAWL_API_KEY not configured. Add one in Settings → API Keys.');
 
   const response = await fetchWithTimeout('https://api.firecrawl.dev/v1/scrape', {
     method: 'POST',
@@ -180,7 +180,7 @@ async function extractWithFirecrawl(
 
 async function extractWithRawFetch(
   url: string,
-  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean },
+  config: { maxContentLength: number; timeoutMs: number; includeHtml: boolean; apiKeys?: Partial<Record<ExtractionProvider, string>> },
 ): Promise<ExtractedContent> {
   const response = await fetchWithTimeout(url, {
     method: 'GET',

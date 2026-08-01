@@ -9,6 +9,8 @@ import { validateAuth } from '@/lib/supabase/validate';
 import { validateBody } from '@/lib/validations';
 import { enforceRateLimit, WEB_SEARCH_RATE_LIMIT } from '@/lib/rate-limit';
 import { extractContent, extractBatch } from '@/lib/research/extractor';
+import { decrypt as decryptKey } from '@/lib/encryption';
+import type { ExtractionProvider } from '@/lib/research/types';
 import { z } from 'zod';
 
 // ─── Validation Schema ─────────────────
@@ -38,6 +40,27 @@ export async function POST(request: NextRequest) {
   const rl = await enforceRateLimit('research:extract', auth.user.id, WEB_SEARCH_RATE_LIMIT);
   if (rl) return rl;
 
+  // Look up user's API keys for extraction providers (BYOK)
+  const apiKeys: Partial<Record<ExtractionProvider, string>> = {};
+  if (auth.org) {
+    const { data: apiKeyRows } = await auth.supabase
+      .from('user_api_keys')
+      .select('provider_id, encrypted_key')
+      .eq('org_id', auth.org.orgId)
+      .eq('is_active', true)
+      .in('provider_id', ['jina', 'firecrawl']);
+
+    if (apiKeyRows) {
+      for (const row of apiKeyRows) {
+        const provider = row.provider_id as ExtractionProvider;
+        const decrypted = decryptKey(row.encrypted_key);
+        if (decrypted) {
+          apiKeys[provider] = decrypted;
+        }
+      }
+    }
+  }
+
   // Parse body
   const rawBody = await request.json();
 
@@ -52,6 +75,7 @@ export async function POST(request: NextRequest) {
       {
         provider: validation.data.provider,
         maxContentLength: validation.data.maxContentLength,
+        apiKeys,
       },
       validation.data.concurrency,
     );
@@ -88,6 +112,7 @@ export async function POST(request: NextRequest) {
       provider: validation.data.provider,
       maxContentLength: validation.data.maxContentLength,
       includeHtml: validation.data.includeHtml,
+      apiKeys,
     });
 
     return NextResponse.json({
