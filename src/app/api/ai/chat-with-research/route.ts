@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
   if (result instanceof Response) return result;
 
   const { auth, providerId, modelId, apiKey, provider, messages, systemPrompt, stream } = result;
-  const authData = auth as unknown as AuthData;
+  const authData = auth as AuthData;
 
   // Look up search API keys (BYOK) for web search
   let searchApiKeys: Partial<Record<SearchProvider, string>> | undefined;

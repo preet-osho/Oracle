@@ -16,13 +16,14 @@ import { sanitizeSystemPrompt, sanitizeMessages } from '@/lib/prompt-sanitizer';
 import { initCircuitBreaker, isAvailable, getUnavailableProviders } from '@/lib/circuit-breaker';
 import { getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit } from '@/lib/subscription';
 import { validateAuth } from '@/lib/supabase/validate';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ─── Types ─────────────────────────────
 
 export interface AuthData {
   user: { id: string };
   org: { orgId: string };
-  supabase: ReturnType<typeof validateAuth> extends Promise<infer T> ? T extends { supabase: infer S } ? S : never : never;
+  supabase: SupabaseClient;
 }
 
 export interface ValidationResult {

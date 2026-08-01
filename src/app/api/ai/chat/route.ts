@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   if (result instanceof Response) return result;
 
   const { auth, providerId, modelId, apiKey, provider, messages, systemPrompt, maxTokens, stream } = result;
-  const authData = auth as unknown as AuthData;
+  const authData = auth as AuthData;
 
   // Build messages payload (using sanitized messages)
   const apiMessages: Array<{ role: string; content: string }> = [];
