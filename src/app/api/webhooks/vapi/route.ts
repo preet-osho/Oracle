@@ -67,15 +67,27 @@ function getSupabaseClient() {
 }
 
 // ─── Find matching voice agent by assistant ID ────────────
+// Looks up by agent ID (VAPI assistantId is set to match voice_agents.id)
+// or by config->>vapi_assistant_id for custom mappings
 
 async function findVoiceAgent(supabase: ReturnType<typeof getSupabaseClient>, assistantId: string) {
   if (!supabase) return null;
-  const { data } = await supabase
+
+  // First try: match by agent ID directly (most common setup)
+  const { data: byId } = await supabase
+    .from('voice_agents')
+    .select('id, org_id, name')
+    .eq('id', assistantId)
+    .single();
+  if (byId) return byId;
+
+  // Second try: match by config->>vapi_assistant_id (custom mapping)
+  const { data: byConfig } = await supabase
     .from('voice_agents')
     .select('id, org_id, name')
     .eq('config->>vapi_assistant_id', assistantId)
     .single();
-  return data;
+  return byConfig;
 }
 
 // ─── Store call log ─────────────────────
