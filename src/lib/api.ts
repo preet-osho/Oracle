@@ -347,6 +347,72 @@ export const workflowTemplatesApi = {
     }),
 };
 
+// ─── Voice Agents ────────────────────
+
+export interface ApiVoiceAgent {
+  id: string;
+  org_id: string;
+  name: string;
+  provider: 'vapi' | 'sarvam' | 'elevenlabs' | 'bland';
+  voice: string;
+  language: string;
+  greeting: string;
+  instructions: string;
+  tools: string[];
+  is_active: boolean;
+  config: Record<string, unknown>;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ApiCallLog {
+  id: string;
+  org_id: string;
+  agent_id: string;
+  caller_number: string;
+  duration: number;
+  status: 'completed' | 'missed' | 'failed' | 'in-progress';
+  transcript: string;
+  sentiment: 'positive' | 'neutral' | 'negative';
+  summary: string;
+  metadata: Record<string, unknown>;
+  created_at: number;
+}
+
+export const voiceAgentsApi = {
+  list: () => apiFetch<ApiVoiceAgent[]>('/api/voice-agents'),
+
+  create: (data: Omit<ApiVoiceAgent, 'id' | 'org_id' | 'is_active' | 'config' | 'created_at' | 'updated_at'>) =>
+    apiFetch<ApiVoiceAgent>('/api/voice-agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<Pick<ApiVoiceAgent, 'name' | 'provider' | 'voice' | 'language' | 'greeting' | 'instructions' | 'tools' | 'is_active' | 'config'>>) =>
+    apiFetch<ApiVoiceAgent>(`/api/voice-agents/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<{ success: boolean }>(`/api/voice-agents/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
+export const callLogsApi = {
+  list: (agentId?: string) => {
+    const q = agentId ? `?agent_id=${agentId}` : '';
+    return apiFetch<ApiCallLog[]>(`/api/call-logs${q}`);
+  },
+
+  create: (data: Omit<ApiCallLog, 'id' | 'org_id' | 'created_at'>) =>
+    apiFetch<ApiCallLog>('/api/call-logs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+};
+
 export const conversationsApi = {
   list: () => apiFetch<ApiConversation[]>('/api/conversations'),
 
