@@ -6,7 +6,7 @@
 import { createLogger } from '@/lib/logger';
 import type { Tool, ToolResult, ToolContent } from '@/lib/mcp/protocol';
 import type { SearchProvider } from '@/lib/research';
-import { decrypt as decryptKey } from '@/lib/encryption';
+import { lookupUserSearchKeys } from '@/lib/user-api-keys';
 
 const log = createLogger('MCPServers');
 
@@ -695,37 +695,6 @@ export function getMCPTools(serverName: string): Tool[] {
   return server?.tools || [];
 }
 
-/**
- * Look up user search API keys (BYOK) from user_api_keys table.
- * Returns decrypted keys for tavily, serper, brave providers.
- * Falls back to undefined if no keys configured (research functions use env vars).
- */
-export async function lookupUserSearchKeys(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  supabase: any,
-  orgId: string,
-): Promise<Partial<Record<SearchProvider, string>> | undefined> {
-  const SEARCH_PROVIDERS: SearchProvider[] = ['tavily', 'serper', 'brave'];
-
-  const { data: rows } = await supabase
-    .from('user_api_keys')
-    .select('provider_id, encrypted_key')
-    .eq('org_id', orgId)
-    .eq('is_active', true)
-    .in('provider_id', SEARCH_PROVIDERS);
-
-  if (!rows || rows.length === 0) return undefined;
-
-  const keys: Partial<Record<SearchProvider, string>> = {};
-  for (const row of rows) {
-    const decrypted = decryptKey(row.encrypted_key);
-    if (decrypted) {
-      keys[row.provider_id as SearchProvider] = decrypted;
-    }
-  }
-
-  return Object.keys(keys).length > 0 ? keys : undefined;
-}
 
 export async function executeMCPTool(
   serverName: string,

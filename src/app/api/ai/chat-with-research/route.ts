@@ -19,6 +19,7 @@ import { initCircuitBreaker, recordSuccess, recordFailure, isAvailable, getUnava
 import { getUserSubscription, getEffectivePlan, incrementAndCheckDailyLimit } from '@/lib/subscription';
 import { search, formatResearchForAI, type SearchProvider } from '@/lib/research';
 import { streamAnthropic, streamOpenAICompatible, callAnthropicSync, callOpenAISync } from '../chat/shared';
+import { lookupUserSearchKeys } from '@/lib/user-api-keys';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('ChatWithResearch');
@@ -190,29 +191,7 @@ export async function POST(request: NextRequest) {
   let searchApiKeys: Partial<Record<SearchProvider, string>> | undefined;
 
   if (enableSearch) {
-    const SEARCH_PROVIDERS: SearchProvider[] = ['tavily', 'serper', 'brave'];
-    searchApiKeys = {};
-
-    const { data: searchKeyRows } = await auth.supabase
-      .from('user_api_keys')
-      .select('provider_id, encrypted_key')
-      .eq('org_id', auth.org.orgId)
-      .eq('is_active', true)
-      .in('provider_id', SEARCH_PROVIDERS);
-
-    if (searchKeyRows && Array.isArray(searchKeyRows)) {
-      for (const row of searchKeyRows) {
-        const decrypted = decryptKey(row.encrypted_key);
-        if (decrypted) {
-          searchApiKeys[row.provider_id as SearchProvider] = decrypted;
-        }
-      }
-    }
-
-    // If no user keys configured, searchApiKeys stays empty and search() falls back to env vars
-    if (Object.keys(searchApiKeys).length === 0) {
-      searchApiKeys = undefined;
-    }
+    searchApiKeys = await lookupUserSearchKeys(auth.supabase, auth.org.orgId);
   }
 
   // 7. Perform web search if enabled
